@@ -1,143 +1,148 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Pressable } from 'react-native';
-import { Link } from 'expo-router';
+import { View, Text, TextInput, TouchableOpacity, SafeAreaView, Image } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image } from 'expo-image';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function SignupScreen() {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   return (
-    <View className="flex-1 bg-black px-6 pt-12">
-      {/* Header */}
-      <Text className="text-white text-3xl font-bold mb-2">
-        Create your Account
-      </Text>
-      <Text className="text-gray-400 text-base mb-8">
-        Unlock live streaming, virtual gifts, and real-time interactions with just a few steps.
-      </Text>
-
-      {/* Form */}
-      <View className="space-y-4">
-        {/* Email Input */}
-        <View>
-          <Text className="text-white mb-2">Email</Text>
-          <TextInput
-            placeholder="e.g joedoe@gmail.com"
-            placeholderTextColor="#666"
-            className="w-full h-14 rounded-xl bg-[#1C1C1E] px-4 text-white"
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-        </View>
-
-        {/* Password Input */}
-        <View>
-          <Text className="text-white mb-2">Password</Text>
-          <View className="relative">
-            <TextInput
-              placeholder="********"
-              placeholderTextColor="#666"
-              className="w-full h-14 rounded-xl bg-[#1C1C1E] px-4 text-white pr-12"
-              secureTextEntry={!showPassword}
-              value={password}
-              onChangeText={setPassword}
-            />
-            <Pressable 
-              onPress={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-4"
-            >
-              <Image
-                source={require('../../assets/icons/eye.png')}
-                className="w-6 h-6"
-                tintColor="#666"
-              />
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Confirm Password Input */}
-        <View>
-          <Text className="text-white mb-2">Confirm Password</Text>
-          <View className="relative">
-            <TextInput
-              placeholder="********"
-              placeholderTextColor="#666"
-              className="w-full h-14 rounded-xl bg-[#1C1C1E] px-4 text-white pr-12"
-              secureTextEntry={!showConfirmPassword}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-            />
-            <Pressable 
-              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-4 top-4"
-            >
-              <Image
-                source={require('../../assets/icons/eye.png')}
-                className="w-6 h-6"
-                tintColor="#666"
-              />
-            </Pressable>
-          </View>
-        </View>
-      </View>
-
-      {/* Terms and Conditions */}
-      <Text className="text-gray-400 mt-6">
-        By signing up, you agree to our{' '}
-        <Text className="text-red-500">Terms & Conditions</Text>
-        {' '}and{' '}
-        <Text className="text-red-500">Privacy Policy</Text>
-      </Text>
-
-      {/* Sign Up Button */}
-      <TouchableOpacity 
-        className="mt-6 overflow-hidden rounded-xl"
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={['#FF0000', '#330000']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          className="w-full h-14 items-center justify-center"
-        >
-          <Text className="text-white text-lg font-semibold">
-            Sign Up
+    <SafeAreaView className="flex-1 bg-[#090909]">
+      <StatusBar style="light" />
+      <View className="flex-1 px-6 pt-16">
+        {/* Header */}
+        <View className="mb-12">
+          <Text className="text-white text-2xl font-bold mb-3">
+            Create your Account
           </Text>
-        </LinearGradient>
-      </TouchableOpacity>
+          <Text className="text-gray-400 text-base leading-6">
+            Unlock live streaming, virtual gifts, and real-time interactions with just a few steps.
+          </Text>
+        </View>
 
-      {/* Divider */}
-      <View className="flex-row items-center justify-center mt-6">
-        <View className="flex-1 h-[1px] bg-gray-800" />
-        <Text className="text-gray-400 mx-4">or</Text>
-        <View className="flex-1 h-[1px] bg-gray-800" />
+        {/* Form */}
+        <View className="space-y-6">
+          {/* Email Field */}
+          <View className="mb-6">
+            <Text className="text-white text-sm mb-2">Email</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="e.g joedoe@gmail.com"
+              placeholderTextColor="#6B7280"
+              className="bg-[#090909] text-white px-4 py-4 rounded-full border border-[#2C2C2E]"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          {/* Password Field */}
+          <View className="mb-6">
+            <Text className="text-white text-sm mb-2">Password</Text>
+            <View className="relative">
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                placeholderTextColor="#6B7280"
+                className="bg-[#090909] text-white px-4 py-4 rounded-full border border-[#2C2C2E] pr-12"
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-4"
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color="#6B7280"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Confirm Password Field */}
+          <View className="mb-6">
+            <Text className="text-white text-sm mb-2">Confirm Password</Text>
+            <View className="relative">
+              <TextInput
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="••••••••"
+                placeholderTextColor="#6B7280"
+                className="bg-[#090909] text-white px-4 py-4 rounded-full border border-[#2C2C2E] pr-12"
+                secureTextEntry={!showConfirmPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-4 top-4"
+              >
+                <Ionicons
+                  name={showConfirmPassword ? "eye-off" : "eye"}
+                  size={20}
+                  color="#6B7280"
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Terms & Conditions */}
+        <View className=" mb-10">
+          <Text className="text-gray-400 text-sm">
+            By signing up, you agree to our{' '}
+            <Text className="text-red-500">Terms & Conditions</Text> and{' '}
+            <Text className="text-red-500">Privacy Policy</Text>
+          </Text>
+        </View>
+
+        {/* Sign Up Button */}
+        <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
+          <LinearGradient
+            colors={['#FF0000', '#330000']}
+            locations={[0, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            className="w-full h-full"
+          >
+            <TouchableOpacity className="w-full h-full items-center justify-center">
+              <Text className="text-white text-[17px] font-semibold">Sign Up</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+        
+        {/* Or Divider */}
+        <View className="flex-row items-center mb-6">
+          <View className="flex-1 h-[1px] bg-[#2C2C2E]" />
+          <Text className="text-gray-400 px-4">or</Text>
+          <View className="flex-1 h-[1px] bg-[#2C2C2E]" />
+        </View>
+
+        {/* Google Sign Up Button */}
+        <TouchableOpacity className="w-full h-[52px] bg-[#090909] border border-[#2C2C2E] rounded-full flex-row items-center justify-center mb-8">
+          <Image 
+            source={require('../../assets/icons/google.png')} 
+            className="w-8 h-8 mr-3"
+          />
+          <Text className="text-white text-[17px] font-medium ml-3">Sign Up with Google</Text>
+        </TouchableOpacity>
+
+        {/* Sign In Link */}
+        <View className="flex-row justify-center mt-auto mb-8">
+          <Text className="text-gray-400 text-base">
+            Already have an account?{' '}
+          </Text>
+          <TouchableOpacity onPress={() => router.push('/(auth)/signin')}>
+            <Text className="text-red-500 text-base font-medium">Sign In</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-
-      {/* Google Sign Up Button */}
-      <TouchableOpacity 
-        className="mt-6 h-14 rounded-xl border border-gray-800 flex-row items-center justify-center space-x-2"
-        activeOpacity={0.8}
-      >
-        <Image
-          source={require('../../assets/icons/google.png')}
-          className="w-5 h-5"
-        />
-        <Text className="text-white text-base">
-          Sign Up with Google
-        </Text>
-      </TouchableOpacity>
-
-      {/* Sign In Link */}
-      <View className="flex-row justify-center mt-6">
-        <Text className="text-gray-400">Already have an account? </Text>
-        <Link href="/(auth)/signin" asChild>
-          <Text className="text-red-500">Sign In</Text>
-        </Link>
-      </View>
-    </View>
+    </SafeAreaView>
   );
 } 
