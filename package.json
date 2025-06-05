@@ -11,7 +11,10 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@expo-google-fonts/lexend": "^0.4.0",
     "@expo/vector-icons": "^14.1.0",
+    "@hugeicons/core-free-icons": "^1.0.14",
+    "@hugeicons/react-native": "^1.0.7",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",
     "@react-navigation/native": "^7.1.6",
@@ -33,10 +36,13 @@
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.79.2",
+    "react-native-country-picker-modal": "^2.0.0",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-reanimated": "3.16.2",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.10.0",
+    "react-native-svg": "15.11.2",
+    "react-native-svg-transformer": "^1.5.1",
     "react-native-web": "~0.20.0",
     "react-native-webview": "13.13.5",
     "tailwindcss": "^3.4.17"

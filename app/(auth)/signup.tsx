@@ -36,7 +36,7 @@ export default function SignupScreen() {
               onChangeText={setEmail}
               placeholder="e.g joedoe@gmail.com"
               placeholderTextColor="#6B7280"
-              className="bg-[#090909] text-white px-4 py-4 rounded-full border border-[#2C2C2E]"
+              className="bg-[#1C1C1E] text-white px-4 py-4 rounded-full border border-[#2C2C2E]"
               keyboardType="email-address"
               autoCapitalize="none"
             />
@@ -51,7 +51,7 @@ export default function SignupScreen() {
                 onChangeText={setPassword}
                 placeholder="••••••••"
                 placeholderTextColor="#6B7280"
-                className="bg-[#090909] text-white px-4 py-4 rounded-full border border-[#2C2C2E] pr-12"
+                className="bg-[#1C1C1E] text-white px-4 py-4 rounded-full border border-[#2C2C2E] pr-12"
                 secureTextEntry={!showPassword}
               />
               <TouchableOpacity
@@ -76,7 +76,7 @@ export default function SignupScreen() {
                 onChangeText={setConfirmPassword}
                 placeholder="••••••••"
                 placeholderTextColor="#6B7280"
-                className="bg-[#090909] text-white px-4 py-4 rounded-full border border-[#2C2C2E] pr-12"
+                className="bg-[#1C1C1E] text-white px-4 py-4 rounded-full border border-[#2C2C2E] pr-12"
                 secureTextEntry={!showConfirmPassword}
               />
               <TouchableOpacity
@@ -111,7 +111,10 @@ export default function SignupScreen() {
             end={{ x: 1, y: 0 }}
             className="w-full h-full"
           >
-            <TouchableOpacity className="w-full h-full items-center justify-center">
+            <TouchableOpacity 
+              className="w-full h-full items-center justify-center"
+              onPress={() => router.push('/(auth)/verify')}
+            >
               <Text className="text-white text-[17px] font-semibold">Sign Up</Text>
             </TouchableOpacity>
           </LinearGradient>
@@ -125,7 +128,7 @@ export default function SignupScreen() {
         </View>
 
         {/* Google Sign Up Button */}
-        <TouchableOpacity className="w-full h-[52px] bg-[#090909] border border-[#2C2C2E] rounded-full flex-row items-center justify-center mb-8">
+        <TouchableOpacity className="w-full h-[52px] bg-[#1C1C1E] border border-[#2C2C2E] rounded-full flex-row items-center justify-center mb-8">
           <Image 
             source={require('../../assets/icons/google.png')} 
             className="w-8 h-8 mr-3"
