@@ -1,10 +1,19 @@
 import React from 'react';
-import { View, Text, SafeAreaView, ScrollView, TextInput, Image, TouchableOpacity } from 'react-native';
-import { HugeiconsIcon } from '@hugeicons/react-native';
-import { Search01Icon } from '@hugeicons/core-free-icons';
+import { 
+  View, 
+  Text, 
+  SafeAreaView, 
+  ScrollView, 
+  Image, 
+  TouchableOpacity, 
+  TouchableWithoutFeedback,
+  Keyboard
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { fonts } from '../../../constants/Fonts';
+import { router } from 'expo-router';
+import SearchInput from '../../../components/SearchInput';
 
 const categories = ['All', 'Video', 'Game', 'Truth/Dare', 'Banter'];
 
@@ -34,273 +43,169 @@ const popularChannels = [
 ];
 
 export default function HomeScreen() {
+  const [isSearching, setIsSearching] = React.useState(false);
+  const searchInputRef = React.useRef(null);
+
+  const handleSearchFocus = React.useCallback(() => {
+    setIsSearching(true);
+  }, []);
+
+  const handleSearchBlur = React.useCallback(() => {
+    setIsSearching(false);
+  }, []);
+
+  const dismissKeyboard = React.useCallback(() => {
+    Keyboard.dismiss();
+    if (searchInputRef.current?.blur) {
+      searchInputRef.current.blur();
+    }
+    setIsSearching(false);
+  }, []);
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#090909' }}>
-      <ScrollView style={{ flex: 1 }}>
-        <View style={{ padding: 16 }}>
-          {/* Header */}
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ 
-              color: '#FFFFFF', 
-              fontSize: 24, 
-              fontWeight: '600',
-              marginBottom: 4,
-              fontFamily: fonts.semiBold,
-            }}>
-              Connect with your
-            </Text>
-            <Text style={{ 
-              color: '#C42720', 
-              fontSize: 24, 
-              fontWeight: '700',
-              fontFamily: fonts.bold,
-            }}>
-              Favorite Streamers!
-            </Text>
-          </View>
-
-          {/* Search Bar */}
-          <View style={{ 
-            flexDirection: 'row',
-            alignItems: 'center',
-            borderRadius: 20,
-            borderWidth: 1,
-            borderColor: '#353638',
-            paddingHorizontal: 12,
-            marginBottom: 24,
-            height: 44,
-          }}>
-            <HugeiconsIcon icon={Search01Icon} size={20} color="#FFFFFF" />
-            <TextInput
-              placeholder="Search"
-              placeholderTextColor="#757688"
-              style={{
-                flex: 1,
-                color: '#FFFFFF',
-                marginLeft: 8,
-                fontSize: 16,
-                fontFamily: fonts.regular,
-              }}
-            />
-          </View>
-
-          {/* Categories */}
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: 32 }}
-          >
-            {categories.map((category, index) => (
-              <TouchableOpacity
-                key={category}
-                style={{
-                  backgroundColor: index === 0 ? '#FFFFFF' : '#1C1C1E',
-                  paddingHorizontal: 16,
-                  paddingVertical: 10,
-                  borderRadius: 10,
-                  marginRight: 8,
-                }}
-              >
-                <Text
-                  style={{
-                    color: index === 0 ? '#000000' : '#FFFFFF',
-                    fontSize: 14,
-                    fontFamily: fonts.bold,
-                  }}
-                >
-                  {category}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Following Section */}
-          <View style={{ marginBottom: 32 }}>
-            <View style={{ 
-              flexDirection: 'row', 
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 16,
-            }}>
-              <Text style={{ 
-                color: '#FFFFFF', 
-                fontSize: 18, 
-                fontFamily: fonts.semiBold,
-              }}>
-                Following
+    <SafeAreaView className="flex-1 bg-[#090909]">
+      <TouchableWithoutFeedback onPress={dismissKeyboard}>
+        <ScrollView scrollEnabled={!isSearching}>
+          <View className="p-4">
+            {/* Header */}
+            <View className="mb-6">
+              <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-2xl mb-1">
+                Connect with your
               </Text>
-              <TouchableOpacity 
-                style={{ 
-                  flexDirection: 'row', 
-                  alignItems: 'center',
-                  paddingVertical: 4,
-                  paddingHorizontal: 8,
-                  borderRadius: 6,
-                }}
-              >
-                <Text style={{ 
-                  color: '#666666', 
-                  fontSize: 14, 
-                  marginRight: 4, 
-                  fontFamily: fonts.bold,
-                }}>
-                  View All
-                </Text>
-                <MaterialIcons name="north-east" size={16} color="#666666" />
-              </TouchableOpacity>
+              <Text style={{ fontFamily: fonts.bold }} className="text-[#C42720] text-2xl">
+                Favorite Streamers!
+              </Text>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4, marginBottom: 12 }}>
-              {followingUsers.map((user) => (
-                <View key={user.id} style={{ marginRight: 12, position: 'relative' }}>
-                  <Image
-                    source={{ uri: user.image }}
-                    style={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 30,
-                      borderWidth: 2,
-                      borderColor: '#C42720',
-                    }}
-                  />
-                  {user.isLive && (
-                    <View style={{
-                      position: 'absolute',
-                      bottom: -4,
-                      alignSelf: 'center',
-                      backgroundColor: '#C42720',
-                      paddingHorizontal: 8,
-                      paddingVertical: 2,
-                      borderRadius: 10,
-                    }}>
-                      <Text style={{ 
-                        color: '#FFFFFF', 
-                        fontSize: 10, 
-                        fontWeight: '600',
-                        fontFamily: fonts.semiBold,
-                      }}>
-                        Live
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Popular Channels */}
-          <View>
-            <View style={{ 
-              flexDirection: 'row', 
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 16,
-            }}>
-              <Text style={{ 
-                color: '#FFFFFF', 
-                fontSize: 18, 
-                fontFamily: fonts.semiBold,
-              }}>
-                Popular Channels
-              </Text>
-              <TouchableOpacity 
-                style={{ 
-                  flexDirection: 'row', 
-                  alignItems: 'center',
-                  paddingVertical: 4,
-                  paddingHorizontal: 8,
-                  borderRadius: 6,
-                }}
-              >
-                <Text style={{ 
-                  color: '#666666', 
-                  fontSize: 14, 
-                  marginRight: 4, 
-                  fontFamily: fonts.extraBold,
-                }}>
-                  View All
-                </Text>
-                <MaterialIcons name="north-east" size={16} color="#666666" />
-              </TouchableOpacity>
+            {/* Search Bar */}
+            <View className="mb-6" style={{ zIndex: 1 }}>
+              <SearchInput
+                ref={searchInputRef}
+                onFocus={handleSearchFocus}
+                onBlur={handleSearchBlur}
+              />
             </View>
 
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 12 }}
-            >
-              {popularChannels.map((channel) => (
-                <View 
-                  key={channel.id}
-                  style={{
-                    width: 190,
-                    height: 260,
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                    backgroundColor: '#1C1C1E',
-                  }}
-                >
-                  <View style={{ position: 'relative', flex: 1 }}>
-                    <Image
-                      source={{ uri: channel.image }}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                      }}
-                    />
-                    <View style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 8,
-                    }}>
-                      <Text style={{ 
-                        color: '#FFFFFF', 
-                        fontSize: 12,
-                        fontFamily: fonts.regular,
-                      }}>
-                        {channel.viewers}
+            {/* Main Content */}
+            {!isSearching && (
+              <>
+                {/* Categories */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-8">
+                  {categories.map((category, index) => (
+                    <TouchableOpacity
+                      key={category}
+                      className={`px-4 py-2.5 rounded-lg mr-2 ${index === 0 ? 'bg-white' : 'bg-[#1C1C1E]'}`}
+                    >
+                      <Text style={{ fontFamily: fonts.bold }} className={`text-sm ${index === 0 ? 'text-black' : 'text-white'}`}>
+                        {category}
                       </Text>
-                    </View>
-                    <BlurView
-                      intensity={30}
-                      tint="dark"
-                      style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        padding: 12,
-                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                {/* Following Section */}
+                <View className="mb-8">
+                  <View className="flex-row justify-between items-center mb-4">
+                    <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg">
+                      Following
+                    </Text>
+                    <TouchableOpacity 
+                      onPress={() => router.push('/followings')}
+                      style={{ 
+                        flexDirection: 'row', 
+                        alignItems: 'center',
+                        paddingVertical: 4,
+                        paddingHorizontal: 8,
+                        borderRadius: 6,
                       }}
                     >
-                      <Text style={{ 
-                        color: '#FFFFFF',
-                        fontSize: 16,
-                        fontWeight: '600',
-                        marginBottom: 4,
-                        fontFamily: fonts.semiBold,
-                      }}>
-                        {channel.title}
+                      <Text style={{ fontFamily: fonts.bold }} className="text-[#666666] text-sm mr-1">
+                        View All
                       </Text>
-                      <Text style={{ 
-                        color: '#666666', 
-                        fontSize: 14,
-                        fontFamily: fonts.regular,
-                      }}>
-                        {channel.username}
-                      </Text>
-                    </BlurView>
+                      <MaterialIcons name="north-east" size={16} color="#666666" />
+                    </TouchableOpacity>
                   </View>
+
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-4 mb-3">
+                    {followingUsers.map((user) => (
+                      <View key={user.id} className="relative">
+                        <Image
+                          source={{ uri: user.image }}
+                          className="w-16 h-16 rounded-full border-2 border-[#C42720]"
+                        />
+                        {user.isLive && (
+                          <View className="absolute bottom-[-4px] self-center bg-[#C42720] px-2 py-0.5 rounded-lg">
+                            <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-[10px]">
+                              Live
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </ScrollView>
                 </View>
-              ))}
-            </ScrollView>
+
+                {/* Popular Channels */}
+                <View>
+                  <View className="flex-row justify-between items-center mb-4">
+                    <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg">
+                      Popular Channels
+                    </Text>
+                    <TouchableOpacity 
+                      onPress={() => router.push('/popular-channels')}
+                      style={{ 
+                        flexDirection: 'row', 
+                        alignItems: 'center',
+                        paddingVertical: 4,
+                        paddingHorizontal: 8,
+                        borderRadius: 6,
+                      }}
+                    >
+                      <Text style={{ fontFamily: fonts.extraBold }} className="text-[#666666] text-sm mr-1">
+                        View All
+                      </Text>
+                      <MaterialIcons name="north-east" size={16} color="#666666" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-3">
+                    {popularChannels.map((channel) => (
+                      <View 
+                        key={channel.id}
+                        className="w-56 h-80 rounded-xl overflow-hidden bg-[#1C1C1E]"
+                      >
+                        <View className="relative flex-1">
+                          <Image
+                            source={{ uri: channel.image }}
+                            className="w-full h-full"
+                          />
+                          <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full">
+                            <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
+                              {channel.viewers}
+                            </Text>
+                          </View>
+                          <BlurView
+                            intensity={30}
+                            tint="dark"
+                            className="absolute bottom-0 left-0 right-0 p-3 bg-black/30"
+                          >
+                            <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-1">
+                              {channel.title}
+                            </Text>
+                            <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
+                              {channel.username}
+                            </Text>
+                          </BlurView>
+                        </View>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              </>
+            )}
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }
