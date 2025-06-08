@@ -26,6 +26,7 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="popular-channels" options={{ headerShown: false }} />
     </Stack>
     //   <StatusBar style="auto" />
     // </ThemeProvider>

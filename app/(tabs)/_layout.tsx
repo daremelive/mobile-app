@@ -106,7 +106,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="chat/index"
+        name="messages/index"
         options={{
           tabBarIcon: ({ focused }) => (
             <HugeiconsIcon 
@@ -154,6 +154,10 @@ export default function TabLayout() {
             </View>
           ),
         }}
+      />
+      <Tabs.Screen
+        name="messages/[id]"
+        options={{ href: null }}
       />
     </Tabs>
   );
