@@ -14,7 +14,7 @@ const SECTIONS = [
       { key: '1', label: 'Full Name', value: 'Modesta Ekeh', route: '/edit-name' },
       { key: '2', label: 'Username', value: 'momo', route: '/edit-username' },
       { key: '3', label: 'Phone', value: '+234 810 1010 1010', route: '/edit-phone' },
-      { key: '4', label: 'Country', value: 'Nigeria' },
+      { key: '4', label: 'Country', value: 'Nigeria', route: '/edit-country' },
     ],
   },
   {
