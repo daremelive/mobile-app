@@ -20,10 +20,16 @@ import IdentityIcon from '../../../assets/icons/user-id-verification.svg';
 import LogoutIcon from '../../../assets/icons/logout-01.svg';
 import SentIcon from '../../../assets/icons/sent.svg';
 
+type MenuItem = {
+  title: string;
+  Icon: React.FC<{ width: number; height: number }>;
+  route?: string;
+};
+
 const ProfileScreen = () => {
   const router = useRouter();
 
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     { title: 'Account', Icon: AccountIcon, route: '/account' },
     { title: 'Language', Icon: LanguageIcon, route: '/language' },
     { title: 'Notification', Icon: ProfileNotificationIcon},
@@ -31,8 +37,8 @@ const ProfileScreen = () => {
     { title: 'Unlock level', Icon: UnlockIcon},
   ];
 
-  const walletItems = [
-    { title: 'Wallet', Icon: WalletIcon},
+  const walletItems: MenuItem[] = [
+    { title: 'Wallet', Icon: WalletIcon, route: '../../../wallet'},
     { title: 'Payout', Icon: PayoutIcon},
     { title: 'Identity Verification', Icon: IdentityIcon},
   ];
@@ -124,7 +130,15 @@ const ProfileScreen = () => {
 
           <View className="bg-[#1A1A1A] w-full rounded-lg mt-4">
             {walletItems.map((item, index) => (
-              <TouchableOpacity key={index} className="flex-row items-center p-4">
+              <TouchableOpacity 
+                key={index} 
+                className="flex-row items-center p-4"
+                onPress={() => {
+                  if (item.title === 'Wallet') {
+                    router.push('/wallet' as any);
+                  }
+                }}
+              >
                 <View className="w-8 h-8 p-6 rounded-full justify-center items-center mr-4 bg-[#2A2A2A]">
                   <item.Icon width={20} height={20}/>
                 </View>

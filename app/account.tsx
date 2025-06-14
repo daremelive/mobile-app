@@ -5,9 +5,21 @@ import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import ChevronRightIcon from '../assets/icons/chevron-down.svg';
 import BlockedIcon from '../assets/icons/blocked.svg';
+import WalletIcon from '../assets/icons/wallet.svg';
 import DeactivateAccountConfirmationModal from '../components/modals/DeactivateAccountConfirmationModal';
 
-const SECTIONS = [
+type ListItem = {
+  key: string;
+  label: string;
+  value: string;
+  route?: string;
+  icon?: React.FC<{ width: number; height: number; className?: string }>;
+};
+
+const SECTIONS: Array<{
+  title: string;
+  data: ListItem[];
+}> = [
   {
     title: 'Personal Information',
     data: [
@@ -18,10 +30,22 @@ const SECTIONS = [
     ],
   },
   {
+    title: 'Finance',
+    data: [
+      { 
+        key: '5', 
+        label: 'Wallet', 
+        value: 'N200,000.48', 
+        route: '/(tabs)/wallet',
+        icon: WalletIcon 
+      },
+    ],
+  },
+  {
     title: 'Privacy',
     data: [
-      { key: '5', label: 'Password', value: '**********', route: '/edit-password' },
-      { key: '6', label: 'Enable Two-step Verification', value: '' },
+      { key: '6', label: 'Password', value: '**********', route: '/edit-password' },
+      { key: '7', label: 'Enable Two-step Verification', value: '' },
     ],
   },
 ];
@@ -60,11 +84,20 @@ const AccountScreen = () => {
         renderItem={({ item }) => (
           <TouchableOpacity 
             className="flex-row items-center justify-between px-4 py-4 bg-[#1A1A1A] border-b border-[#333]"
-            onPress={() => item.route && router.push(item.route as any)}
+            onPress={() => {
+              if (item.route) {
+                if (item.label === 'Wallet') {
+                  router.push('/wallet');
+                } else {
+                  router.push(item.route as any);
+                }
+              }
+            }}
             disabled={!item.route}
           >
             <Text className="text-white text-base">{item.label}</Text>
             <View className="flex-row items-center">
+              {item.icon && <item.icon width={24} height={24} className="mr-2" />}
               <Text className="text-[#666] text-base mr-2">{item.value}</Text>
               <ChevronRightIcon width={24} height={24} fill="#666" style={{ transform: [{ rotate: '-90deg' }]}} />
             </View>
