@@ -59,7 +59,10 @@ const WalletScreen = () => {
 
           <Text className="text-white text-xl font-semibold mt-8 mb-4">Actions</Text>
           <View className="flex-row flex-wrap justify-between">
-            <TouchableOpacity className="bg-[#262626] rounded-2xl p-4 w-[48%] mb-4">
+            <TouchableOpacity 
+              className="bg-[#262626] rounded-2xl p-4 w-[48%] mb-4"
+              onPress={() => router.push('/get-coins')}
+            >
               <View className="gap-1">
                 <View className="w-14 h-14 bg-[#3D3E3F] rounded-full justify-center items-center mb-2">
                   <CoinsIcon width={24} height={24} className="ml-2 bg-gray-600 rounded-full p-1" />
@@ -68,7 +71,10 @@ const WalletScreen = () => {
               </View>
             </TouchableOpacity>
             
-            <TouchableOpacity className="bg-[#262626] rounded-2xl p-4 w-[48%] mb-4">
+            <TouchableOpacity 
+              className="bg-[#262626] rounded-2xl p-4 w-[48%] mb-4"
+              onPress={() => router.push('/withdraw-money')}
+            >
               <View className="gap-1">
                 <View className="w-14 h-14 bg-[#3D3E3F] rounded-full justify-center items-center mb-2">
                   <WithdrawIcon width={24} height={24} />
@@ -77,7 +83,10 @@ const WalletScreen = () => {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity className="bg-[#262626] rounded-2xl p-4 w-[48%]">
+            <TouchableOpacity 
+              className="bg-[#262626] rounded-2xl p-4 w-[48%]"
+              onPress={() => router.push('/transactions')}
+            >
               <View className="gap-1">
                 <View className="w-14 h-14 bg-[#3D3E3F] rounded-full justify-center items-center mb-2">
                   <TransactionIcon width={24} height={24} />
