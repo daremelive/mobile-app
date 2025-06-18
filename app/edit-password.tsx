@@ -57,7 +57,7 @@ const EditPasswordScreen = () => {
       <View className="flex-row items-center justify-between px-4 pt-3 pb-3 mb-4">
         <TouchableOpacity onPress={() => router.back()}>
           <View className="w-14 h-14 bg-[#1A1A1A] rounded-full justify-center items-center">
-            <ArrowLeftIcon width={24} height={24} fill="white" />
+            <ArrowLeftIcon width={24} height={24} />
           </View>
         </TouchableOpacity>
         <Text className="text-white text-[20px] font-semibold">Edit Password</Text>

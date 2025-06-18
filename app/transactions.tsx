@@ -62,7 +62,7 @@ const TransactionScreen = () => {
         </View>
         <Text className="text-white text-base">{item.amount}</Text>
       </View>
-    );
+    ); 
   };
 
   return (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -19,6 +19,7 @@ import PayoutIcon from '../../../assets/icons/payout.svg';
 import IdentityIcon from '../../../assets/icons/user-id-verification.svg';
 import LogoutIcon from '../../../assets/icons/logout-01.svg';
 import SentIcon from '../../../assets/icons/sent.svg';
+import LogoutConfirmationModal from '../../../components/modals/LogoutConfirmationModal';
 
 type MenuItem = {
   title: string;
@@ -28,19 +29,27 @@ type MenuItem = {
 
 const ProfileScreen = () => {
   const router = useRouter();
+  const [isLogoutModalVisible, setLogoutModalVisible] = useState(false);
+
+  const handleLogout = () => {
+    // Here you would typically clear any user session data (e.g., from AsyncStorage)
+    console.log('Logging out...');
+    setLogoutModalVisible(false);
+    router.replace('/'); // Redirect to sign-in screen
+  };
 
   const menuItems: MenuItem[] = [
     { title: 'Account', Icon: AccountIcon, route: '/account' },
     { title: 'Language', Icon: LanguageIcon, route: '/language' },
-    { title: 'Notification', Icon: ProfileNotificationIcon},
-    { title: 'Blocked List', Icon: BlockedIcon},
-    { title: 'Unlock level', Icon: UnlockIcon},
+    { title: 'Notification', Icon: ProfileNotificationIcon, route: '/notifications' },
+    { title: 'Blocked List', Icon: BlockedIcon, route: '/blocked-list' },
+    { title: 'Unlock level', Icon: UnlockIcon, route: '/unlock-level'},
   ];
 
   const walletItems: MenuItem[] = [
-    { title: 'Wallet', Icon: WalletIcon, route: '../../../wallet'},
-    { title: 'Payout', Icon: PayoutIcon},
-    { title: 'Identity Verification', Icon: IdentityIcon},
+    { title: 'Wallet', Icon: WalletIcon, route: '/wallet'},
+    { title: 'Payout', Icon: PayoutIcon, route: '/enter-bank-details'},
+    { title: 'Identity Verification', Icon: IdentityIcon, route: '/identity-verification'},
   ];
 
   return (
@@ -84,7 +93,7 @@ const ProfileScreen = () => {
            >
              <TouchableOpacity 
                className="w-full h-full items-center justify-center"
-               onPress={() => router.push('/')}
+              //  onPress={() => router.push('/')}
              >
                <View className="flex-row items-center gap-3">
                  <Text className="text-white text-xl font-semibold">Share Profile Link</Text>
@@ -133,11 +142,8 @@ const ProfileScreen = () => {
               <TouchableOpacity 
                 key={index} 
                 className="flex-row items-center p-4"
-                onPress={() => {
-                  if (item.title === 'Wallet') {
-                    router.push('/wallet' as any);
-                  }
-                }}
+                onPress={() => item.route && router.push(item.route as any)}
+                disabled={!item.route}
               >
                 <View className="w-8 h-8 p-6 rounded-full justify-center items-center mr-4 bg-[#2A2A2A]">
                   <item.Icon width={20} height={20}/>
@@ -148,7 +154,10 @@ const ProfileScreen = () => {
             ))}
           </View>
 
-          <TouchableOpacity className="bg-[#1A1A1A] w-full rounded-lg mt-4 mb-8 p-4 flex-row items-center">
+          <TouchableOpacity 
+            className="bg-[#1A1A1A] w-full rounded-lg mt-4 mb-8 p-4 flex-row items-center"
+            onPress={() => setLogoutModalVisible(true)}
+          >
             <View className="w-8 h-8 p-6 rounded-full justify-center items-center mr-4 bg-[#2A2A2A]">
                 <LogoutIcon width={20} height={20} />
             </View>
@@ -157,6 +166,11 @@ const ProfileScreen = () => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <LogoutConfirmationModal
+        visible={isLogoutModalVisible}
+        onClose={() => setLogoutModalVisible(false)}
+        onConfirm={handleLogout}
+      />
     </SafeAreaView>
   );
 };

@@ -96,7 +96,7 @@ export default function VerifyScreen() {
           >
             <TouchableOpacity 
               className="w-full h-full items-center justify-center"
-              onPress={() => router.push('/(auth)/signup-two')}
+              onPress={() => router.push('/reset-password')}
             >
               <Text className="text-white text-[17px] font-semibold">Verify</Text>
             </TouchableOpacity>

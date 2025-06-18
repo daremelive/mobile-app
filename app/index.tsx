@@ -51,7 +51,7 @@ export default function OnboardingScreen() {
             Broadcast yourself, interact with fans, and enjoy real-time entertainment—anytime, anywhere!
           </Text>
 
-          <TouchableOpacity 
+          {/* <TouchableOpacity 
             style={styles.button}
             activeOpacity={0.8}
             onPress={() => router.push('/(auth)/signup')}
@@ -66,7 +66,23 @@ export default function OnboardingScreen() {
                 Get Started
               </Text>
             </LinearGradient>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
+          <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
+            <LinearGradient
+              colors={['#FF0000', '#330000']}
+              locations={[0, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              className="w-full h-full"
+            >
+              <TouchableOpacity 
+                className="w-full h-full items-center justify-center"
+                onPress={() => router.push('/(auth)/signup')}
+              >
+                <Text className="text-white text-[17px] font-semibold">Get Started</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+        </View>
         </View>
       </SafeAreaView>
     </View>

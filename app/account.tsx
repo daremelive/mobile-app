@@ -7,6 +7,7 @@ import ChevronRightIcon from '../assets/icons/chevron-down.svg';
 import BlockedIcon from '../assets/icons/blocked.svg';
 import WalletIcon from '../assets/icons/wallet.svg';
 import DeactivateAccountConfirmationModal from '../components/modals/DeactivateAccountConfirmationModal';
+import HelpUsImproveModal from '../components/modals/HelpUsImproveModal';
 
 type ListItem = {
   key: string;
@@ -29,18 +30,18 @@ const SECTIONS: Array<{
       { key: '4', label: 'Country', value: 'Nigeria', route: '/edit-country' },
     ],
   },
-  {
-    title: 'Finance',
-    data: [
-      { 
-        key: '5', 
-        label: 'Wallet', 
-        value: 'N200,000.48', 
-        route: '/(tabs)/wallet',
-        icon: WalletIcon 
-      },
-    ],
-  },
+  // {
+  //   title: 'Finance',
+  //   data: [
+  //     { 
+  //       key: '5', 
+  //       label: 'Wallet', 
+  //       value: 'N200,000.48', 
+  //       route: '/(tabs)/wallet',
+  //       icon: WalletIcon 
+  //     },
+  //   ],
+  // },
   {
     title: 'Privacy',
     data: [
@@ -52,16 +53,22 @@ const SECTIONS: Array<{
 
 const AccountScreen = () => {
   const router = useRouter();
-  const [isModalVisible, setModalVisible] = useState(false);
+  const [isDeactivateModalVisible, setDeactivateModalVisible] = useState(false);
+  const [isHelpModalVisible, setHelpModalVisible] = useState(false);
 
   const handleDeactivate = () => {
-    setModalVisible(true);
+    setDeactivateModalVisible(true);
   };
 
   const handleConfirmDeactivation = () => {
-    console.log('Account deactivation confirmed');
-    // Add logic to deactivate account
-    setModalVisible(false);
+    setDeactivateModalVisible(false);
+    setHelpModalVisible(true);
+  };
+
+  const handleContinueFromHelp = () => {
+    setHelpModalVisible(false);
+    // Perform final deactivation logic here
+    console.log('Final deactivation step.');
   };
 
   return (
@@ -120,9 +127,14 @@ const AccountScreen = () => {
         contentContainerStyle={{ marginHorizontal: 10 }}
       />
       <DeactivateAccountConfirmationModal
-        visible={isModalVisible}
-        onClose={() => setModalVisible(false)}
+        visible={isDeactivateModalVisible}
+        onClose={() => setDeactivateModalVisible(false)}
         onConfirm={handleConfirmDeactivation}
+      />
+      <HelpUsImproveModal
+        visible={isHelpModalVisible}
+        onClose={() => setHelpModalVisible(false)}
+        onContinue={handleContinueFromHelp}
       />
     </SafeAreaView>
   );
