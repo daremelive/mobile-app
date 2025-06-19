@@ -53,14 +53,21 @@ mobile/
 
 ## Features Implementation Status
 
-- [x] Project Setup
-- [x] Onboarding Screen
-- [ ] Authentication Flow
-- [ ] Profile Management
-- [ ] Live Streaming
-- [ ] Chat System
-- [ ] Diamond System
-- [ ] Search & Discovery
+| Category              | Feature                               | Status      | Notes                                                              |
+| --------------------- | ------------------------------------- | ----------- | ------------------------------------------------------------------ |
+| **User Onboarding**   | Authentication Flow (UI)              | ✅ Done     | Includes Sign In, Sign Up, and OTP screens.                        |
+|                       | Profile Setup Screens                 | ✅ Done     | All profile creation and editing screens are implemented.          |
+| **Core Features**     | Search & Discovery                    | ✅ Done     | Global, tabbed, and contextual search implemented.                 |
+|                       | Following & Followers List            | ✅ Done     | View and manage users you follow and who follow you.               |
+|                       | Messaging / Chat List                 | ✅ Done     | UI for message list with search is complete.                       |
+|                       | Stream Creation Flow                  | ✅ Done     | Full flow from mode selection to stream info is functional.        |
+| **Profile & Account** | Account Management                    | ✅ Done     | Edit profile info, change password, and deactivate account.        |
+|                       | Wallet & Transactions                 | ✅ Done     | UI for wallet, transactions, and get coins is complete.            |
+|                       | Unlock Levels (VIP/VVIP)              | ✅ Done     | UI for viewing and upgrading user levels.                          |
+| **Modals & Popups**   | Password Update Success               | ✅ Done     |                                                                    |
+|                       | Password Change Confirmation          | ✅ Done     |                                                                    |
+|                       | Deactivate Account Flow               | ✅ Done     | Includes confirmation and "Help us improve" modals.                |
+|                       | Stream Mode Selection                 | ✅ Done     |                                                                    |
 
 ## Security Features
 
