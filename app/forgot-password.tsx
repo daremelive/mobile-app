@@ -67,7 +67,7 @@ const ForgotPasswordScreen = () => {
           >
             <TouchableOpacity 
               className="w-full h-full items-center justify-center"
-              onPress={() => router.push('/(auth)/verify')}
+              onPress={() => router.push('/verify-forgot-password')}
             >
               <Text className="text-white text-[17px] font-semibold">Send Reset Code</Text>
             </TouchableOpacity>

@@ -34,7 +34,7 @@ export default function SignupThreeScreen() {
         <View className="px-6">
             <TouchableOpacity
               onPress={() => router.back()}
-              className="w-10 h-10 rounded-full bg-[#1C1C1E] items-center justify-center mb-6 self-start"
+              className="w-14 h-14 rounded-full bg-[#1C1C1E] items-center justify-center mb-6 self-start"
             >
               <ArrowLeft width={24} height={24} fill="#FFF" />
             </TouchableOpacity>

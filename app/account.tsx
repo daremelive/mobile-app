@@ -8,6 +8,7 @@ import BlockedIcon from '../assets/icons/blocked.svg';
 import WalletIcon from '../assets/icons/wallet.svg';
 import DeactivateAccountConfirmationModal from '../components/modals/DeactivateAccountConfirmationModal';
 import HelpUsImproveModal from '../components/modals/HelpUsImproveModal';
+import ChangePasswordConfirmationModal from '../components/modals/ChangePasswordConfirmationModal';
 
 type ListItem = {
   key: string;
@@ -55,6 +56,7 @@ const AccountScreen = () => {
   const router = useRouter();
   const [isDeactivateModalVisible, setDeactivateModalVisible] = useState(false);
   const [isHelpModalVisible, setHelpModalVisible] = useState(false);
+  const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
 
   const handleDeactivate = () => {
     setDeactivateModalVisible(true);
@@ -69,6 +71,11 @@ const AccountScreen = () => {
     setHelpModalVisible(false);
     // Perform final deactivation logic here
     console.log('Final deactivation step.');
+  };
+
+  const handlePasswordChange = () => {
+    setPasswordModalVisible(false);
+    router.push('/edit-password');
   };
 
   return (
@@ -93,7 +100,9 @@ const AccountScreen = () => {
             className="flex-row items-center justify-between px-4 py-4 bg-[#1A1A1A] border-b border-[#333]"
             onPress={() => {
               if (item.route) {
-                if (item.label === 'Wallet') {
+                if (item.label === 'Password') {
+                  setPasswordModalVisible(true);
+                } else if (item.label === 'Wallet') {
                   router.push('/wallet');
                 } else {
                   router.push(item.route as any);
@@ -135,6 +144,11 @@ const AccountScreen = () => {
         visible={isHelpModalVisible}
         onClose={() => setHelpModalVisible(false)}
         onContinue={handleContinueFromHelp}
+      />
+      <ChangePasswordConfirmationModal
+        visible={isPasswordModalVisible}
+        onClose={() => setPasswordModalVisible(false)}
+        onConfirm={handlePasswordChange}
       />
     </SafeAreaView>
   );

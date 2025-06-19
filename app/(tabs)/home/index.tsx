@@ -83,6 +83,7 @@ export default function HomeScreen() {
                 ref={searchInputRef}
                 onFocus={handleSearchFocus}
                 onBlur={handleSearchBlur}
+                placeholder="Search for a streamer"
             />
           </View>
 

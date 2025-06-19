@@ -99,6 +99,11 @@ const STORY_USERS = [
 
 export default function MessagesScreen() {
   const router = useRouter();
+  const [searchQuery, setSearchQuery] = React.useState('');
+
+  const filteredMessages = DUMMY_MESSAGES.filter(message => 
+    message.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
@@ -127,6 +132,8 @@ export default function MessagesScreen() {
             placeholder="Search"
             placeholderTextColor="#666666"
             className="flex-1 text-white ml-2 text-base"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
           />
         </View>
       </View>
@@ -165,7 +172,7 @@ export default function MessagesScreen() {
 
         {/* Messages List */}
         <ScrollView className="flex-1 mt-2">
-          {DUMMY_MESSAGES.map((message, index) => (
+          {filteredMessages.map((message, index) => (
             <TouchableOpacity 
               key={message.id}
               className="flex-row p-4 border-b border-[#1A1A1A]"

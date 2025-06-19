@@ -3,9 +3,9 @@ import { View, Text, SafeAreaView, TouchableOpacity, TextInput } from 'react-nat
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
-import EyeIcon from '../assets/icons/eye.svg';
 import EyeOffIcon from '../assets/icons/eye-off.svg';
-import ChangePasswordConfirmationModal from '../components/modals/ChangePasswordConfirmationModal';
+import EyeIcon from '../assets/icons/eye.svg';
+import PasswordUpdateSuccessModal from '../components/modals/PasswordUpdateSuccessModal';
 
 interface PasswordInputProps {
   label: string;
@@ -40,15 +40,13 @@ const EditPasswordScreen = () => {
   const [isModalVisible, setModalVisible] = useState(false);
 
   const handleSave = () => {
-    // aDD password validation logic here
+    // Add password validation logic here
     setModalVisible(true);
   };
 
-  const handleConfirmPasswordChange = () => {
-    console.log('Password change confirmed');
-    // Add logic to change password and log out
+  const handleDone = () => {
     setModalVisible(false);
-    // router.push('/login'); // or some other screen
+    router.replace('/signin');
   };
 
   return (
@@ -70,10 +68,9 @@ const EditPasswordScreen = () => {
         <PasswordInput label="New Password" value={newPassword} onChangeText={setNewPassword} />
         <PasswordInput label="Confirm New Password" value={confirmPassword} onChangeText={setConfirmPassword} />
       </View>
-      <ChangePasswordConfirmationModal
+      <PasswordUpdateSuccessModal
         visible={isModalVisible}
-        onClose={() => setModalVisible(false)}
-        onConfirm={handleConfirmPasswordChange}
+        onDone={handleDone}
       />
     </SafeAreaView>
   );

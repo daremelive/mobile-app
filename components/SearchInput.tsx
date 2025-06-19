@@ -90,7 +90,7 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = React.memo(({
                   marginRight: 16,
                 }}
               >
-                <StarsIcon width={22} height={22} />
+                <StarsIcon width={22} height={22} color="#ffffff" stroke="#ffffff" strokeWidth={2} />
               </View>
               <Text style={{ fontFamily: fonts.regular }} className="text-white text-base">{item}</Text>
             </TouchableOpacity>
@@ -165,7 +165,7 @@ const SearchInput = forwardRef<TextInput, SearchInputProps>(({
 
   return (
     <View>
-      <View className="flex-row items-center rounded-full px-3 h-11" style={{ borderWidth: 1, borderColor }}>
+      <View className="flex-row items-center rounded-full px-3 h-14" style={{ borderWidth: 1, borderColor }}>
         <HugeiconsIcon icon={Search01Icon} size={20} color="#FFFFFF" />
         <TextInput
           ref={ref}

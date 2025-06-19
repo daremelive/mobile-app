@@ -40,6 +40,11 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
     }
   };
 
+  const handleCancel = () => {
+    onClose();
+    router.replace('/home');
+  };
+
   const handleSingleSelect = () => {
     setSelectedMode('single');
     setSelectedChannel('video');
@@ -64,7 +69,7 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
         <View className="bg-[#1A1A1A] rounded-2xl w-[90%] relative p-6">
           <TouchableOpacity 
             className="absolute right-4 top-4 z-10" 
-            onPress={onClose}
+            onPress={handleCancel}
           >
             <CancelIcon width={24} height={24} />
           </TouchableOpacity>
