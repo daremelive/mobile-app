@@ -1,34 +1,73 @@
 import React, { useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, TextInput, TouchableOpacity, Image } from 'react-native';
+import { View, Text, SafeAreaView, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import SearchIcon from '../assets/icons/search-icon.svg';
 import CheckIcon from '../assets/icons/check.svg';
-
-const users = [
-  { id: 1, name: 'John Doe', followers: '12k', avatar: 'https://randomuser.me/api/portraits/men/1.jpg', isLive: false, isFollowing: true },
-  { id: 2, name: 'Desmond Elliot', followers: '12k', avatar: 'https://randomuser.me/api/portraits/men/2.jpg', isLive: false, isFollowing: false },
-  { id: 3, name: 'Ted Iorbee', followers: '12k', avatar: 'https://randomuser.me/api/portraits/men/3.jpg', isLive: false, isFollowing: true },
-  { id: 4, name: 'Desmond Elliot', followers: '12k', avatar: 'https://randomuser.me/api/portraits/women/1.jpg', isLive: true, isFollowing: true },
-  { id: 5, name: 'Desmond Elliot', followers: '12k', avatar: 'https://randomuser.me/api/portraits/men/4.jpg', isLive: false, isFollowing: true },
-  { id: 6, name: 'Desmond Elliot', followers: '12k', avatar: 'https://randomuser.me/api/portraits/women/2.jpg', isLive: true, isFollowing: true },
-  { id: 7, name: 'Desmond Elliot', followers: '12k', avatar: 'https://randomuser.me/api/portraits/men/5.jpg', isLive: false, isFollowing: true },
-  { id: 8, name: 'Desmond Elliot', followers: '12k', avatar: 'https://randomuser.me/api/portraits/men/6.jpg', isLive: false, isFollowing: true },
-  { id: 9, name: 'Desmond Elliot', followers: '12k', avatar: 'https://randomuser.me/api/portraits/men/7.jpg', isLive: true, isFollowing: true },
-  { id: 10, name: 'Desmond Elliot', followers: '12k', avatar: 'https://randomuser.me/api/portraits/women/3.jpg', isLive: false, isFollowing: true },
-];
+import { useGetFollowingQuery, useFollowUserMutation, useUnfollowUserMutation } from '../src/store/followApi';
 
 export default function FollowingsScreen() {
   const [search, setSearch] = useState('');
-  const [followingState, setFollowingState] = useState(
-    users.reduce((acc, user) => ({ ...acc, [user.id]: user.isFollowing }), {} as Record<number, boolean>)
-  );
+  
+  // RTK Query hooks
+  const { data: followingUsers = [], isLoading, error, refetch } = useGetFollowingQuery({ search });
+  const [followUser, { isLoading: isFollowing }] = useFollowUserMutation();
+  const [unfollowUser, { isLoading: isUnfollowing }] = useUnfollowUserMutation();
 
-  const toggleFollow = (id: number) => {
-    setFollowingState(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleFollow = async (userId: number, isCurrentlyFollowing: boolean) => {
+    try {
+      if (isCurrentlyFollowing) {
+        await unfollowUser({ user_id: userId }).unwrap();
+      } else {
+        await followUser({ user_id: userId }).unwrap();
+      }
+      // Refetch the data to update the UI
+      refetch();
+    } catch (error: any) {
+      console.error('Follow/Unfollow error:', error);
+      Alert.alert('Error', error.data?.message || 'Failed to update follow status');
+    }
   };
 
-  const filteredUsers = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()));
+  if (isLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-black">
+        <View className="flex-row items-center px-4 pt-3 pb-3">
+          <TouchableOpacity onPress={() => router.back()} className="absolute left-4 z-10 bg-[#1E1E1E] w-14 h-14 rounded-full justify-center items-center">
+            <ArrowLeftIcon width={24} height={24} />
+          </TouchableOpacity>
+          <View className="flex-1 items-center">
+            <Text className="text-white text-xl font-semibold">Following</Text>
+          </View>
+        </View>
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color="#C42720" />
+          <Text className="text-white mt-4">Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView className="flex-1 bg-black">
+        <View className="flex-row items-center px-4 pt-3 pb-3">
+          <TouchableOpacity onPress={() => router.back()} className="absolute left-4 z-10 bg-[#1E1E1E] w-14 h-14 rounded-full justify-center items-center">
+            <ArrowLeftIcon width={24} height={24} />
+          </TouchableOpacity>
+          <View className="flex-1 items-center">
+            <Text className="text-white text-xl font-semibold">Following</Text>
+          </View>
+        </View>
+        <View className="flex-1 justify-center items-center px-4">
+          <Text className="text-white text-center">Failed to load users list</Text>
+          <TouchableOpacity onPress={() => refetch()} className="mt-4 bg-[#C42720] px-6 py-2 rounded-full">
+            <Text className="text-white font-semibold">Retry</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-black">
@@ -37,7 +76,7 @@ export default function FollowingsScreen() {
           <ArrowLeftIcon width={24} height={24} />
         </TouchableOpacity>
         <View className="flex-1 items-center">
-          <Text className="text-white text-xl font-semibold">Following</Text>
+          <Text className="text-white text-xl font-semibold">All Users</Text>
         </View>
       </View>
 
@@ -55,41 +94,59 @@ export default function FollowingsScreen() {
       </View>
 
       <ScrollView className="px-4 mt-6">
-        {filteredUsers.map((user) => (
-          <View key={user.id} className="flex-row items-center justify-between mb-6">
-            <View className="flex-row items-center">
-              <View className="relative mr-4">
-                <Image
-                  source={{ uri: user.avatar }}
-                  className={`w-14 h-14 rounded-full ${user.isLive ? 'border-2 border-[#C42720]' : 'border-2 border-transparent'}`}
-                />
-                {user.isLive && (
-                  <View className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-[#C42720] px-2 py-0.5 rounded-md">
-                    <Text className="text-white text-[10px] font-semibold">Live</Text>
-                  </View>
-                )}
-              </View>
-              <View>
-                <Text className="text-white text-base font-semibold">{user.name}</Text>
-                <Text className="text-[#B0B0B0] text-sm">{user.followers} followers</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              onPress={() => toggleFollow(user.id)}
-              className={`py-2 rounded-full flex-row items-center justify-center px-4 ${followingState[user.id] ? 'bg-[#2E1616]' : 'bg-[#C42720]'}`}
-              style={{ minWidth: 110, height: 36 }}
-            >
-              {followingState[user.id] ? (
-                <>
-                  <CheckIcon width={12} height={12} stroke="#C42720" strokeWidth={2} className="mr-2"/>
-                  <Text className="text-sm text-white font-semibold">Following</Text>
-                </>
-              ) : (
-                <Text className="text-sm text-white font-semibold">Follow</Text>
-              )}
-            </TouchableOpacity>
+        {followingUsers.length === 0 ? (
+          <View className="flex-1 justify-center items-center py-20">
+            <Text className="text-white text-lg mb-2">No users found</Text>
+            <Text className="text-gray-400 text-center">
+              {search ? 'Try adjusting your search terms' : 'No users available'}
+            </Text>
           </View>
-        ))}
+        ) : (
+          followingUsers.map((user) => (
+            <View key={user.id} className="flex-row items-center justify-between mb-6">
+              <View className="flex-row items-center">
+                <View className="relative mr-4">
+                  {/* Placeholder avatar - you can replace with actual avatar URLs */}
+                  <View 
+                    className={`w-14 h-14 rounded-full bg-gray-600 justify-center items-center ${user.is_live ? 'border-2 border-[#C42720]' : 'border-2 border-transparent'}`}
+                  >
+                    <Text className="text-white font-bold text-lg">
+                      {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  {user.is_live && (
+                    <View className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-[#C42720] px-2 py-0.5 rounded-md">
+                      <Text className="text-white text-[10px] font-semibold">Live</Text>
+                    </View>
+                  )}
+                </View>
+                <View>
+                  <Text className="text-white text-base font-semibold">
+                    {user.full_name || user.username}
+                  </Text>
+                  <Text className="text-[#B0B0B0] text-sm">{user.followers_count} followers</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => toggleFollow(user.id, user.is_following)}
+                disabled={isFollowing || isUnfollowing}
+                className={`py-2 rounded-full flex-row items-center justify-center px-4 ${user.is_following ? 'bg-[#2E1616]' : 'bg-[#C42720]'}`}
+                style={{ minWidth: 110, height: 36 }}
+              >
+                {(isFollowing || isUnfollowing) ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : user.is_following ? (
+                  <>
+                    <CheckIcon width={12} height={12} stroke="#C42720" strokeWidth={2} className="mr-2"/>
+                    <Text className="text-sm text-white font-semibold">Following</Text>
+                  </>
+                ) : (
+                  <Text className="text-sm text-white font-semibold">Follow</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );

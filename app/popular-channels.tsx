@@ -1,22 +1,21 @@
 import React from 'react';
-import { View, Text, SafeAreaView, ScrollView, TextInput, Image, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, Text, SafeAreaView, ScrollView, TextInput, Image, TouchableOpacity, ImageBackground, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import SearchIcon from '../assets/icons/search-icon.svg';
 import EyeIcon from '../assets/icons/eye.svg';
-
-const popularChannels = [
-  { id: 1, title: 'Marriage Sacrifices', username: '@judennam', viewers: '8.9k', image: 'https://picsum.photos/400/501' },
-  { id: 2, title: 'How To Make Money', username: '@judennam', viewers: '8.9k', image: 'https://picsum.photos/400/502' },
-  { id: 3, title: 'Marriage Sacrifices', username: '@judennam', viewers: '8.9k', image: 'https://picsum.photos/400/503' },
-  { id: 4, title: 'Marriage Sacrifices', username: '@judennam', viewers: '8.9k', image: 'https://picsum.photos/400/504' },
-  { id: 5, title: 'Marriage Sacrifices', username: '@judennam', viewers: '8.9k', image: 'https://picsum.photos/400/505' },
-  { id: 6, title: 'Marriage Sacrifices', username: '@judennam', viewers: '8.9k', image: 'https://picsum.photos/400/506' },
-];
+import { useGetPopularStreamsQuery } from '../src/store/streamsApi';
 
 export default function PopularChannelsScreen() {
+  const { data: popularStreams = [], isLoading, refetch } = useGetPopularStreamsQuery(undefined, {
+    pollingInterval: 30000, // Poll every 30 seconds to ensure live streams are current
+    refetchOnMountOrArgChange: true,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
+
   return (
     <SafeAreaView className="flex-1 bg-black">
       <StatusBar style="light" />
@@ -40,28 +39,71 @@ export default function PopularChannelsScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 24, paddingBottom: 32 }}>
-        <View className="flex-row flex-wrap justify-between">
-          {popularChannels.map((channel) => (
-            <TouchableOpacity key={channel.id} className="w-[48%] h-[250px] rounded-2xl overflow-hidden mb-4">
-              <ImageBackground source={{ uri: channel.image }} className="w-full h-full justify-between">
-                <View className="items-end p-2">
-                  <View className="bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1">
-                    <EyeIcon width={16} height={16} stroke="#FFFFFF" className="mr-1.5" />
-                    <Text className="text-white text-xs font-semibold">{channel.viewers}</Text>
-                  </View>
-                </View>
-                <LinearGradient
-                  colors={['transparent', 'rgba(0,0,0,0.8)']}
-                  className="p-3"
+      <ScrollView 
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 24, paddingBottom: 32 }}
+        refreshControl={
+          <RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor="#ffffff" />
+        }
+      >
+        {popularStreams.length === 0 ? (
+          <View className="flex-1 items-center justify-center mt-20">
+            <Text className="text-gray-400 text-lg mb-2">🔴 No Live Streams</Text>
+            <Text className="text-gray-500 text-sm text-center">
+              Popular channels will appear here when streamers go live
+            </Text>
+          </View>
+        ) : (
+          <View className="flex-row flex-wrap justify-between">
+            {popularStreams.map((stream) => (
+              <TouchableOpacity 
+                key={stream.id} 
+                className="w-[48%] h-[250px] rounded-2xl overflow-hidden mb-4"
+                onPress={() => {
+                  // Navigate to stream viewer screen
+                  router.push(`/stream/${stream.id}?mode=viewer`);
+                }}
+              >
+                <ImageBackground 
+                  source={{ 
+                    uri: stream.host.profile_picture_url 
+                      ? `http://192.168.1.117:8000${stream.host.profile_picture_url}` 
+                      : `https://picsum.photos/400/${500 + parseInt(stream.id.slice(-3), 16)}` 
+                  }} 
+                  className="w-full h-full justify-between"
                 >
-                  <Text className="text-white text-base font-bold">{channel.title}</Text>
-                  <Text className="text-gray-300 text-sm">{channel.username}</Text>
-                </LinearGradient>
-              </ImageBackground>
-            </TouchableOpacity>
-          ))}
-        </View>
+                  <View className="items-end p-2">
+                    <View className="bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1">
+                      <View className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      <Text className="text-white text-xs font-semibold">LIVE</Text>
+                    </View>
+                    <View className="bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1 mt-1">
+                      <EyeIcon width={16} height={16} stroke="#FFFFFF" className="mr-1.5" />
+                      <Text className="text-white text-xs font-semibold">
+                        {stream.total_participant_count || stream.viewer_count || 0}
+                      </Text>
+                    </View>
+                  </View>
+                  <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.8)']}
+                    className="p-3"
+                  >
+                    <Text className="text-white text-base font-bold" numberOfLines={2}>
+                      {stream.title}
+                    </Text>
+                    <Text className="text-gray-300 text-sm">
+                      @{stream.host.username || stream.host.first_name || 'User'}
+                    </Text>
+                    <View className="flex-row items-center mt-1">
+                      <Text className="text-gray-400 text-xs">
+                        {stream.channel.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} • {stream.mode === 'multi' ? 'Multi' : 'Single'}
+                      </Text>
+                    </View>
+                  </LinearGradient>
+                </ImageBackground>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

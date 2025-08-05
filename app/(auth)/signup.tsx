@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, SafeAreaView, Image, Alert, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSignupMutation } from '../../src/store/authApi';
+import { useDispatch } from 'react-redux';
+import { setPendingEmail, setError } from '../../src/store/authSlice';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -11,20 +14,98 @@ export default function SignupScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  
+  const dispatch = useDispatch();
+  const [signup, { isLoading }] = useSignupMutation();
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validatePassword = (password: string) => {
+    return password.length >= 8;
+  };
+
+  const handleSignup = async () => {
+    // Clear previous errors
+    setEmailError('');
+    setPasswordError('');
+    dispatch(setError(null));
+
+    // Validate inputs
+    if (!email.trim()) {
+      setEmailError('Email is required');
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+
+    if (!password) {
+      setPasswordError('Password is required');
+      return;
+    }
+
+    if (!validatePassword(password)) {
+      setPasswordError('Password must be at least 8 characters');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+      return;
+    }
+
+    try {
+      const result = await signup({
+        email: email.trim().toLowerCase(),
+        password,
+        confirm_password: confirmPassword,
+      }).unwrap();
+
+      // Store email for OTP verification
+      dispatch(setPendingEmail(email.trim().toLowerCase()));
+      
+      // Navigate to verification screen
+      router.push('/verify');
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      if (error.data?.email?.[0]) {
+        setEmailError(error.data.email[0]);
+      } else if (error.data?.password?.[0]) {
+        setPasswordError(error.data.password[0]);
+      } else if (error.data?.non_field_errors?.[0]) {
+        Alert.alert('Error', error.data.non_field_errors[0]);
+      } else {
+        Alert.alert('Error', 'Failed to create account. Please try again.');
+      }
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
       <StatusBar style="light" />
-      <View className="flex-1 px-6 pt-16">
-        {/* Header */}
-        <View className="mb-12">
-          <Text className="text-white text-2xl font-bold mb-3">
-            Create your Account
-          </Text>
-          <Text className="text-gray-400 text-base leading-6">
-            Unlock live streaming, virtual gifts, and real-time interactions with just a few steps.
-          </Text>
-        </View>
+      <ScrollView 
+        className="flex-1" 
+        contentContainerStyle={{ flexGrow: 1 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View className="flex-1 px-6 pt-16 pb-8">
+          {/* Header */}
+          <View className="mb-12">
+            <Text className="text-white text-2xl font-bold mb-3">
+              Create your Account
+            </Text>
+            <Text className="text-gray-400 text-base leading-6">
+              Unlock live streaming, virtual gifts, and real-time interactions with just a few steps.
+            </Text>
+          </View>
 
         {/* Form */}
         <View className="space-y-6">
@@ -33,13 +114,22 @@ export default function SignupScreen() {
             <Text className="text-white text-sm mb-2">Email</Text>
             <TextInput
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (emailError) setEmailError('');
+              }}
               placeholder="e.g joedoe@gmail.com"
               placeholderTextColor="#6B7280"
-              className="bg-[#1C1C1E] text-white px-4 py-4 rounded-full border border-[#2C2C2E]"
+              className={`bg-[#1C1C1E] text-white px-4 py-4 rounded-full border ${
+                emailError ? 'border-red-500' : 'border-[#2C2C2E]'
+              }`}
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={!isLoading}
             />
+            {emailError ? (
+              <Text className="text-red-500 text-sm mt-1 ml-4">{emailError}</Text>
+            ) : null}
           </View>
 
           {/* Password Field */}
@@ -48,15 +138,22 @@ export default function SignupScreen() {
             <View className="relative">
               <TextInput
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (passwordError) setPasswordError('');
+                }}
                 placeholder="••••••••"
                 placeholderTextColor="#6B7280"
-                className="bg-[#1C1C1E] text-white px-4 py-4 rounded-full border border-[#2C2C2E] pr-12"
+                className={`bg-[#1C1C1E] text-white px-4 py-4 rounded-full border pr-12 ${
+                  passwordError ? 'border-red-500' : 'border-[#2C2C2E]'
+                }`}
                 secureTextEntry={!showPassword}
+                editable={!isLoading}
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
                 className="absolute right-4 top-4"
+                disabled={isLoading}
               >
                 <Ionicons
                   name={showPassword ? "eye-off" : "eye"}
@@ -65,6 +162,9 @@ export default function SignupScreen() {
                 />
               </TouchableOpacity>
             </View>
+            {passwordError ? (
+              <Text className="text-red-500 text-sm mt-1 ml-4">{passwordError}</Text>
+            ) : null}
           </View>
 
           {/* Confirm Password Field */}
@@ -73,15 +173,22 @@ export default function SignupScreen() {
             <View className="relative">
               <TextInput
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  if (passwordError) setPasswordError('');
+                }}
                 placeholder="••••••••"
                 placeholderTextColor="#6B7280"
-                className="bg-[#1C1C1E] text-white px-4 py-4 rounded-full border border-[#2C2C2E] pr-12"
+                className={`bg-[#1C1C1E] text-white px-4 py-4 rounded-full border pr-12 ${
+                  passwordError ? 'border-red-500' : 'border-[#2C2C2E]'
+                }`}
                 secureTextEntry={!showConfirmPassword}
+                editable={!isLoading}
               />
               <TouchableOpacity
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)}
                 className="absolute right-4 top-4"
+                disabled={isLoading}
               >
                 <Ionicons
                   name={showConfirmPassword ? "eye-off" : "eye"}
@@ -105,7 +212,7 @@ export default function SignupScreen() {
         {/* Sign Up Button */}
         <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
           <LinearGradient
-            colors={['#FF0000', '#330000']}
+            colors={isLoading ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
             locations={[0, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -113,9 +220,12 @@ export default function SignupScreen() {
           >
             <TouchableOpacity 
               className="w-full h-full items-center justify-center"
-              onPress={() => router.push('/(auth)/verify')}
+              onPress={handleSignup}
+              disabled={isLoading}
             >
-              <Text className="text-white text-[17px] font-semibold">Sign Up</Text>
+              <Text className="text-white text-[17px] font-semibold">
+                {isLoading ? 'Creating Account...' : 'Sign Up'}
+              </Text>
             </TouchableOpacity>
           </LinearGradient>
         </View>
@@ -137,7 +247,7 @@ export default function SignupScreen() {
         </TouchableOpacity>
 
         {/* Sign In Link */}
-        <View className="flex-row justify-center mt-auto mb-8">
+        <View className="flex-row justify-center mt-8 mb-8">
           <Text className="text-gray-400 text-base">
             Already have an account?{' '}
           </Text>
@@ -146,6 +256,7 @@ export default function SignupScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 } 

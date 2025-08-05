@@ -1,13 +1,50 @@
-import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, SafeAreaView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useSelector, useDispatch } from 'react-redux';
+import { selectCurrentUser, setUser } from '../src/store/authSlice';
+import { useUpdateProfileMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import CancelIcon from '../assets/icons/cancel.svg';
 
 const EditUsernameScreen = () => {
   const router = useRouter();
-  const [username, setUsername] = useState('joedo123');
+  const dispatch = useDispatch();
+  const currentUser = useSelector(selectCurrentUser);
+  const [updateProfile, { isLoading }] = useUpdateProfileMutation();
+  
+  const [username, setUsername] = useState('');
+
+  useEffect(() => {
+    if (currentUser) {
+      setUsername(currentUser.username || '');
+    }
+  }, [currentUser]);
+
+  const handleSave = async () => {
+    if (!username.trim()) {
+      Alert.alert('Error', 'Please enter a username');
+      return;
+    }
+
+    try {
+      const result = await updateProfile({
+        username: username.trim(),
+      }).unwrap();
+
+      dispatch(setUser(result));
+      Alert.alert('Success', 'Username updated successfully');
+      router.back();
+    } catch (error: any) {
+      console.error('Failed to update username:', error);
+      if (error.data?.username?.[0]) {
+        Alert.alert('Error', error.data.username[0]);
+      } else {
+        Alert.alert('Error', 'Failed to update username. Please try again.');
+      }
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
@@ -19,8 +56,10 @@ const EditUsernameScreen = () => {
           </View>
         </TouchableOpacity>
         <Text className="text-white text-[20px] font-semibold">Username</Text>
-        <TouchableOpacity>
-          <Text className="text-[#C42720] text-lg font-semibold">Save</Text>
+        <TouchableOpacity onPress={handleSave} disabled={isLoading}>
+          <Text className={`text-lg font-semibold ${isLoading ? 'text-gray-500' : 'text-[#C42720]'}`}>
+            {isLoading ? 'Saving...' : 'Save'}
+          </Text>
         </TouchableOpacity>
       </View>
 

@@ -2,38 +2,28 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { View, Platform, Image } from 'react-native';
 import { HugeiconsIcon } from '@hugeicons/react-native';
+import { AuthGuard } from '../../src/components/AuthGuard';
+import { useSelector } from 'react-redux';
+import { selectCurrentUser } from '../../src/store/authSlice';
+import { useGetProfileQuery } from '../../src/store/authApi';
 import { 
   Home04Icon, 
   Search01Icon, 
-  AddCircleHalfDotIcon, 
-  BubbleChatIcon
+  Add01Icon, 
+  Message01Icon
 } from '@hugeicons/core-free-icons';
 
-// Import custom SVG icons
-// import HomeIcon from '../../assets/icons/home-icon.svg';
-// import SearchIcon from '../../assets/icons/search-icon.svg';
-// import AddIcon from '../../assets/icons/add-icon.svg';
-// import ChatIcon from '../../assets/icons/chat-icon.svg';
-
-const TAB_ICON_SIZE = 30;
-const ACTIVE_COLOR = '#C42720';
-const INACTIVE_COLOR = '#FFFFFF';
-const TAB_BAR_BACKGROUND = '#090909';
-const CREATE_BUTTON_SIZE = 70;
-const PROFILE_IMAGE_SIZE = 28;
-const PROFILE_BORDER_COLOR = '#530774';
-const PROFILE_BORDER_WIDTH = 1;
-const PROFILE_PADDING = 1;
-const CREATE_BUTTON_INACTIVE_COLOR = '#353638';
-
 export default function TabLayout() {
+  const currentUser = useSelector(selectCurrentUser);
+  const { data: profileData } = useGetProfileQuery();
+
   return (
-    <Tabs
+    <AuthGuard>
+      <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: TAB_BAR_BACKGROUND,
-          // borderTopWidth: 1,
+          backgroundColor: '#090909',
           borderTopColor: '#353638',
           height: Platform.OS === 'ios' ? 85 : 65,
           position: 'absolute',
@@ -44,8 +34,8 @@ export default function TabLayout() {
           paddingTop: 10,
         },
         tabBarShowLabel: false,
-        tabBarActiveTintColor: ACTIVE_COLOR,
-        tabBarInactiveTintColor: INACTIVE_COLOR,
+        tabBarActiveTintColor: '#C42720',
+        tabBarInactiveTintColor: '#FFFFFF',
       }}
     >
       <Tabs.Screen
@@ -54,8 +44,8 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <HugeiconsIcon 
               icon={Home04Icon}
-              size={TAB_ICON_SIZE}
-              color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
+              size={30}
+              color={focused ? '#C42720' : '#FFFFFF'}
               strokeWidth={2}
             />
           ),
@@ -67,8 +57,8 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <HugeiconsIcon 
               icon={Search01Icon}
-              size={TAB_ICON_SIZE}
-              color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
+              size={30}
+              color={focused ? '#C42720' : '#FFFFFF'}
               strokeWidth={2}
             />
           ),
@@ -78,26 +68,10 @@ export default function TabLayout() {
         name="create/index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View
-              style={{
-                backgroundColor: focused ? ACTIVE_COLOR : CREATE_BUTTON_INACTIVE_COLOR,
-                borderRadius: CREATE_BUTTON_SIZE / 2,
-                width: CREATE_BUTTON_SIZE,
-                height: CREATE_BUTTON_SIZE,
-                justifyContent: 'center',
-                alignItems: 'center',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.25,
-                shadowRadius: 3.84,
-                elevation: 5,
-                marginBottom: Platform.OS === 'ios' ? 55 : 0,
-                position: 'relative',
-              }}
-            > 
+            <View className={`w-[70px] h-[70px] rounded-full justify-center items-center shadow-lg ${Platform.OS === 'ios' ? 'mb-14' : ''} ${focused ? 'bg-[#C42720]' : 'bg-[#353638]'}`}>
               <HugeiconsIcon 
-                icon={AddCircleHalfDotIcon}
-                size={TAB_ICON_SIZE}
+                icon={Add01Icon}
+                size={30}
                 color="#FFFFFF"
                 strokeWidth={2}
               />
@@ -110,9 +84,9 @@ export default function TabLayout() {
         options={{
           tabBarIcon: ({ focused }) => (
             <HugeiconsIcon 
-              icon={BubbleChatIcon}
-              size={TAB_ICON_SIZE}
-              color={focused ? ACTIVE_COLOR : INACTIVE_COLOR}
+              icon={Message01Icon}
+              size={30}
+              color={focused ? '#C42720' : '#FFFFFF'}
               strokeWidth={2}
             />
           ),
@@ -122,32 +96,15 @@ export default function TabLayout() {
         name="profile/index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View
-              style={{
-                width: PROFILE_IMAGE_SIZE + (PROFILE_BORDER_WIDTH + PROFILE_PADDING) * 2,
-                height: PROFILE_IMAGE_SIZE + (PROFILE_BORDER_WIDTH + PROFILE_PADDING) * 2,
-                borderRadius: (PROFILE_IMAGE_SIZE + (PROFILE_BORDER_WIDTH + PROFILE_PADDING) * 2) / 2,
-                borderWidth: PROFILE_BORDER_WIDTH,
-                borderColor: focused ? PROFILE_BORDER_COLOR : 'transparent',
-                backgroundColor: '#FFFFFF',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <View
-                style={{
-                  width: PROFILE_IMAGE_SIZE,
-                  height: PROFILE_IMAGE_SIZE,
-                  borderRadius: PROFILE_IMAGE_SIZE / 2,
-                  overflow: 'hidden',
-                }}
-              >
+            <View className={`w-8 h-8 rounded-full justify-center items-center bg-white border ${focused ? 'border-[#530774]' : 'border-transparent'}`}>
+              <View className="w-7 h-7 rounded-full overflow-hidden">
                 <Image
-                  source={{ uri: 'https://picsum.photos/200' }}
-                  style={{
-                    width: '100%',
-                    height: '100%',
+                  source={{ 
+                    uri: profileData?.profile_picture_url || 
+                         currentUser?.profile_picture_url || 
+                         'https://picsum.photos/200' 
                   }}
+                  className="w-full h-full"
                   resizeMode="cover"
                 />
               </View>
@@ -159,6 +116,11 @@ export default function TabLayout() {
         name="messages/[id]"
         options={{ href: null }}
       />
+      <Tabs.Screen
+        name="messages/new"
+        options={{ href: null }}
+      />
     </Tabs>
+    </AuthGuard>
   );
 }

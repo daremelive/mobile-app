@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, TextInput } from 'react-native';
 import CancelIcon from '../../assets/icons/cancel.svg';
 import ChatIcon from '../../assets/icons/chat.svg';
@@ -8,14 +8,26 @@ import { LinearGradient } from 'expo-linear-gradient';
 interface HelpUsImproveModalProps {
   visible: boolean;
   onClose: () => void;
-  onContinue: () => void;
+  onContinue: (feedback?: string) => void;
+  isLoading?: boolean;
 }
 
 const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
   visible,
   onClose,
   onContinue,
+  isLoading = false,
 }) => {
+  const [feedback, setFeedback] = useState('');
+  
+  const handleContinue = () => {
+    onContinue(feedback);
+  };
+  
+  const handleClose = () => {
+    setFeedback('');
+    onClose();
+  };
   return (
     <Modal
       animationType="fade"
@@ -27,7 +39,7 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
         <View className="bg-[#1E1E1E] rounded-2xl p-6 items-center w-[90%] relative">
           <TouchableOpacity 
             className="absolute bg-[#333333] w-14 h-14 rounded-full justify-center items-center top-4 right-4" 
-            onPress={onClose}
+            onPress={handleClose}
           >
             <CancelIcon width={24} height={24} stroke="#8A8A8E" />
           </TouchableOpacity>
@@ -46,6 +58,9 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
             placeholderTextColor="#8A8A8E"
             className="bg-[#262626] text-white rounded-lg p-4 w-full h-14 mb-6"
             multiline
+            value={feedback}
+            onChangeText={setFeedback}
+            editable={!isLoading}
           />
 
           {/* <TouchableOpacity 
@@ -65,7 +80,8 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
           >
             <TouchableOpacity 
               className="w-full h-full items-center justify-center"
-              onPress={onClose}
+              onPress={handleClose}
+              disabled={isLoading}
             >
               <Text className="text-white text-[17px] font-semibold">No, Cancel</Text>
             </TouchableOpacity>
@@ -74,9 +90,12 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
 
           <TouchableOpacity 
             className="w-full h-[52px] items-center justify-center bg-[#262626] rounded-full"
-            onPress={onContinue}
+            onPress={handleContinue}
+            disabled={isLoading}
           >
-            <Text className="text-white text-[17px] font-semibold">Continue</Text>
+            <Text className="text-white text-[17px] font-semibold">
+              {isLoading ? 'Deactivating...' : 'Continue'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

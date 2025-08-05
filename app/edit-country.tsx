@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, TextInput, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, SafeAreaView, TouchableOpacity, TextInput, FlatList, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useSelector, useDispatch } from 'react-redux';
+import { selectCurrentUser, setUser } from '../src/store/authSlice';
+import { useUpdateProfileMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import CheckIcon from '../assets/icons/check.svg';
 import SearchIcon from '../assets/icons/search.svg';
@@ -26,17 +29,46 @@ const countries = [
 
 export default function EditCountryScreen() {
   const router = useRouter();
+  const dispatch = useDispatch();
+  const currentUser = useSelector(selectCurrentUser);
+  const [updateProfile, { isLoading }] = useUpdateProfileMutation();
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCountry, setSelectedCountry] = useState('Nigeria'); // Default selected country
+
+  useEffect(() => {
+    if (currentUser && currentUser.country) {
+      setSelectedCountry(currentUser.country);
+    }
+  }, [currentUser]);
 
   const filteredCountries = countries.filter(country =>
     country.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleSaveCountry = async (country: string) => {
+    try {
+      const result = await updateProfile({
+        country: country,
+      }).unwrap();
+
+      dispatch(setUser(result));
+      Alert.alert('Success', 'Country updated successfully');
+      router.back();
+    } catch (error: any) {
+      console.error('Failed to update country:', error);
+      Alert.alert('Error', 'Failed to update country. Please try again.');
+    }
+  };
+
   const renderCountry = ({ item }: { item: string }) => (
     <TouchableOpacity
       className="flex-row items-center justify-between px-4 py-3.5"
-      onPress={() => setSelectedCountry(item)}
+      onPress={() => {
+        setSelectedCountry(item);
+        handleSaveCountry(item);
+      }}
+      disabled={isLoading}
     >
       <Text className="text-white text-base">{item}</Text>
       {selectedCountry === item && (

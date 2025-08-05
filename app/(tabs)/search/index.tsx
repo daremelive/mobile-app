@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
+import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import ClockIcon from '../../../assets/icons/clock.svg';
 import CancelIcon from '../../../assets/icons/cancel.svg';
 import StarsIcon from '../../../assets/icons/stars.svg';
@@ -7,22 +7,9 @@ import { fonts } from '../../../constants/Fonts';
 import SearchInput from '../../../components/SearchInput';
 import EyeIcon from '../../../assets/icons/eye.svg';
 import CheckIcon from '../../../assets/icons/check.svg';
+import { useSearchQuery, SearchUser, SearchStream } from '../../../src/store/streamsApi';
 
 const MOCK_RECOMMENDED = ['Marriage', 'Banter with Friends', 'Live Gaming', 'World Politics', 'Hot Gist'];
-
-const mockStreams = [
-  { id: 's1', title: 'Marriage Sacrifices', username: '@judennam', viewers: '8.9k', image: 'https://images.pexels.com/photos/4050315/pexels-photo-4050315.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2' },
-  { id: 's2', title: 'Marriage Sacrifices', username: '@judennam', viewers: '8.9k', image: 'https://images.pexels.com/photos/7180617/pexels-photo-7180617.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2' },
-  { id: 's3', title: 'Marriage Sacrifices', username: '@judennam', viewers: '8.9k', image: 'https://images.pexels.com/photos/3771089/pexels-photo-3771089.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2' },
-  { id: 's4', title: 'Marriage Sacrifices', username: '@judennam', viewers: '8.9k', image: 'https://images.pexels.com/photos/3762800/pexels-photo-3762800.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2' },
-];
-
-const mockUsers = [
-    { id: 'u1', name: 'Marrian Elliot', followers: '12K', avatar: 'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', following: true },
-    { id: 'u2', name: 'Desmond Marrianna', followers: '12K', avatar: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', following: true },
-    { id: 'u3', name: 'John Doe', followers: '1M', avatar: 'https://images.pexels.com/photos/614810/pexels-photo-614810.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', following: false },
-    { id: 'u4', name: 'Jane Doe', followers: '500K', avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', following: true },
-];
 
 interface SearchSuggestionsProps {
   query?: string;
@@ -101,15 +88,29 @@ const SearchSuggestions = React.memo(({
   );
 });
 
-const UserResult = ({ user }: { user: typeof mockUsers[0] }) => {
-    const [isFollowing, setIsFollowing] = React.useState(user.following);
+const UserResult = ({ user }: { user: SearchUser }) => {
+    const [isFollowing, setIsFollowing] = React.useState(user.is_following);
+    
+    const formatFollowerCount = (count: number) => {
+        if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+        if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+        return count.toString();
+    };
+
     return (
         <View className="flex-row items-center justify-between py-3">
             <View className="flex-row items-center">
-                <Image source={{ uri: user.avatar }} className="w-12 h-12 rounded-full mr-4" />
+                <Image 
+                    source={{ uri: user.profile_picture_url || 'https://via.placeholder.com/48' }} 
+                    className="w-12 h-12 rounded-full mr-4" 
+                />
                 <View>
-                    <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base">{user.name}</Text>
-                    <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">{user.followers} followers</Text>
+                    <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base">
+                        {user.full_name}
+                    </Text>
+                    <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
+                        {formatFollowerCount(user.follower_count)} followers
+                    </Text>
                 </View>
             </View>
             <TouchableOpacity 
@@ -125,65 +126,134 @@ const UserResult = ({ user }: { user: typeof mockUsers[0] }) => {
     )
 }
 
-const StreamResult = ({ stream }: { stream: typeof mockStreams[0] }) => (
-    <View className="w-[48%] h-[250px] rounded-xl overflow-hidden bg-[#1C1C1E] mb-4">
-        <Image source={{ uri: stream.image }} className="w-full h-full" />
-        <View className="absolute bottom-0 left-0 right-0 p-3 bg-black/30">
-        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-1">{stream.title}</Text>
-        <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">{stream.username}</Text>
+const StreamResult = ({ stream }: { stream: SearchStream }) => {
+    const formatViewerCount = (count: number) => {
+        if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+        if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+        return count.toString();
+    };
+
+    return (
+        <View className="w-[48%] h-[250px] rounded-xl overflow-hidden bg-[#1C1C1E] mb-4">
+            <Image 
+                source={{ uri: stream.host.profile_picture_url || 'https://via.placeholder.com/300x400' }} 
+                className="w-full h-full" 
+            />
+            <View className="absolute bottom-0 left-0 right-0 p-3 bg-black/30">
+                <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-1">
+                    {stream.title}
+                </Text>
+                <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
+                    @{stream.host.username}
+                </Text>
+            </View>
+            <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full flex-row items-center">
+                <EyeIcon width={12} height={12} className="mr-1" stroke="white" />
+                <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
+                    {formatViewerCount(stream.viewer_count)}
+                </Text>
+            </View>
+            {stream.status === 'live' && (
+                <View className="absolute top-2 left-2 bg-red-600 px-2 py-1 rounded-full">
+                    <Text style={{ fontFamily: fonts.bold }} className="text-white text-xs">LIVE</Text>
+                </View>
+            )}
         </View>
-        <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full flex-row items-center">
-            <EyeIcon width={12} height={12} className="mr-1" stroke="white" />
-            <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">{stream.viewers}</Text>
-        </View>
-    </View>
-);
+    );
+};
 
 const SearchResults = React.memo(({ query }: { query?: string }) => {
     const [activeTab, setActiveTab] = React.useState('Top');
+    
+    // Skip API call if no query
+    const { data: searchResults, isLoading, error } = useSearchQuery(query || '', {
+        skip: !query || query.trim().length === 0,
+    });
 
-  return (
-    <View className="flex-1">
-      <View className="flex-row justify-around my-4 w-[66%] mx-auto">
-        {['Top', 'Streams', 'Users'].map(tab => (
-          <TouchableOpacity 
-            key={tab} 
-            className={`px-5 py-3 rounded-lg ${activeTab === tab ? 'bg-white' : 'bg-[#1C1C1E]'}`}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text style={{ fontFamily: fonts.bold }} className={`text-base ${activeTab === tab ? 'text-gray-900' : 'text-gray-400'}`}>{tab}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <ScrollView contentContainerClassName="px-4 pb-24">
-        {activeTab === 'Top' && (
-            <>
-                <UserResult user={mockUsers[0]} />
-                <UserResult user={mockUsers[1]} />
-                <View className="flex-row flex-wrap justify-between mt-4">
-                    {mockStreams.map((stream) => (
-                        <StreamResult key={stream.id} stream={stream} />
-                    ))}
-                </View>
-            </>
-        )}
-        {activeTab === 'Streams' && (
-             <View className="flex-row flex-wrap justify-between mt-4">
-                {mockStreams.map((stream) => (
-                    <StreamResult key={stream.id} stream={stream} />
+    if (isLoading) {
+        return (
+            <View className="flex-1 justify-center items-center">
+                <ActivityIndicator size="large" color="#DC2626" />
+                <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 mt-2">
+                    Searching...
+                </Text>
+            </View>
+        );
+    }
+
+    if (error) {
+        return (
+            <View className="flex-1 justify-center items-center px-4">
+                <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg mb-2">
+                    Search Error
+                </Text>
+                <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-center">
+                    Unable to search at the moment. Please try again.
+                </Text>
+            </View>
+        );
+    }
+
+    if (!searchResults || searchResults.total_results === 0) {
+        return (
+            <View className="flex-1 justify-center items-center px-4">
+                <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg mb-2">
+                    No Results Found
+                </Text>
+                <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-center">
+                    Try searching with different keywords or check your spelling.
+                </Text>
+            </View>
+        );
+    }
+
+    const { streams = [], users = [] } = searchResults.results;
+
+    return (
+        <View className="flex-1">
+            <View className="flex-row justify-around my-4 w-[66%] mx-auto">
+                {['Top', 'Streams', 'Users'].map(tab => (
+                    <TouchableOpacity 
+                        key={tab} 
+                        className={`px-5 py-3 rounded-lg ${activeTab === tab ? 'bg-white' : 'bg-[#1C1C1E]'}`}
+                        onPress={() => setActiveTab(tab)}
+                    >
+                        <Text style={{ fontFamily: fonts.bold }} className={`text-base ${activeTab === tab ? 'text-gray-900' : 'text-gray-400'}`}>
+                            {tab}
+                        </Text>
+                    </TouchableOpacity>
                 ))}
             </View>
-        )}
-        {activeTab === 'Users' && (
-            <View className="mt-4">
-                {mockUsers.map((user) => (
-                    <UserResult key={user.id} user={user} />
-                ))}
-            </View>
-        )}
-      </ScrollView>
-    </View>
-  );
+            <ScrollView contentContainerClassName="px-4 pb-24">
+                {activeTab === 'Top' && (
+                    <>
+                        {users.slice(0, 2).map((user) => (
+                            <UserResult key={user.id} user={user} />
+                        ))}
+                        <View className="flex-row flex-wrap justify-between mt-4">
+                            {streams.map((stream) => (
+                                <StreamResult key={stream.id} stream={stream} />
+                            ))}
+                        </View>
+                    </>
+                )}
+                {activeTab === 'Streams' && (
+                    <View className="flex-row flex-wrap justify-between mt-4">
+                        {streams.map((stream) => (
+                            <StreamResult key={stream.id} stream={stream} />
+                        ))}
+                    </View>
+                )}
+                {activeTab === 'Users' && (
+                    <View className="mt-4">
+                        {users.map((user) => (
+                            <UserResult key={user.id} user={user} />
+                        ))}
+                    </View>
+                )}
+            </ScrollView>
+        </View>
+    );
 });
 
 export default function SearchScreen() {

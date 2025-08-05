@@ -7,44 +7,71 @@ import {
   Image, 
   TouchableOpacity, 
   TouchableWithoutFeedback,
-  Keyboard
+  Keyboard,
+  Alert
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { fonts } from '../../../constants/Fonts';
 import { router } from 'expo-router';
 import SearchInput from '../../../components/SearchInput';
+import { useGetFollowingQuery } from '../../../src/store/followApi';
+import { useGetStreamsQuery, useGetFollowingLiveStreamsQuery } from '../../../src/store/streamsApi';
 
 const categories = ['All', 'Video', 'Game', 'Truth/Dare', 'Banter'];
-
-const followingUsers = [
-  { id: 1, image: 'https://picsum.photos/200', isLive: false },
-  { id: 2, image: 'https://picsum.photos/201', isLive: true },
-  { id: 3, image: 'https://picsum.photos/202', isLive: false },
-  { id: 4, image: 'https://picsum.photos/203', isLive: true },
-  { id: 5, image: 'https://picsum.photos/204', isLive: false },
-];
-
-const popularChannels = [
-  {
-    id: 1,
-    title: 'Marriage Sacrifices',
-    username: '@judennam',
-    viewers: '8.9k',
-    image: 'https://picsum.photos/400/500',
-  },
-  {
-    id: 2,
-    title: 'Marriage Sacrifices',
-    username: '@judennam',
-    viewers: '8.9k',
-    image: 'https://picsum.photos/400/501',
-  },
-];
 
 export default function HomeScreen() {
   const [isSearching, setIsSearching] = React.useState(false);
   const searchInputRef = React.useRef(null);
+
+  // Get following users with live status
+  const { data: followingUsers = [], isLoading: followingLoading } = useGetFollowingQuery({ search: '' });
+  
+  // Get live streams from following users
+  const { data: followingLiveStreamsData, isLoading: liveStreamsLoading } = useGetFollowingLiveStreamsQuery();
+  
+  // Ensure followingLiveStreams is always an array
+  const followingLiveStreams = Array.isArray(followingLiveStreamsData?.results) ? followingLiveStreamsData.results : [];
+  
+  // Get popular/trending streams with aggressive polling to avoid stale data
+  const { data: popularStreamsData, isLoading: popularLoading, refetch: refetchPopular } = useGetStreamsQuery({ 
+    status: 'live' 
+  }, {
+    pollingInterval: 30000, // Poll every 30 seconds to ensure live streams are current
+    refetchOnMountOrArgChange: true,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
+  
+  // Ensure popularStreams is always an array
+  const popularStreams = Array.isArray(popularStreamsData?.results) ? popularStreamsData.results : [];
+
+  const handleJoinStream = (streamId: string, streamTitle: string, hostUsername: string) => {
+    Alert.alert(
+      'Join Live Stream',
+      `Join ${hostUsername}'s stream: "${streamTitle}"?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Join',
+          onPress: () => {
+            // Navigate to stream viewer
+            router.push({
+              pathname: '/stream/viewer',
+              params: { 
+                streamId: streamId,
+                hostUsername: hostUsername,
+                streamTitle: streamTitle
+              }
+            });
+          },
+        },
+      ]
+    );
+  };
 
   const handleSearchFocus = React.useCallback(() => {
     setIsSearching(true);
@@ -128,21 +155,62 @@ export default function HomeScreen() {
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-4 mb-3">
-              {followingUsers.map((user) => (
-                <View key={user.id} className="relative">
-                  <Image
-                    source={{ uri: user.image }}
-                    className="w-16 h-16 rounded-full border-2 border-[#C42720]"
-                  />
-                  {user.isLive && (
-                    <View className="absolute bottom-[-4px] self-center bg-[#C42720] px-2 py-0.5 rounded-lg">
-                      <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-[10px]">
-                        Live
-                      </Text>
-                    </View>
-                  )}
+              {followingLoading ? (
+                // Loading state
+                Array.from({ length: 5 }).map((_, index) => (
+                  <View key={index} className="relative">
+                    <View className="w-16 h-16 rounded-full bg-gray-600 border-2 border-[#C42720]" />
+                  </View>
+                ))
+              ) : followingUsers.length === 0 ? (
+                // Empty state
+                <View className="flex-1 items-center justify-center py-4">
+                  <Text className="text-gray-400 text-sm">
+                    Follow some users to see them here!
+                  </Text>
                 </View>
-              ))}
+              ) : (
+                // Real following users data
+                followingUsers.map((user) => (
+                  <TouchableOpacity 
+                    key={user.id} 
+                    className="relative"
+                    onPress={() => {
+                      if (user.is_live) {
+                        // Find the user's live stream
+                        const userStream = followingLiveStreams.find(stream => stream.host.id === user.id);
+                        if (userStream) {
+                          handleJoinStream(userStream.id, userStream.title, user.username);
+                        } else {
+                          Alert.alert('Stream Not Found', 'This stream is no longer available.');
+                        }
+                      } else {
+                        // Navigate to user profile
+                        router.push({
+                          pathname: '/profile',
+                          params: { userId: user.id }
+                        });
+                      }
+                    }}
+                  >
+                    <Image
+                      source={{ 
+                        uri: user.profile_picture_url ? 
+                          `http://192.168.1.117:8000${user.profile_picture_url}` : 
+                          `https://ui-avatars.com/api/?name=${user.full_name}&background=C42720&color=fff`
+                      }}
+                      className="w-16 h-16 rounded-full border-2 border-[#C42720]"
+                    />
+                    {user.is_live && (
+                      <View className="absolute bottom-[-4px] self-center bg-[#C42720] px-2 py-0.5 rounded-lg">
+                        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-[10px]">
+                          Live
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
             </ScrollView>
           </View>
 
@@ -170,36 +238,69 @@ export default function HomeScreen() {
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-3">
-              {popularChannels.map((channel) => (
-                <View 
-                  key={channel.id}
-                  className="w-56 h-80 rounded-xl overflow-hidden bg-[#1C1C1E]"
-                >
-                  <View className="relative flex-1">
-                    <Image
-                      source={{ uri: channel.image }}
-                      className="w-full h-full"
-                    />
-                    <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full">
-                      <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
-                        {channel.viewers}
-                      </Text>
-                    </View>
-                    <BlurView
-                      intensity={30}
-                      tint="dark"
-                      className="absolute bottom-0 left-0 right-0 p-3 bg-black/30"
-                    >
-                      <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-1">
-                        {channel.title}
-                      </Text>
-                      <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
-                        {channel.username}
-                      </Text>
-                    </BlurView>
+              {popularLoading ? (
+                // Loading state
+                Array.from({ length: 2 }).map((_, index) => (
+                  <View 
+                    key={index}
+                    className="w-56 h-80 rounded-xl overflow-hidden bg-[#1C1C1E]"
+                  >
+                    <View className="relative flex-1 bg-gray-600" />
                   </View>
+                ))
+              ) : popularStreams.length === 0 ? (
+                // Empty state
+                <View className="flex-1 items-center justify-center py-8">
+                  <Text className="text-gray-400 text-base">No live streams at the moment</Text>
+                  <Text className="text-gray-500 text-sm mt-2">Check back later!</Text>
                 </View>
-              ))}
+              ) : (
+                // Live streams data
+                popularStreams.slice(0, 6).map((stream) => (
+                  <TouchableOpacity
+                    key={stream.id}
+                    className="w-56 h-80 rounded-xl overflow-hidden bg-[#1C1C1E]"
+                    onPress={() => handleJoinStream(stream.id, stream.title, stream.host.username)}
+                  >
+                    <View className="relative flex-1">
+                      <Image
+                        source={{ 
+                          uri: stream.host.profile_picture_url ? 
+                            `http://192.168.1.117:8000${stream.host.profile_picture_url}` : 
+                            `https://ui-avatars.com/api/?name=${stream.host.first_name} ${stream.host.last_name}&background=C42720&color=fff&size=400`
+                        }}
+                        className="w-full h-full"
+                      />
+                      <View className="absolute top-2 left-2 bg-red-600 px-2 py-1 rounded-full flex-row items-center">
+                        <View className="w-2 h-2 bg-white rounded-full mr-1" />
+                        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-xs">
+                          LIVE
+                        </Text>
+                      </View>
+                      <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full">
+                        <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
+                          {stream.viewer_count || '0'}
+                        </Text>
+                      </View>
+                      <BlurView
+                        intensity={30}
+                        tint="dark"
+                        className="absolute bottom-0 left-0 right-0 p-3 bg-black/30"
+                      >
+                        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-1" numberOfLines={2}>
+                          {stream.title}
+                        </Text>
+                        <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
+                          @{stream.host.username}
+                        </Text>
+                        <Text style={{ fontFamily: fonts.regular }} className="text-gray-500 text-xs mt-1">
+                          {stream.mode === 'multi' ? `Multi-Live • ${stream.max_seats} seats` : 'Single Live'} • {stream.channel.charAt(0).toUpperCase() + stream.channel.slice(1)}
+                        </Text>
+                      </BlurView>
+                    </View>
+                  </TouchableOpacity>
+                ))
+              )}
             </ScrollView>
           </View>
               </>

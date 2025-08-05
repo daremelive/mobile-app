@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, FlatList, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, SafeAreaView, TouchableOpacity, FlatList, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useSelector } from 'react-redux';
+import { selectCurrentUser } from '../src/store/authSlice';
+import { useGetProfileQuery, useUpdateProfileMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import CheckIcon from '../assets/icons/check.svg';
 import SearchIcon from '../assets/icons/search.svg';
@@ -13,12 +16,37 @@ const LANGUAGES = [
 
 const LanguageScreen = () => {
   const router = useRouter();
+  const currentUser = useSelector(selectCurrentUser);
+  const { data: profileData } = useGetProfileQuery();
+  const [updateProfile, { isLoading }] = useUpdateProfileMutation();
+  
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Initialize selected language from user data
+  useEffect(() => {
+    const userLanguage = profileData?.language || currentUser?.language;
+    if (userLanguage) {
+      setSelectedLanguage(userLanguage);
+    }
+  }, [profileData, currentUser]);
 
   const filteredLanguages = LANGUAGES.filter(lang => 
     lang.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleLanguageSelect = async (language: string) => {
+    setSelectedLanguage(language);
+    
+    try {
+      await updateProfile({ language }).unwrap();
+      Alert.alert('Success', `Language changed to ${language}`);
+      router.back();
+    } catch (error: any) {
+      console.error('Language update error:', error);
+      Alert.alert('Error', 'Failed to update language. Please try again.');
+    }
+  };
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
@@ -30,7 +58,9 @@ const LanguageScreen = () => {
           </View>
         </TouchableOpacity>
         <View className="flex-1 items-center">
-          <Text className="text-white text-[20px] font-semibold">Select Language</Text>
+          <Text className="text-white text-[20px] font-semibold">
+            {isLoading ? 'Saving...' : 'Select Language'}
+          </Text>
         </View>
       </View>
 
@@ -52,9 +82,10 @@ const LanguageScreen = () => {
         renderItem={({ item }) => (
           <TouchableOpacity 
             className="flex-row items-center justify-between px-4 py-4"
-            onPress={() => setSelectedLanguage(item)}
+            onPress={() => handleLanguageSelect(item)}
+            disabled={isLoading}
           >
-            <Text className="text-white text-base">{item}</Text>
+            <Text className={`text-base ${isLoading ? 'text-gray-500' : 'text-white'}`}>{item}</Text>
             {selectedLanguage === item && <CheckIcon width={20} height={20} fill="#C42720" />}
           </TouchableOpacity>
         )}

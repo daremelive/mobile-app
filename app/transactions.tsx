@@ -1,53 +1,32 @@
 import React from 'react';
-import { View, Text, SafeAreaView, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, SafeAreaView, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import ChartIncreaseIcon from '../assets/icons/chart-increase.svg';
 import ChartDecreaseIcon from '../assets/icons/chart-decrease.svg';
-
-type Transaction = {
-  id: string;
-  type: 'withdrawal' | 'gift_received' | 'gifted' | 'wallet_funded';
-  amount: string;
-  date: string;
-  time: string;
-  recipient?: string;
-};
-
-const transactions: Transaction[] = [
-  { id: '1', type: 'withdrawal', amount: 'N20,000', date: '13/08/2023', time: '20:24:12' },
-  { id: '2', type: 'gift_received', amount: 'N20,000', date: '13/08/2023', time: '20:24:12' },
-  { id: '3', type: 'withdrawal', amount: 'N20,000', date: '13/08/2023', time: '20:24:12' },
-  { id: '4', type: 'gifted', amount: 'N20,000', date: '13/08/2023', time: '20:24:12', recipient: 'Modesta01' },
-  { id: '5', type: 'wallet_funded', amount: 'N20,000', date: '13/08/2023', time: '20:24:12' },
-  { id: '6', type: 'gifted', amount: 'N20,000', date: '13/08/2023', time: '20:24:12', recipient: 'sammy8' },
-  { id: '7', type: 'withdrawal', amount: 'N20,000', date: '13/08/2023', time: '20:24:12' },
-  { id: '8', type: 'gift_received', amount: 'N20,000', date: '13/08/2023', time: '20:24:12' },
-  { id: '9', type: 'gift_received', amount: 'N20,000', date: '13/08/2023', time: '20:24:12' },
-];
+import { useGetWalletTransactionsQuery } from '../src/api/walletApi';
 
 const TransactionScreen = () => {
   const router = useRouter();
 
-  const getTransactionLabel = (type: Transaction['type'], recipient?: string) => {
-    switch (type) {
-      case 'withdrawal':
-        return 'Withdrawal';
-      case 'gift_received':
-        return 'Gift Received';
-      case 'gifted':
-        return `Gifted ~${recipient}`;
-      case 'wallet_funded':
-        return 'Wallet Funded';
-      default:
-        return '';
-    }
-  };
+  // API hook to fetch real transactions
+  const { data: transactions, isLoading, error, refetch } = useGetWalletTransactionsQuery();
 
-  const renderTransaction = ({ item }: { item: Transaction }) => {
-    const isOutgoing = item.type === 'withdrawal' || item.type === 'gifted';
-    const Icon = isOutgoing ? ChartDecreaseIcon : ChartIncreaseIcon;
+  // Debug logging
+  console.log('🔄 Transactions Debug:', {
+    isLoading,
+    error: error ? JSON.stringify(error) : null,
+    dataExists: !!transactions,
+    dataLength: transactions?.length || 0,
+    sampleData: transactions?.[0]
+  });
+
+  const renderTransaction = ({ item }: { item: any }) => {
+    const Icon = item.is_outgoing ? ChartDecreaseIcon : ChartIncreaseIcon;
+
+    // Always display currency amount, not coins
+    const displayAmount = item.formatted_amount; // This should show currency like "N1,234.56"
 
     return (
       <View className="flex-row items-center justify-between py-4">
@@ -56,14 +35,47 @@ const TransactionScreen = () => {
             <Icon width={20} height={20} />
           </View>
           <View className="ml-3">
-            <Text className="text-white text-base">{getTransactionLabel(item.type, item.recipient)}</Text>
-            <Text className="text-[#666] text-sm">{`${item.date}   ${item.time}`}</Text>
+            <Text className="text-white text-base">{item.display_type}</Text>
+            <Text className="text-[#666] text-sm">{`${item.formatted_date}   ${item.formatted_time}`}</Text>
           </View>
         </View>
-        <Text className="text-white text-base">{item.amount}</Text>
+        <Text className="text-white text-base">{displayAmount}</Text>
       </View>
     ); 
   };
+
+  const renderEmptyState = () => (
+    <View className="flex-1 justify-center items-center px-4">
+      <Text className="text-[#666] text-base text-center">No transactions found</Text>
+      <TouchableOpacity 
+        className="mt-4 bg-[#FF0000] px-6 py-3 rounded-full"
+        onPress={() => refetch()}
+      >
+        <Text className="text-white text-base font-semibold">Refresh</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderLoadingState = () => (
+    <View className="flex-1 justify-center items-center">
+      <ActivityIndicator size="large" color="#FF0000" />
+      <Text className="text-[#666] text-base mt-4">Loading transactions...</Text>
+    </View>
+  );
+
+  const renderErrorState = () => (
+    <View className="flex-1 justify-center items-center px-4">
+      <Text className="text-red-400 text-base text-center mb-4">
+        Failed to load transactions
+      </Text>
+      <TouchableOpacity 
+        className="bg-[#FF0000] px-6 py-3 rounded-full"
+        onPress={() => refetch()}
+      >
+        <Text className="text-white text-base font-semibold">Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
@@ -79,13 +91,21 @@ const TransactionScreen = () => {
         </View>
       </View>
 
-      <FlatList
-        data={transactions}
-        renderItem={renderTransaction}
-        keyExtractor={item => item.id}
-        contentContainerStyle={{ padding: 16 }}
-        showsVerticalScrollIndicator={false}
-      />
+      {isLoading ? (
+        renderLoadingState()
+      ) : error ? (
+        renderErrorState()
+      ) : !transactions || transactions.length === 0 ? (
+        renderEmptyState()
+      ) : (
+        <FlatList
+          data={transactions}
+          renderItem={renderTransaction}
+          keyExtractor={item => item.id.toString()}
+          contentContainerStyle={{ padding: 16 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </SafeAreaView>
   );
 };

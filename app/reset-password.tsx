@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, SafeAreaView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useSelector, useDispatch } from 'react-redux';
+import { selectPendingEmail, clearPendingEmail } from '../src/store/authSlice';
+import { usePasswordResetConfirmMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import LockPasswordIcon from '../assets/icons/lock-password.svg';
 import EyeOffIcon from '../assets/icons/eye-off.svg';
@@ -10,13 +13,74 @@ import CheckIcon from '../assets/icons/check.svg';
 
 const ResetPasswordScreen = () => {
   const router = useRouter();
+  const dispatch = useDispatch();
+  const pendingEmail = useSelector(selectPendingEmail);
+  const [passwordResetConfirm, { isLoading }] = usePasswordResetConfirmMutation();
+  
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [newPasswordVisible, setNewPasswordVisible] = useState(false);
   const [confirmPasswordVisible, setConfirmPasswordVisible] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const handleReset = () => {
-    // Add password reset logic here
-    setShowSuccess(true);
+  useEffect(() => {
+    if (!pendingEmail) {
+      router.replace('/forgot-password');
+    }
+  }, [pendingEmail]);
+
+  const handleReset = async () => {
+    if (!newPassword.trim()) {
+      Alert.alert('Error', 'Please enter a new password');
+      return;
+    }
+
+    if (!confirmPassword.trim()) {
+      Alert.alert('Error', 'Please confirm your password');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters long');
+      return;
+    }
+
+    if (!pendingEmail) {
+      Alert.alert('Error', 'Session expired. Please start over.');
+      router.replace('/forgot-password');
+      return;
+    }
+
+    try {
+      await passwordResetConfirm({
+        email: pendingEmail,
+        otp: '123456', // Using placeholder OTP as requested
+        new_password: newPassword,
+        new_password_confirm: confirmPassword,
+      }).unwrap();
+
+      setShowSuccess(true);
+      dispatch(clearPendingEmail());
+      
+      // Navigate to signin after showing success
+      setTimeout(() => {
+        router.replace('/(auth)/signin');
+      }, 2000);
+    } catch (error: any) {
+      console.error('Password reset error:', error);
+      if (error.data?.new_password?.[0]) {
+        Alert.alert('Error', error.data.new_password[0]);
+      } else if (error.data?.non_field_errors?.[0]) {
+        Alert.alert('Error', error.data.non_field_errors[0]);
+      } else {
+        Alert.alert('Error', 'Failed to reset password. Please try again.');
+      }
+    }
   };
 
   return (
@@ -61,6 +125,9 @@ const ResetPasswordScreen = () => {
               placeholderTextColor="#8A8A8E"
               className="bg-[#1C1C1E] text-white rounded-full border border-[#333333] px-5 w-full h-14"
               secureTextEntry={!newPasswordVisible}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              editable={!isLoading}
             />
             <TouchableOpacity
               onPress={() => setNewPasswordVisible(!newPasswordVisible)}
@@ -79,6 +146,9 @@ const ResetPasswordScreen = () => {
               placeholderTextColor="#8A8A8E"
               className="bg-[#1C1C1E] text-white rounded-full border border-[#333333] px-5 w-full h-14"
               secureTextEntry={!confirmPasswordVisible}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              editable={!isLoading}
             />
             <TouchableOpacity
               onPress={() => setConfirmPasswordVisible(!confirmPasswordVisible)}
@@ -90,7 +160,7 @@ const ResetPasswordScreen = () => {
         </View>
         <View className="w-full h-[52px] rounded-full overflow-hidden mb-6 mt-4">
           <LinearGradient
-            colors={['#FF0000', '#330000']}
+            colors={isLoading ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
             locations={[0, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -99,8 +169,11 @@ const ResetPasswordScreen = () => {
             <TouchableOpacity
               className="w-full h-[52px] items-center justify-center"
               onPress={handleReset}
+              disabled={isLoading}
             >
-              <Text className="text-white text-[17px] font-semibold">Reset</Text>
+              <Text className="text-white text-[17px] font-semibold">
+                {isLoading ? 'Resetting...' : 'Reset'}
+              </Text>
             </TouchableOpacity>
           </LinearGradient>
         </View>

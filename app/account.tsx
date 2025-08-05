@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, SectionList } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity, SectionList, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
@@ -9,6 +9,9 @@ import WalletIcon from '../assets/icons/wallet.svg';
 import DeactivateAccountConfirmationModal from '../components/modals/DeactivateAccountConfirmationModal';
 import HelpUsImproveModal from '../components/modals/HelpUsImproveModal';
 import ChangePasswordConfirmationModal from '../components/modals/ChangePasswordConfirmationModal';
+import { useGetProfileQuery, useDeactivateAccountMutation } from '../src/store/authApi';
+import { useSelector, useDispatch } from 'react-redux';
+import { selectCurrentUser, selectRefreshToken, logout } from '../src/store/authSlice';
 
 type ListItem = {
   key: string;
@@ -18,45 +21,61 @@ type ListItem = {
   icon?: React.FC<{ width: number; height: number; className?: string }>;
 };
 
-const SECTIONS: Array<{
-  title: string;
-  data: ListItem[];
-}> = [
-  {
-    title: 'Personal Information',
-    data: [
-      { key: '1', label: 'Full Name', value: 'Modesta Ekeh', route: '/edit-name' },
-      { key: '2', label: 'Username', value: 'momo', route: '/edit-username' },
-      { key: '3', label: 'Phone', value: '+234 810 1010 1010', route: '/edit-phone' },
-      { key: '4', label: 'Country', value: 'Nigeria', route: '/edit-country' },
-    ],
-  },
-  // {
-  //   title: 'Finance',
-  //   data: [
-  //     { 
-  //       key: '5', 
-  //       label: 'Wallet', 
-  //       value: 'N200,000.48', 
-  //       route: '/(tabs)/wallet',
-  //       icon: WalletIcon 
-  //     },
-  //   ],
-  // },
-  {
-    title: 'Privacy',
-    data: [
-      { key: '6', label: 'Password', value: '**********', route: '/edit-password' },
-      { key: '7', label: 'Enable Two-step Verification', value: '' },
-    ],
-  },
-];
-
 const AccountScreen = () => {
   const router = useRouter();
+  const dispatch = useDispatch();
   const [isDeactivateModalVisible, setDeactivateModalVisible] = useState(false);
   const [isHelpModalVisible, setHelpModalVisible] = useState(false);
   const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  
+  const currentUser = useSelector(selectCurrentUser);
+  const refreshToken = useSelector(selectRefreshToken);
+  const { data: profileData } = useGetProfileQuery();
+  const [deactivateAccount, { isLoading: isDeactivating }] = useDeactivateAccountMutation();
+
+  const getSections = (): Array<{ title: string; data: ListItem[] }> => {
+    const user = profileData || currentUser;
+    
+    return [
+      {
+        title: 'Personal Information',
+        data: [
+          { 
+            key: '1', 
+            label: 'Full Name', 
+            value: user ? `${user.first_name} ${user.last_name}` : 'Loading...', 
+            route: '/edit-name' 
+          },
+          { 
+            key: '2', 
+            label: 'Username', 
+            value: user?.username || 'Loading...', 
+            route: '/edit-username' 
+          },
+          { 
+            key: '3', 
+            label: 'Phone', 
+            value: user?.phone_number || 'Not set', 
+            route: '/edit-phone' 
+          },
+          { 
+            key: '4', 
+            label: 'Country', 
+            value: user?.country || 'Not set', 
+            route: '/edit-country' 
+          },
+        ],
+      },
+      {
+        title: 'Privacy',
+        data: [
+          { key: '6', label: 'Password', value: '**********', route: '/edit-password' },
+          { key: '7', label: 'Enable Two-step Verification', value: '' },
+        ],
+      },
+    ];
+  };
 
   const handleDeactivate = () => {
     setDeactivateModalVisible(true);
@@ -67,10 +86,18 @@ const AccountScreen = () => {
     setHelpModalVisible(true);
   };
 
-  const handleContinueFromHelp = () => {
-    setHelpModalVisible(false);
-    // Perform final deactivation logic here
-    console.log('Final deactivation step.');
+  const handleContinueFromHelp = async (feedback?: string) => {
+    try {
+      await deactivateAccount({ reason: feedback }).unwrap();
+      
+      // Clear user session and redirect to signin
+      dispatch(logout());
+      setHelpModalVisible(false);
+      router.replace('/(auth)/signin');
+    } catch (error: any) {
+      console.error('Deactivation error:', error);
+      Alert.alert('Error', 'Failed to deactivate account. Please try again.');
+    }
   };
 
   const handlePasswordChange = () => {
@@ -93,7 +120,7 @@ const AccountScreen = () => {
       </View>
 
       <SectionList
-        sections={SECTIONS}
+        sections={getSections()}
         keyExtractor={(item) => item.key}
         renderItem={({ item }) => (
           <TouchableOpacity 
@@ -144,6 +171,7 @@ const AccountScreen = () => {
         visible={isHelpModalVisible}
         onClose={() => setHelpModalVisible(false)}
         onContinue={handleContinueFromHelp}
+        isLoading={isDeactivating}
       />
       <ChangePasswordConfirmationModal
         visible={isPasswordModalVisible}

@@ -1,14 +1,27 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSelector, useDispatch } from 'react-redux';
+import { selectPendingEmail, clearPendingEmail } from '../../src/store/authSlice';
+import { useResendOTPMutation } from '../../src/store/authApi';
 import ArrowLeft from '../../assets/icons/arrow-left.svg';
 import Mail from '../../assets/icons/mail.svg';
 
 export default function VerifyScreen() {
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const inputRefs = useRef<Array<TextInput | null>>([]);
+  const dispatch = useDispatch();
+  const pendingEmail = useSelector(selectPendingEmail);
+  const [resendOTP, { isLoading: isResending }] = useResendOTPMutation();
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  useEffect(() => {
+    if (!pendingEmail) {
+      router.replace('/forgot-password');
+    }
+  }, [pendingEmail]);
 
   const handleOtpChange = (value: string, index: number) => {
     if (value.length > 1) {
@@ -28,6 +41,49 @@ export default function VerifyScreen() {
   const handleKeyPress = (e: any, index: number) => {
     if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    const otpString = otp.join('');
+    
+    if (otpString.length !== 6) {
+      Alert.alert('Error', 'Please enter the complete 6-digit code');
+      return;
+    }
+
+    if (!pendingEmail) {
+      Alert.alert('Error', 'Email not found. Please start over.');
+      router.replace('/forgot-password');
+      return;
+    }
+
+    setIsVerifying(true);
+    
+    // For now, use placeholder OTP validation
+    if (otpString === '123456') {
+      Alert.alert('Success', 'OTP verified successfully');
+      router.push('/reset-password');
+    } else {
+      Alert.alert('Error', 'Invalid OTP. Please try again.');
+    }
+    
+    setIsVerifying(false);
+  };
+
+  const handleResendOTP = async () => {
+    if (!pendingEmail) {
+      Alert.alert('Error', 'Email not found. Please start over.');
+      return;
+    }
+
+    try {
+      await resendOTP({ email: pendingEmail, purpose: 'reset' }).unwrap();
+      Alert.alert('Success', 'Reset code sent again');
+      setOtp(['', '', '', '', '', '']);
+    } catch (error: any) {
+      console.error('Resend OTP error:', error);
+      Alert.alert('Error', 'Failed to resend code. Please try again.');
     }
   };
 
@@ -54,7 +110,7 @@ export default function VerifyScreen() {
           Check Your Email
         </Text>
         <Text className="text-gray-400 text-base mb-12">
-          Enter the 6-digit code sent to your@email.com to reset your password.
+          Enter the 6-digit code sent to {pendingEmail || 'your email'} to reset your password.
         </Text>
 
         {/* OTP Input */}
@@ -88,7 +144,7 @@ export default function VerifyScreen() {
         {/* Verify Button */}
         <View className="w-full h-[52px] rounded-full overflow-hidden mb-8">
           <LinearGradient
-            colors={['#FF0000', '#330000']}
+            colors={isVerifying ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
             locations={[0, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -96,9 +152,12 @@ export default function VerifyScreen() {
           >
             <TouchableOpacity 
               className="w-full h-full items-center justify-center"
-              onPress={() => router.push('/reset-password')}
+              onPress={handleVerifyOTP}
+              disabled={isVerifying}
             >
-              <Text className="text-white text-[17px] font-semibold">Verify</Text>
+              <Text className="text-white text-[17px] font-semibold">
+                {isVerifying ? 'Verifying...' : 'Verify'}
+              </Text>
             </TouchableOpacity>
           </LinearGradient>
         </View>
@@ -106,8 +165,10 @@ export default function VerifyScreen() {
         {/* Resend Code */}
         <View className="flex-row justify-center">
           <Text className="text-gray-400">Didn't get OTP? </Text>
-          <TouchableOpacity>
-            <Text className="text-[#CC0000] font-medium">Resend Code</Text>
+          <TouchableOpacity onPress={handleResendOTP} disabled={isResending}>
+            <Text className={`font-medium ${isResending ? 'text-gray-500' : 'text-[#CC0000]'}`}>
+              {isResending ? 'Sending...' : 'Resend Code'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

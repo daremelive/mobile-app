@@ -1,7 +1,10 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, TextInput, Modal } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, SafeAreaView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useSelector, useDispatch } from 'react-redux';
+import { selectCurrentUser, setUser } from '../src/store/authSlice';
+import { useUpdateProfileMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import ChevronDownIcon from '../assets/icons/chevron-down.svg';
 import CountryPicker, { Country, CountryCode } from 'react-native-country-picker-modal';
@@ -10,16 +13,72 @@ import CancelIcon from '../assets/icons/cancel.svg';
 
 const EditPhoneScreen = () => {
   const router = useRouter();
+  const dispatch = useDispatch();
+  const currentUser = useSelector(selectCurrentUser);
+  const [updateProfile, { isLoading }] = useUpdateProfileMutation();
+  
   const [countryCode, setCountryCode] = useState<CountryCode>('NG');
   const [callingCode, setCallingCode] = useState('234');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isModalVisible, setModalVisible] = useState(false);
   const [isPickerVisible, setPickerVisible] = useState(false);
 
+  useEffect(() => {
+    if (currentUser && currentUser.phone_number) {
+      // Parse existing phone number if it exists
+      const phone = currentUser.phone_number;
+      if (phone.startsWith('+')) {
+        // Extract country code and phone number
+        const phoneWithoutPlus = phone.substring(1);
+        // For now, assume Nigerian numbers, but this could be enhanced
+        if (phoneWithoutPlus.startsWith('234')) {
+          setCallingCode('234');
+          setCountryCode('NG');
+          setPhoneNumber(phoneWithoutPlus.substring(3));
+        } else {
+          setPhoneNumber(phoneWithoutPlus);
+        }
+      } else {
+        setPhoneNumber(phone);
+      }
+    }
+  }, [currentUser]);
+
   const onSelect = (country: Country) => {
     setCountryCode(country.cca2);
     setCallingCode(country.callingCode[0]);
     setPickerVisible(false);
+  };
+
+  const handleSave = async () => {
+    if (!phoneNumber.trim()) {
+      Alert.alert('Error', 'Please enter a phone number');
+      return;
+    }
+
+    const fullPhoneNumber = `+${callingCode}${phoneNumber}`;
+
+    try {
+      const result = await updateProfile({
+        phone_number: fullPhoneNumber,
+      }).unwrap();
+
+      dispatch(setUser(result));
+      Alert.alert('Success', 'Phone number updated successfully');
+      router.back();
+    } catch (error: any) {
+      console.error('Failed to update phone number:', error);
+      if (error.data?.phone_number?.[0]) {
+        Alert.alert('Error', error.data.phone_number[0]);
+      } else {
+        Alert.alert('Error', 'Failed to update phone number. Please try again.');
+      }
+    }
+  };
+
+  const handleProceed = () => {
+    setModalVisible(false);
+    handleSave();
   };
 
   return (
@@ -32,8 +91,10 @@ const EditPhoneScreen = () => {
           </View>
         </TouchableOpacity>
         <Text className="text-white text-[20px] font-semibold">Edit Phone Number</Text>
-        <TouchableOpacity onPress={() => setModalVisible(true)}>
-          <Text className="text-[#C42720] text-lg font-semibold">Save</Text>
+        <TouchableOpacity onPress={() => setModalVisible(true)} disabled={isLoading}>
+          <Text className={`text-lg font-semibold ${isLoading ? 'text-gray-500' : 'text-[#C42720]'}`}>
+            {isLoading ? 'Saving...' : 'Save'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -96,11 +157,12 @@ const EditPhoneScreen = () => {
 
             <TouchableOpacity
               className="bg-[#2A2A2A] w-full py-3 rounded-full"
-              onPress={() => {
-                setModalVisible(false);
-              }}
+              onPress={handleProceed}
+              disabled={isLoading}
             >
-              <Text className="text-white text-center text-lg font-semibold">Proceed</Text>
+              <Text className="text-white text-center text-lg font-semibold">
+                {isLoading ? 'Updating...' : 'Proceed'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
