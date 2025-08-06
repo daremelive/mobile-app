@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
 import { View, Text, SafeAreaView, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
 import { router } from 'expo-router';
+import { SvgXml } from 'react-native-svg';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import SearchIcon from '../assets/icons/search-icon.svg';
 import CheckIcon from '../assets/icons/check.svg';
 import { useGetFollowingQuery, useFollowUserMutation, useUnfollowUserMutation } from '../src/store/followApi';
+
+// Sent icon SVG
+const sentIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M14.0318 2.03561C12.5798 0.4719 1.65764 4.30246 1.66666 5.70099C1.67689 7.28692 5.93205 7.77479 7.11146 8.10572C7.82072 8.30466 8.01066 8.50866 8.17419 9.25239C8.91486 12.6207 9.28672 14.296 10.1343 14.3334C11.4852 14.3931 15.4489 3.56166 14.0318 2.03561Z" stroke="#EDEEF9" stroke-width="1.5"/>
+<path d="M7.66666 8.33333L9.99999 6" stroke="#EDEEF9" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`;
 
 export default function FollowingsScreen() {
   const [search, setSearch] = useState('');
@@ -27,6 +34,26 @@ export default function FollowingsScreen() {
       console.error('Follow/Unfollow error:', error);
       Alert.alert('Error', error.data?.message || 'Failed to update follow status');
     }
+  };
+
+  const navigateToProfile = (userId: number) => {
+    router.push({
+      pathname: '/user-profile',
+      params: { userId: userId.toString() }
+    });
+  };
+
+  const handleShareUser = (user: any) => {
+    Alert.alert('Share Profile', `Share ${user.full_name || user.username}'s profile?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { 
+        text: 'Share', 
+        onPress: () => {
+          // TODO: Implement share functionality
+          Alert.alert('Shared', 'Profile link copied to clipboard');
+        }
+      }
+    ]);
   };
 
   if (isLoading) {
@@ -104,46 +131,76 @@ export default function FollowingsScreen() {
         ) : (
           followingUsers.map((user) => (
             <View key={user.id} className="flex-row items-center justify-between mb-6">
-              <View className="flex-row items-center">
+              <TouchableOpacity 
+                className="flex-row items-center flex-1"
+                onPress={() => navigateToProfile(user.id)}
+              >
                 <View className="relative mr-4">
-                  {/* Placeholder avatar - you can replace with actual avatar URLs */}
-                  <View 
-                    className={`w-14 h-14 rounded-full bg-gray-600 justify-center items-center ${user.is_live ? 'border-2 border-[#C42720]' : 'border-2 border-transparent'}`}
-                  >
-                    <Text className="text-white font-bold text-lg">
-                      {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
+                  {user.profile_picture_url ? (
+                    <Image 
+                      source={{ 
+                        uri: user.profile_picture_url.startsWith('http') 
+                          ? user.profile_picture_url 
+                          : `http://172.20.10.2:8000${user.profile_picture_url}`
+                      }} 
+                      className={`w-14 h-14 rounded-full ${user.is_live ? 'border-2 border-[#C42720]' : 'border-2 border-transparent'}`}
+                    />
+                  ) : (
+                    <View 
+                      className={`w-14 h-14 rounded-full bg-gray-600 justify-center items-center ${user.is_live ? 'border-2 border-[#C42720]' : 'border-2 border-transparent'}`}
+                    >
+                      <Text className="text-white font-bold text-lg">
+                        {user.full_name ? user.full_name.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                   {user.is_live && (
                     <View className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-[#C42720] px-2 py-0.5 rounded-md">
                       <Text className="text-white text-[10px] font-semibold">Live</Text>
                     </View>
                   )}
                 </View>
-                <View>
+                <View className="flex-1">
                   <Text className="text-white text-base font-semibold">
                     {user.full_name || user.username}
                   </Text>
                   <Text className="text-[#B0B0B0] text-sm">{user.followers_count} followers</Text>
                 </View>
-              </View>
-              <TouchableOpacity
-                onPress={() => toggleFollow(user.id, user.is_following)}
-                disabled={isFollowing || isUnfollowing}
-                className={`py-2 rounded-full flex-row items-center justify-center px-4 ${user.is_following ? 'bg-[#2E1616]' : 'bg-[#C42720]'}`}
-                style={{ minWidth: 110, height: 36 }}
-              >
-                {(isFollowing || isUnfollowing) ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : user.is_following ? (
-                  <>
-                    <CheckIcon width={12} height={12} stroke="#C42720" strokeWidth={2} className="mr-2"/>
-                    <Text className="text-sm text-white font-semibold">Following</Text>
-                  </>
-                ) : (
-                  <Text className="text-sm text-white font-semibold">Follow</Text>
-                )}
               </TouchableOpacity>
+              
+              <View className="flex-row items-center gap-2">
+
+                {/* Share Button */}
+                <TouchableOpacity
+                  onPress={() => handleShareUser(user)}
+                  className="py-2 px-3 rounded-full bg-[#2E1616] flex-row items-center justify-center"
+                  style={{ height: 36 }}
+                >
+                  <SvgXml xml={sentIcon} width={14} height={14} />
+                </TouchableOpacity>
+
+                {/* Follow Button */}
+                <TouchableOpacity
+                  onPress={() => toggleFollow(user.id, user.is_following)}
+                  disabled={isFollowing || isUnfollowing}
+                  className={`py-2 rounded-full flex-row items-center justify-center px-4 gap-2 ${user.is_following ? 'bg-[#2E1616]' : 'bg-[#C42720]'}`}
+                  style={{ minWidth: 110, height: 36 }}
+                >
+                  {(isFollowing || isUnfollowing) ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : user.is_following ? (
+                    <>
+                      <CheckIcon width={12} height={12} stroke="#C42720" strokeWidth={2} className="mr-2"/>
+                      <Text className="text-sm text-white font-semibold">Following</Text>
+                    </>
+                  ) : (
+                    <>
+                      <SvgXml xml={sentIcon} width={12} height={12} />
+                      <Text className="text-sm text-white font-semibold">Follow</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           ))
         )}

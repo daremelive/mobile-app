@@ -169,7 +169,7 @@ export interface GetStreamTokenResponse {
 export const streamsApi = createApi({
   reducerPath: 'streamsApi',
   baseQuery: dynamicBaseQuery,
-  tagTypes: ['Stream', 'StreamMessage', 'Gift'],
+  tagTypes: ['Stream', 'StreamMessage', 'Gift', 'Search', 'Users'],
   endpoints: (builder) => ({
     // Get all streams
     getStreams: builder.query<Stream[], { status?: string; channel?: string; search?: string }>({
@@ -395,6 +395,7 @@ export const streamsApi = createApi({
         url: `/streams/search/?q=${encodeURIComponent(query)}`,
         method: 'GET',
       }),
+      providesTags: ['Search', 'Users'],
     }),
   }),
 });

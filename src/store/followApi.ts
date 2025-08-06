@@ -111,7 +111,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
 export const followApi = createApi({
   reducerPath: 'followApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Following', 'Followers', 'Users'],
+  tagTypes: ['Following', 'Followers', 'Users', 'Search'],
   endpoints: (builder) => ({
     // Follow a user
     followUser: builder.mutation<FollowResponse, FollowRequest>({
@@ -120,7 +120,7 @@ export const followApi = createApi({
         method: 'POST',
         body: data,
       }),
-      invalidatesTags: ['Following', 'Users'],
+      invalidatesTags: ['Following', 'Users', 'Search'],
       // Optimistic update
       async onQueryStarted({ user_id }, { dispatch, queryFulfilled }) {
         // Update following list
@@ -145,7 +145,7 @@ export const followApi = createApi({
         method: 'POST',
         body: data,
       }),
-      invalidatesTags: ['Following', 'Users'],
+      invalidatesTags: ['Following', 'Users', 'Search'],
       // Optimistic update
       async onQueryStarted({ user_id }, { dispatch, queryFulfilled }) {
         // Update following list

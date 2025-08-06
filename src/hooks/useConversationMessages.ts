@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../store/authSlice';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import ipDetector from '../utils/ipDetector';
 
 interface Message {
@@ -38,14 +38,14 @@ export const useConversationMessages = (conversationId: string) => {
   const fetchConversation = useCallback(async () => {
     if (!conversationId) return null;
     
-    // Handle new conversation case (ID is "0")
-    if (conversationId === '0') {
+    // Handle new conversation case (ID is "0" or starts with "new-")
+    if (conversationId === '0' || conversationId.startsWith('new-')) {
       console.log('📝 New conversation - no existing data to fetch');
       return null;
     }
 
     try {
-      const token = await AsyncStorage.getItem('access_token');
+      const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
       const response = await fetch(`${baseUrl}messaging/conversations/${conversationId}/`, {
         headers: {
@@ -79,8 +79,8 @@ export const useConversationMessages = (conversationId: string) => {
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
     
-    // Handle new conversation case (ID is "0")
-    if (conversationId === '0') {
+    // Handle new conversation case (ID is "0" or starts with "new-")
+    if (conversationId === '0' || conversationId.startsWith('new-')) {
       console.log('📝 New conversation - no messages to fetch');
       setMessages([]);
       setLoading(false);
@@ -91,7 +91,7 @@ export const useConversationMessages = (conversationId: string) => {
     setError(null);
 
     try {
-      const token = await AsyncStorage.getItem('access_token');
+      const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
       const response = await fetch(`${baseUrl}messaging/conversations/${conversationId}/messages/`, {
         headers: {
@@ -130,7 +130,7 @@ export const useConversationMessages = (conversationId: string) => {
     }
 
     try {
-      const token = await AsyncStorage.getItem('access_token');
+      const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
       
       console.log('📤 Sending message:', {

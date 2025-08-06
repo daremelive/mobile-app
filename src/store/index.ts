@@ -3,6 +3,7 @@ import { setupListeners } from '@reduxjs/toolkit/query';
 import { authApi } from './authApi';
 import { streamsApi } from './streamsApi';
 import { followApi } from './followApi';
+import { usersApi } from './usersApi';
 import { notificationApi } from '../api/notificationApi';
 import { blockedApi } from '../api/blockedApi';
 import { levelsApi } from '../api/levelsApi';
@@ -15,6 +16,7 @@ export const store = configureStore({
     [authApi.reducerPath]: authApi.reducer,
     [streamsApi.reducerPath]: streamsApi.reducer,
     [followApi.reducerPath]: followApi.reducer,
+    [usersApi.reducerPath]: usersApi.reducer,
     [notificationApi.reducerPath]: notificationApi.reducer,
     [blockedApi.reducerPath]: blockedApi.reducer,
     [levelsApi.reducerPath]: levelsApi.reducer,
@@ -41,6 +43,8 @@ export const store = configureStore({
           'streamsApi.queries',
           'followApi.mutations',
           'followApi.queries',
+          'usersApi.mutations',
+          'usersApi.queries',
           'notificationApi.mutations',
           'notificationApi.queries',
           'blockedApi.mutations',
@@ -51,7 +55,7 @@ export const store = configureStore({
           'walletApi.queries',
         ],
       },
-    }).concat(authApi.middleware, streamsApi.middleware, followApi.middleware, notificationApi.middleware, blockedApi.middleware, levelsApi.middleware, walletApi.middleware),
+    }).concat(authApi.middleware, streamsApi.middleware, followApi.middleware, usersApi.middleware, notificationApi.middleware, blockedApi.middleware, levelsApi.middleware, walletApi.middleware),
 });
 
 setupListeners(store.dispatch);

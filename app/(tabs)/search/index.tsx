@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
 import ClockIcon from '../../../assets/icons/clock.svg';
 import CancelIcon from '../../../assets/icons/cancel.svg';
 import StarsIcon from '../../../assets/icons/stars.svg';
@@ -8,6 +9,7 @@ import SearchInput from '../../../components/SearchInput';
 import EyeIcon from '../../../assets/icons/eye.svg';
 import CheckIcon from '../../../assets/icons/check.svg';
 import { useSearchQuery, SearchUser, SearchStream } from '../../../src/store/streamsApi';
+import { useFollowUserMutation, useUnfollowUserMutation } from '../../../src/store/followApi';
 
 const MOCK_RECOMMENDED = ['Marriage', 'Banter with Friends', 'Live Gaming', 'World Politics', 'Hot Gist'];
 
@@ -88,8 +90,11 @@ const SearchSuggestions = React.memo(({
   );
 });
 
-const UserResult = ({ user }: { user: SearchUser }) => {
+const UserResult = ({ user, onFollowChange }: { user: SearchUser, onFollowChange?: () => void }) => {
+    const router = useRouter();
     const [isFollowing, setIsFollowing] = React.useState(user.is_following);
+    const [followUser, { isLoading: isFollowingLoading }] = useFollowUserMutation();
+    const [unfollowUser, { isLoading: isUnfollowingLoading }] = useUnfollowUserMutation();
     
     const formatFollowerCount = (count: number) => {
         if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
@@ -97,11 +102,46 @@ const UserResult = ({ user }: { user: SearchUser }) => {
         return count.toString();
     };
 
+    const handleFollowToggle = async () => {
+        try {
+            if (isFollowing) {
+                const result = await unfollowUser({ user_id: user.id }).unwrap();
+                setIsFollowing(false);
+                console.log('Unfollow result:', result);
+            } else {
+                const result = await followUser({ user_id: user.id }).unwrap();
+                setIsFollowing(true);
+                console.log('Follow result:', result);
+            }
+            // Trigger parent refetch if callback is provided
+            onFollowChange?.();
+        } catch (error: any) {
+            console.error('Follow/Unfollow error:', error);
+            Alert.alert('Error', error.data?.message || 'Failed to update follow status');
+        }
+    };
+
+    const handleUserPress = () => {
+        router.push({
+            pathname: '/user-profile',
+            params: { userId: user.id.toString() }
+        });
+    };
+
     return (
         <View className="flex-row items-center justify-between py-3">
-            <View className="flex-row items-center">
+            <TouchableOpacity 
+                className="flex-row items-center flex-1"
+                onPress={handleUserPress}
+            >
                 <Image 
-                    source={{ uri: user.profile_picture_url || 'https://via.placeholder.com/48' }} 
+                    source={{ 
+                        uri: user.profile_picture_url 
+                            ? (user.profile_picture_url.startsWith('http') 
+                                ? user.profile_picture_url 
+                                : `http://172.20.10.2:8000${user.profile_picture_url}`)
+                            : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
+                    }} 
                     className="w-12 h-12 rounded-full mr-4" 
                 />
                 <View>
@@ -112,15 +152,22 @@ const UserResult = ({ user }: { user: SearchUser }) => {
                         {formatFollowerCount(user.follower_count)} followers
                     </Text>
                 </View>
-            </View>
+            </TouchableOpacity>
             <TouchableOpacity 
                 className={`w-[110px] h-10 rounded-full flex-row items-center justify-center ${isFollowing ? 'bg-[#330000]' : 'bg-red-600'}`}
-                onPress={() => setIsFollowing(!isFollowing)}
+                onPress={handleFollowToggle}
+                disabled={isFollowingLoading || isUnfollowingLoading}
             >
-                {isFollowing && <CheckIcon width={16} height={16} className="mr-2" stroke="white" />}
-                <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-sm">
-                    {isFollowing ? 'Following' : 'Follow'}
-                </Text>
+                {(isFollowingLoading || isUnfollowingLoading) ? (
+                    <ActivityIndicator size="small" color="white" />
+                ) : (
+                    <>
+                        {isFollowing && <CheckIcon width={16} height={16} className="mr-2" stroke="white" />}
+                        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-sm">
+                            {isFollowing ? 'Following' : 'Follow'}
+                        </Text>
+                    </>
+                )}
             </TouchableOpacity>
         </View>
     )
@@ -166,7 +213,7 @@ const SearchResults = React.memo(({ query }: { query?: string }) => {
     const [activeTab, setActiveTab] = React.useState('Top');
     
     // Skip API call if no query
-    const { data: searchResults, isLoading, error } = useSearchQuery(query || '', {
+    const { data: searchResults, isLoading, error, refetch } = useSearchQuery(query || '', {
         skip: !query || query.trim().length === 0,
     });
 
@@ -228,7 +275,7 @@ const SearchResults = React.memo(({ query }: { query?: string }) => {
                 {activeTab === 'Top' && (
                     <>
                         {users.slice(0, 2).map((user) => (
-                            <UserResult key={user.id} user={user} />
+                            <UserResult key={user.id} user={user} onFollowChange={refetch} />
                         ))}
                         <View className="flex-row flex-wrap justify-between mt-4">
                             {streams.map((stream) => (
@@ -247,7 +294,7 @@ const SearchResults = React.memo(({ query }: { query?: string }) => {
                 {activeTab === 'Users' && (
                     <View className="mt-4">
                         {users.map((user) => (
-                            <UserResult key={user.id} user={user} />
+                            <UserResult key={user.id} user={user} onFollowChange={refetch} />
                         ))}
                     </View>
                 )}

@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { API_CONFIG } from '../config/messaging';
 
 const getApiBaseUrl = async (): Promise<string> => {
@@ -58,7 +58,7 @@ interface SendMessageRequest {
 class MessagesApi {
   private async getAuthToken(): Promise<string | null> {
     try {
-      return await AsyncStorage.getItem('access_token');
+      return await SecureStore.getItemAsync('accessToken');
     } catch (error) {
       console.error('Error getting auth token:', error);
       return null;
@@ -138,7 +138,7 @@ class MessagesApi {
     // If no conversation exists, create a temporary conversation object
     // The actual conversation will be created when the first message is sent
     // This allows the UI to navigate to a message screen before any messages exist
-    const currentUserData = await AsyncStorage.getItem('user_data');
+    const currentUserData = await SecureStore.getItemAsync('user');
     const currentUser = currentUserData ? JSON.parse(currentUserData) : null;
     
     if (!currentUser) {
