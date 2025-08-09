@@ -4,6 +4,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { fontsToLoad } from '../constants/Fonts';
 import { StoreProvider } from '../src/store/Provider';
+import { NotificationProvider } from '../src/context/NotificationContext';
 import '../global.css';
 
 // Keep the splash screen visible while we fetch resources
@@ -49,7 +50,9 @@ function AppLayout() {
 export default function RootLayout() {
   return (
     <StoreProvider>
-      <AppLayout />
+      <NotificationProvider>
+        <AppLayout />
+      </NotificationProvider>
     </StoreProvider>
   );
 }

@@ -253,7 +253,7 @@ export const streamsApi = createApi({
     }),
 
     // Stream actions (start/end)
-    streamAction: builder.mutation<{ message: string; stream: Stream }, { streamId: string; action: StreamActionRequest }>({
+    streamAction: builder.mutation<{ message: string; stream?: Stream; stream_id?: string; title?: string }, { streamId: string; action: StreamActionRequest }>({
       query: ({ streamId, action }) => ({
         url: `/streams/${streamId}/action/`,
         method: 'POST',

@@ -166,6 +166,12 @@ export const GiftAnimation: React.FC<GiftAnimationProps> = ({
                 source={{ uri: gift.icon_url }}
                 style={{ width: 40, height: 40 }}
                 resizeMode="contain"
+                onError={(e) => {
+                  console.log('🎁 Gift animation icon load error:', gift.icon_url, e.nativeEvent.error);
+                }}
+                onLoad={() => {
+                  console.log('🎁 Gift animation icon loaded successfully:', gift.icon_url);
+                }}
               />
             ) : (
               <Text style={{ fontSize: 32 }}>{gift.icon || '🎁'}</Text>

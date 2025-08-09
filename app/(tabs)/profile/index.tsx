@@ -32,6 +32,7 @@ import { useLogoutMutation, useGetProfileQuery, useUploadProfilePictureMutation 
 import { useDispatch, useSelector } from 'react-redux';
 import { logout, selectRefreshToken, selectCurrentUser } from '../../../src/store/authSlice';
 import LogoutConfirmationModal from '../../../components/modals/LogoutConfirmationModal';
+import ShareProfileModal from '../../../components/ShareProfileModal';
 
 type MenuItem = {
   title: string;
@@ -42,6 +43,7 @@ type MenuItem = {
 const ProfileScreen = () => {
   const router = useRouter();
   const [isLogoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [isShareModalVisible, setShareModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   
   const dispatch = useDispatch();
@@ -224,7 +226,7 @@ const ProfileScreen = () => {
            >
              <TouchableOpacity 
                className="w-full h-full items-center justify-center"
-              //  onPress={() => router.push('/')}
+               onPress={() => setShareModalVisible(true)}
              >
                <View className="flex-row items-center gap-3">
                  <Text className="text-white text-xl font-semibold">Share Profile Link</Text>
@@ -317,6 +319,17 @@ const ProfileScreen = () => {
         visible={isLogoutModalVisible}
         onClose={() => setLogoutModalVisible(false)}
         onConfirm={handleLogout}
+      />
+      
+      <ShareProfileModal
+        visible={isShareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        userProfile={{
+          id: profileData?.id || currentUser?.id || '',
+          username: profileData?.username || currentUser?.username || '',
+          full_name: profileData ? `${profileData.first_name} ${profileData.last_name}` : currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : '',
+          profile_picture_url: profileData?.profile_picture_url || currentUser?.profile_picture_url
+        }}
       />
     </SafeAreaView>
   );

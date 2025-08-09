@@ -19,10 +19,13 @@ import SearchInput from '../../../components/SearchInput';
 import { useGetFollowingQuery } from '../../../src/store/followApi';
 import { useGetStreamsQuery, useGetFollowingLiveStreamsQuery, useSearchQuery } from '../../../src/store/streamsApi';
 import { useFollowUserMutation, useUnfollowUserMutation } from '../../../src/store/followApi';
+import { useNotificationContext } from '../../../src/context/NotificationContext';
 import ClockIcon from '../../../assets/icons/clock.svg';
 import CancelIcon from '../../../assets/icons/cancel.svg';
 import StarsIcon from '../../../assets/icons/stars.svg';
 import CheckIcon from '../../../assets/icons/check.svg';
+import EyeIcon from '../../../assets/icons/eye.svg';
+import ipDetector from '../../../src/utils/ipDetector';
 
 const categories = ['All', 'Video', 'Game', 'Truth/Dare', 'Banter'];
 const SEARCH_SUGGESTIONS = ['Marriage', 'Banter with Friends', 'Live Gaming', 'World Politics', 'Hot Gist'];
@@ -88,9 +91,10 @@ const SearchSuggestions = React.memo(({
 });
 
 // User Search Result Component
-const UserSearchResult = ({ user, onFollowChange }: { 
+const UserSearchResult = ({ user, onFollowChange, baseURL }: { 
   user: any, 
-  onFollowChange?: () => void 
+  onFollowChange?: () => void,
+  baseURL: string
 }) => {
   const [isFollowing, setIsFollowing] = React.useState(user.is_following);
   const [followUser, { isLoading: isFollowingLoading }] = useFollowUserMutation();
@@ -113,7 +117,6 @@ const UserSearchResult = ({ user, onFollowChange }: {
       }
       onFollowChange?.();
     } catch (error: any) {
-      console.error('Follow/Unfollow error:', error);
       Alert.alert('Error', error.data?.message || 'Failed to update follow status');
     }
   };
@@ -136,7 +139,7 @@ const UserSearchResult = ({ user, onFollowChange }: {
             uri: user.profile_picture_url 
               ? (user.profile_picture_url.startsWith('http') 
                   ? user.profile_picture_url 
-                  : `http://172.20.10.2:8000${user.profile_picture_url}`)
+                  : `${baseURL}${user.profile_picture_url}`)
               : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
           }} 
           className="w-12 h-12 rounded-full mr-3" 
@@ -171,9 +174,10 @@ const UserSearchResult = ({ user, onFollowChange }: {
 };
 
 // Stream Search Result Component
-const StreamSearchResult = ({ stream, onJoinStream }: { 
+const StreamSearchResult = ({ stream, onJoinStream, baseURL }: { 
   stream: any;
   onJoinStream: (streamId: string, streamTitle: string, hostUsername: string) => void;
+  baseURL: string;
 }) => {
   const formatViewerCount = (count: number) => {
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
@@ -192,17 +196,11 @@ const StreamSearchResult = ({ stream, onJoinStream }: {
             uri: stream.host.profile_picture_url 
               ? (stream.host.profile_picture_url.startsWith('http') 
                   ? stream.host.profile_picture_url 
-                  : `http://172.20.10.2:8000${stream.host.profile_picture_url}`)
+                  : `${baseURL}${stream.host.profile_picture_url}`)
               : `https://ui-avatars.com/api/?name=${encodeURIComponent(`${stream.host.first_name || ''} ${stream.host.last_name || ''}`).trim() || stream.host.username}&background=C42720&color=fff&size=400`
           }}
           className="w-full h-full"
         />
-        <View className="absolute top-2 left-2 bg-red-600 px-2 py-1 rounded-full flex-row items-center">
-          <View className="w-2 h-2 bg-white rounded-full mr-1" />
-          <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-xs">
-            LIVE
-          </Text>
-        </View>
         <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full">
           <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
             {formatViewerCount(stream.viewer_count || 0)}
@@ -211,9 +209,9 @@ const StreamSearchResult = ({ stream, onJoinStream }: {
         <BlurView
           intensity={30}
           tint="dark"
-          className="absolute bottom-0 left-0 right-0 p-2 bg-black/30"
+          className="absolute bottom-0 left-0 right-0 px-3 py-3 bg-black/30"
         >
-          <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-sm mb-1" numberOfLines={2}>
+          <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-sm mb-2" numberOfLines={2}>
             {stream.title}
           </Text>
           <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-xs">
@@ -226,9 +224,10 @@ const StreamSearchResult = ({ stream, onJoinStream }: {
 };
 
 // Search Results Component
-const SearchResults = React.memo(({ query, onJoinStream }: { 
+const SearchResults = React.memo(({ query, onJoinStream, baseURL }: { 
   query: string;
   onJoinStream: (streamId: string, streamTitle: string, hostUsername: string) => void;
+  baseURL: string;
 }) => {
   const { data: searchResults, isLoading, error, refetch } = useSearchQuery(query || '', {
     skip: !query || query.trim().length === 0,
@@ -281,7 +280,7 @@ const SearchResults = React.memo(({ query, onJoinStream }: {
             Users
           </Text>
           {users.slice(0, 3).map((user) => (
-            <UserSearchResult key={user.id} user={user} onFollowChange={refetch} />
+            <UserSearchResult key={user.id} user={user} onFollowChange={refetch} baseURL={baseURL} />
           ))}
         </View>
       )}
@@ -292,7 +291,7 @@ const SearchResults = React.memo(({ query, onJoinStream }: {
           </Text>
           <View className="flex-row flex-wrap justify-between">
             {streams.map((stream) => (
-              <StreamSearchResult key={stream.id} stream={stream} onJoinStream={onJoinStream} />
+              <StreamSearchResult key={stream.id} stream={stream} onJoinStream={onJoinStream} baseURL={baseURL} />
             ))}
           </View>
         </View>
@@ -318,15 +317,44 @@ export default function HomeScreen() {
   ]);
   
   const searchInputRef = React.useRef(null);
+  const [baseURL, setBaseURL] = React.useState<string>('');
+
+  // Initialize base URL with IP detection
+  React.useEffect(() => {
+    const initializeBaseURL = async () => {
+      try {
+        const detection = await ipDetector.detectIP();
+        const url = `http://${detection.ip}:8000`;
+        setBaseURL(url);
+        console.log('🔗 Home Base URL initialized:', url);
+      } catch (error) {
+        console.error('❌ Failed to detect IP in home:', error);
+        setBaseURL('http://172.20.10.2:8000'); // Fallback
+      }
+    };
+    
+    initializeBaseURL();
+  }, []);
 
   // Get following users with live status
-  const { data: followingUsers = [], isLoading: followingLoading } = useGetFollowingQuery({ search: '' });
+  const { data: followingUsers = [], isLoading: followingLoading, error: followingError } = useGetFollowingQuery({ search: '' });
   
   // Get live streams from following users
   const { data: followingLiveStreamsData, isLoading: liveStreamsLoading } = useGetFollowingLiveStreamsQuery();
   
   // Ensure followingLiveStreams is always an array
   const followingLiveStreams = Array.isArray(followingLiveStreamsData?.results) ? followingLiveStreamsData.results : [];
+
+  // Debug logging
+  React.useEffect(() => {
+    console.log('🔍 DEBUG Following Users:', followingUsers);
+    console.log('🔍 DEBUG Following Error:', followingError);
+    console.log('🔍 DEBUG Live Streams:', followingLiveStreams);
+    console.log('🔍 DEBUG Following Users with is_live=true:', followingUsers.filter(user => user.is_live));
+  }, [followingUsers, followingLiveStreams, followingError]);
+
+  // If there's an authentication error, clear following users to avoid stale data
+  const safeFollowingUsers = followingError ? [] : followingUsers;
   
   // Get popular/trending streams with aggressive polling to avoid stale data
   const { data: popularStreamsData, isLoading: popularLoading, refetch: refetchPopular } = useGetStreamsQuery({ 
@@ -338,6 +366,9 @@ export default function HomeScreen() {
     refetchOnFocus: true,
     refetchOnReconnect: true,
   });
+  
+  // Real-time notification stats
+  const { stats: notificationStats, isConnected: notificationConnected } = useNotificationContext();
   
   // Ensure popularStreams is always an array
   const popularStreams = Array.isArray(popularStreamsData?.results) ? popularStreamsData.results : [];
@@ -457,13 +488,35 @@ export default function HomeScreen() {
         <ScrollView scrollEnabled={!isSearching && !searchState.showSuggestions}>
         <View className="p-4">
           {/* Header */}
-          <View className="mb-6">
-            <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-2xl mb-1">
-              Connect with your
-            </Text>
-            <Text style={{ fontFamily: fonts.bold }} className="text-[#C42720] text-2xl">
-              Favorite Streamers!
-            </Text>
+          <View className="mb-6 flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-2xl mb-1">
+                Connect with your
+              </Text>
+              <Text style={{ fontFamily: fonts.bold }} className="text-[#C42720] text-2xl">
+                Favorite Streamers!
+              </Text>
+            </View>
+            
+            {/* Notification Icon */}
+            <TouchableOpacity 
+              onPress={() => router.push('/notification-inbox')}
+              className="relative bg-gray-800 rounded-full p-3 ml-4"
+            >
+              <MaterialIcons name="notifications" size={24} color="#C42720" />
+              
+              {/* Real-time connection indicator */}
+              <View className={`absolute top-1 left-1 w-2 h-2 rounded-full ${notificationConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
+              
+              {/* Notification Badge - Show unread count */}
+              {notificationStats && notificationStats.unread_notifications > 0 && (
+                <View className="absolute -top-1 -right-1 bg-red-500 rounded-full w-5 h-5 items-center justify-center">
+                  <Text className="text-white text-xs font-bold">
+                    {notificationStats.unread_notifications > 9 ? '9+' : notificationStats.unread_notifications}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* Search Bar */}
@@ -505,7 +558,7 @@ export default function HomeScreen() {
                     </Text>
                   </TouchableOpacity>
                 </View>
-                <SearchResults query={searchState.query} onJoinStream={handleJoinStream} />
+                <SearchResults query={searchState.query} onJoinStream={handleJoinStream} baseURL={baseURL} />
               </View>
             ) : !isSearching ? (
               /* Normal Home Content */
@@ -542,14 +595,14 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
 
-          {/* Following Section */}
+          {/* Live Following Section */}
           <View className="mb-8">
             <View className="flex-row justify-between items-center mb-4">
               <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg">
-                Following
+                Live Following
               </Text>
               <TouchableOpacity 
-                      onPress={() => router.push('/followings')}
+                onPress={() => router.push('/followings')}
                 style={{ 
                   flexDirection: 'row', 
                   alignItems: 'center',
@@ -571,65 +624,88 @@ export default function HomeScreen() {
               contentContainerStyle={{ paddingRight: 16 }}
               className="gap-4 mb-3"
             >
-              {followingLoading ? (
+              {(followingLoading || liveStreamsLoading) ? (
                 // Loading state
-                Array.from({ length: 5 }).map((_, index) => (
-                  <View key={index} className="relative mr-4">
-                    <View className="w-16 h-16 rounded-full bg-gray-600 border-2 border-[#C42720]" />
-                  </View>
-                ))
-              ) : followingUsers.length === 0 ? (
-                // Empty state
-                <View className="flex-1 items-center justify-center py-4">
-                  <Text className="text-gray-400 text-sm">
-                    Follow some users to see them here!
-                  </Text>
+                <View className="flex-row">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <View key={index} className="relative mr-4">
+                      <View className="w-16 h-16 rounded-full bg-gray-700 animate-pulse border-2 border-[#C42720]" />
+                      <View className="absolute bottom-[-4px] self-center bg-gray-600 px-2 py-0.5 rounded-lg">
+                        <View className="w-8 h-2 bg-gray-500 rounded" />
+                      </View>
+                    </View>
+                  ))}
                 </View>
-              ) : (
-                // Real following users data
-                followingUsers.map((user) => (
+              ) : (() => {
+                // Filter to only show followers who are currently live streaming
+                // Use safeFollowingUsers to avoid stale data when auth fails
+                const liveFollowers = safeFollowingUsers.filter(user => user.is_live);
+                
+                if (liveFollowers.length === 0) {
+                  return null; // Don't render inside ScrollView, handle below
+                }
+
+                return liveFollowers.map((user) => (
                   <TouchableOpacity 
                     key={user.id} 
                     className="relative mr-4"
                     onPress={() => {
-                      if (user.is_live) {
-                        // Find the user's live stream
-                        const userStream = followingLiveStreams.find(stream => stream.host.id === user.id);
-                        if (userStream) {
-                          handleJoinStream(userStream.id, userStream.title, user.username);
-                        } else {
-                          Alert.alert('Stream Not Found', 'This stream is no longer available.');
-                        }
+                      // Find the user's live stream
+                      const userStream = followingLiveStreams.find(stream => stream.host.id === user.id);
+                      if (userStream) {
+                        handleJoinStream(userStream.id, userStream.title, user.username);
                       } else {
-                        // Navigate to user profile
-                        router.push({
-                          pathname: '/user-profile',
-                          params: { userId: user.id.toString() }
-                        });
+                        Alert.alert('Stream Unavailable', 'This stream is no longer available or has ended.');
                       }
                     }}
                   >
-                    <Image
-                      source={{ 
-                        uri: user.profile_picture_url 
-                          ? (user.profile_picture_url.startsWith('http') 
-                              ? user.profile_picture_url 
-                              : `http://172.20.10.2:8000${user.profile_picture_url}`)
-                          : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
-                      }}
-                      className="w-16 h-16 rounded-full border-2 border-[#C42720]"
-                    />
-                    {user.is_live && (
-                      <View className="absolute bottom-[-4px] self-center bg-[#C42720] px-2 py-0.5 rounded-lg">
+                    <View className="relative">
+                      <Image
+                        source={{ 
+                          uri: user.profile_picture_url 
+                            ? (user.profile_picture_url.startsWith('http') 
+                                ? user.profile_picture_url 
+                                : `${baseURL}${user.profile_picture_url}`)
+                            : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
+                        }}
+                        className="w-16 h-16 rounded-full border-2 border-[#C42720]"
+                      />
+                      {/* Live indicator with pulse animation */}
+                      <View className="absolute top-[-2px] right-[-2px] w-6 h-6 bg-[#C42720] rounded-full items-center justify-center">
+                        <View className="w-2 h-2 bg-white rounded-full" />
+                        <View className="absolute w-6 h-6 bg-[#C42720] rounded-full animate-pulse opacity-50" />
+                      </View>
+                      {/* Live badge at bottom */}
+                      <View className="absolute bottom-[-4px] self-center bg-[#C42720] px-2 py-0.5 rounded-lg shadow-lg">
                         <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-[10px]">
-                          Live
+                          LIVE
                         </Text>
                       </View>
-                    )}
+                    </View>
                   </TouchableOpacity>
-                ))
-              )}
+                ));
+              })()}
             </ScrollView>
+            
+            {/* Empty state for Live Following - positioned outside ScrollView for proper centering */}
+            {!followingLoading && !liveStreamsLoading && safeFollowingUsers.filter(user => user.is_live).length === 0 && (
+              <View className="w-full items-center justify-center py-12">
+                <View className="items-center">
+                  <View className="w-20 h-20 rounded-full bg-gradient-to-br from-red-600 to-red-800 items-center justify-center mb-4 opacity-60">
+                    <MaterialIcons name="videocam-off" size={32} color="white" />
+                  </View>
+                  <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-2 text-center">
+                    No Live Streams
+                  </Text>
+                  <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm text-center leading-5">
+                    {followingError 
+                      ? "Please log in to see your friends' live streams."
+                      : "None of your friends are streaming right now.\nCheck back later for live content!"
+                    }
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Popular Channels */}
@@ -672,16 +748,7 @@ export default function HomeScreen() {
                   </View>
                 ))
               ) : filteredStreams.length === 0 ? (
-                // Empty state
-                <View className="flex-1 items-center justify-center py-8 px-4">
-                  <Text className="text-gray-400 text-base text-center">
-                    {selectedCategory === 'All' 
-                      ? 'No live streams at the moment' 
-                      : `No ${selectedCategory.toLowerCase()} streams live right now`
-                    }
-                  </Text>
-                  <Text className="text-gray-500 text-sm mt-2 text-center">Check back later!</Text>
-                </View>
+                null // Don't render inside ScrollView, handle below
               ) : (
                 // Live streams data
                 filteredStreams.slice(0, 8).map((stream) => (
@@ -696,18 +763,13 @@ export default function HomeScreen() {
                           uri: stream.host.profile_picture_url 
                             ? (stream.host.profile_picture_url.startsWith('http') 
                                 ? stream.host.profile_picture_url 
-                                : `http://172.20.10.2:8000${stream.host.profile_picture_url}`)
+                                : `${baseURL}${stream.host.profile_picture_url}`)
                             : `https://ui-avatars.com/api/?name=${encodeURIComponent(`${stream.host.first_name || ''} ${stream.host.last_name || ''}`).trim() || stream.host.username}&background=C42720&color=fff&size=400`
                         }}
                         className="w-full h-full"
                       />
-                      <View className="absolute top-2 left-2 bg-red-600 px-2 py-1 rounded-full flex-row items-center">
-                        <View className="w-2 h-2 bg-white rounded-full mr-1" />
-                        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-xs">
-                          LIVE
-                        </Text>
-                      </View>
-                      <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full">
+                      <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full flex-row items-center gap-1">
+                        <EyeIcon width={16} height={16} stroke="#FFFFFF" className="mr-1.5" />
                         <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
                           {stream.viewer_count || '0'}
                         </Text>
@@ -715,16 +777,13 @@ export default function HomeScreen() {
                       <BlurView
                         intensity={30}
                         tint="dark"
-                        className="absolute bottom-0 left-0 right-0 p-3 bg-black/30"
+                        className="absolute bottom-0 left-0 right-0 px-4 py-4 bg-black/30"
                       >
-                        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-1" numberOfLines={2}>
+                        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-2" numberOfLines={2}>
                           {stream.title}
                         </Text>
                         <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
                           @{stream.host.username}
-                        </Text>
-                        <Text style={{ fontFamily: fonts.regular }} className="text-gray-500 text-xs mt-1">
-                          {stream.mode === 'multi' ? `Multi-Live • ${stream.max_seats} seats` : 'Single Live'} • {stream.channel.charAt(0).toUpperCase() + stream.channel.slice(1)}
                         </Text>
                       </BlurView>
                     </View>
@@ -732,6 +791,29 @@ export default function HomeScreen() {
                 ))
               )}
             </ScrollView>
+            
+            {/* Empty state for Popular Channels - positioned outside ScrollView for proper centering */}
+            {!popularLoading && filteredStreams.length === 0 && (
+              <View className="w-full items-center justify-center py-12">
+                <View className="items-center">
+                  <View className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-600 to-gray-800 items-center justify-center mb-4 opacity-60">
+                    <MaterialIcons name="live-tv" size={32} color="white" />
+                  </View>
+                  <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-2 text-center">
+                    {selectedCategory === 'All' 
+                      ? 'No Live Streams' 
+                      : `No ${selectedCategory} Streams`
+                    }
+                  </Text>
+                  <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm text-center leading-5">
+                    {selectedCategory === 'All' 
+                      ? 'No streamers are currently live.\nCheck back later for amazing content!'
+                      : `No ${selectedCategory.toLowerCase()} streams are live right now.\nTry a different category or come back later!`
+                    }
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
               </>
             ) : null}

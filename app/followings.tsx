@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, SafeAreaView, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import SearchIcon from '../assets/icons/search-icon.svg';
 import CheckIcon from '../assets/icons/check.svg';
 import { useGetFollowingQuery, useFollowUserMutation, useUnfollowUserMutation } from '../src/store/followApi';
+import ipDetector from '../src/utils/ipDetector';
 
 // Sent icon SVG
 const sentIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -15,11 +16,52 @@ const sentIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xm
 
 export default function FollowingsScreen() {
   const [search, setSearch] = useState('');
+  const [baseURL, setBaseURL] = useState<string>('');
   
-  // RTK Query hooks
-  const { data: followingUsers = [], isLoading, error, refetch } = useGetFollowingQuery({ search });
+  // Initialize base URL with IP detection
+  useEffect(() => {
+    const initializeBaseURL = async () => {
+      try {
+        const detection = await ipDetector.detectIP();
+        const url = `http://${detection.ip}:8000`;
+        setBaseURL(url);
+        console.log('🔗 Followings Base URL initialized:', url);
+      } catch (error) {
+        console.error('❌ Failed to detect IP in followings:', error);
+        setBaseURL('http://172.20.10.2:8000'); // Fallback
+      }
+    };
+    
+    initializeBaseURL();
+  }, []);
+  
+  // RTK Query hooks with aggressive refresh to ensure data is current
+  const { data: followingUsers = [], isLoading, error, refetch } = useGetFollowingQuery(
+    { search }, 
+    {
+      // Force refresh every time component mounts or when args change
+      refetchOnMountOrArgChange: true,
+      refetchOnFocus: true,
+      refetchOnReconnect: true
+    }
+  );
   const [followUser, { isLoading: isFollowing }] = useFollowUserMutation();
   const [unfollowUser, { isLoading: isUnfollowing }] = useUnfollowUserMutation();
+
+  // Add refresh function to handle data refresh
+  const handleRefresh = () => {
+    refetch();
+  };
+
+  // Add useFocusEffect to refresh when screen comes into focus
+  const useFocusEffect = require('@react-navigation/native').useFocusEffect;
+  
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('📱 Followings screen focused - refreshing data');
+      refetch();
+    }, [refetch])
+  );
 
   const toggleFollow = async (userId: number, isCurrentlyFollowing: boolean) => {
     try {
@@ -120,7 +162,17 @@ export default function FollowingsScreen() {
         </View>
       </View>
 
-      <ScrollView className="px-4 mt-6">
+      <ScrollView 
+        className="px-4 mt-6"
+        refreshControl={
+          <RefreshControl 
+            refreshing={isLoading} 
+            onRefresh={handleRefresh}
+            tintColor="#C42720"
+            colors={['#C42720']}
+          />
+        }
+      >
         {followingUsers.length === 0 ? (
           <View className="flex-1 justify-center items-center py-20">
             <Text className="text-white text-lg mb-2">No users found</Text>
@@ -141,7 +193,7 @@ export default function FollowingsScreen() {
                       source={{ 
                         uri: user.profile_picture_url.startsWith('http') 
                           ? user.profile_picture_url 
-                          : `http://172.20.10.2:8000${user.profile_picture_url}`
+                          : baseURL ? `${baseURL}${user.profile_picture_url}` : `http://172.20.10.2:8000${user.profile_picture_url}`
                       }} 
                       className={`w-14 h-14 rounded-full ${user.is_live ? 'border-2 border-[#C42720]' : 'border-2 border-transparent'}`}
                     />
@@ -169,15 +221,6 @@ export default function FollowingsScreen() {
               </TouchableOpacity>
               
               <View className="flex-row items-center gap-2">
-
-                {/* Share Button */}
-                <TouchableOpacity
-                  onPress={() => handleShareUser(user)}
-                  className="py-2 px-3 rounded-full bg-[#2E1616] flex-row items-center justify-center"
-                  style={{ height: 36 }}
-                >
-                  <SvgXml xml={sentIcon} width={14} height={14} />
-                </TouchableOpacity>
 
                 {/* Follow Button */}
                 <TouchableOpacity

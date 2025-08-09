@@ -6,6 +6,7 @@ import {
   MediaStreamTrack,
   mediaDevices,
 } from 'react-native-webrtc';
+import IPDetector from '../utils/ipDetector';
 
 interface WebRTCServiceConfig {
   streamId: string;
@@ -78,11 +79,20 @@ export class WebRTCService {
   }
 
   private async connectToSignalingServer(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
-        const wsUrl = `ws://172.20.10.3:8000/ws/stream/${this.config.streamId}/signaling/`;
-        console.log('🔌 Connecting to WebSocket:', wsUrl);
+        // Always use IP detector for WebSocket URL
+        let wsUrl = `ws://172.20.10.3:8000/ws/stream/${this.config.streamId}/signaling/`; // Default fallback
         
+        try {
+          const detectionResult = await IPDetector.detectIP();
+          wsUrl = `ws://${detectionResult.ip}:8000/ws/stream/${this.config.streamId}/signaling/`;
+          console.log('🔌 [WebRTC] Using detected WebSocket URL:', wsUrl);
+        } catch (error) {
+          console.error('❌ [WebRTC] IP detection failed, using fallback:', error);
+        }
+        
+        console.log('🔌 Connecting to WebSocket:', wsUrl);
         this.websocket = new WebSocket(wsUrl);
 
         this.websocket.onopen = () => {

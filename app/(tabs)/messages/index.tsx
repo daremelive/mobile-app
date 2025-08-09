@@ -7,6 +7,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import { SvgXml } from 'react-native-svg';
 import ArrowLeftIcon from '../../../assets/icons/arrow-left.svg';
 import SearchIcon from '../../../assets/icons/search-icon.svg';
+import { CheckDoubleIcon } from '../../../components/icons/CheckDoubleIcon';
+import { CheckSingleIcon } from '../../../components/icons/CheckSingleIcon';
 import { useGetFollowingQuery } from '../../../src/store/followApi';
 import { useConversations, useUsers } from '../../../src/hooks/useMessages';
 import { selectCurrentUser } from '../../../src/store/authSlice';
@@ -52,6 +54,28 @@ export default function MessagesScreen() {
 
   // State for dynamic avatar URLs
   const [avatarUrls, setAvatarUrls] = useState<{[key: string]: string}>({});
+
+  // Get following users for the top section
+  const { data: followingUsers = [], isLoading: followingLoading } = useGetFollowingQuery({ search: '' });
+  
+  // Use hooks for conversations and users
+  const { 
+    conversations, 
+    loading, 
+    error, 
+    refreshing, 
+    searchResults,
+    isSearching,
+    refreshConversations, 
+    searchConversations 
+  } = useConversations();
+  
+  const { 
+    users, 
+    loading: usersLoading, 
+    searchUsers,
+    createConversation 
+  } = useUsers();
   
   // Update avatar URLs when data changes
   useEffect(() => {
@@ -68,7 +92,7 @@ export default function MessagesScreen() {
       // Update URLs for conversation participants
       if (conversations) {
         for (const conversation of conversations) {
-          const otherUser = conversation.participants?.find((p: any) => p.id !== currentUser?.id);
+          const otherUser = getOtherParticipant(conversation);
           if (otherUser) {
             urls[`conversation_${otherUser.id}`] = await buildAvatarUrl(otherUser);
           }
@@ -87,26 +111,6 @@ export default function MessagesScreen() {
     
     updateAvatarUrls();
   }, [followingUsers, conversations, users, buildAvatarUrl, currentUser]);
-  
-  // Get following users for the top section
-  const { data: followingUsers = [], isLoading: followingLoading } = useGetFollowingQuery({ search: '' });
-  
-  // Use hooks for conversations and users
-  const { 
-    conversations, 
-    loading, 
-    error, 
-    refreshing, 
-    refreshConversations, 
-    searchConversations 
-  } = useConversations();
-  
-  const { 
-    users, 
-    loading: usersLoading, 
-    searchUsers,
-    createConversation 
-  } = useUsers();
 
   // Set a test token and user for debugging (remove this in production)
   useEffect(() => {
@@ -231,7 +235,10 @@ export default function MessagesScreen() {
   const displayConversations = useMemo(() => {
     if (!currentUser) return [];
     
-    return conversations.map(conversation => {
+    // Use search results if searching, otherwise use regular conversations
+    const conversationsToDisplay = searchResults?.conversations || conversations;
+    
+    return conversationsToDisplay.map(conversation => {
       const otherUser = getOtherParticipant(conversation);
       return {
         id: conversation.id,
@@ -242,12 +249,30 @@ export default function MessagesScreen() {
         time: conversation.last_message_time ? formatTime(conversation.last_message_time) : '',
         unread: conversation.unread_count || 0,
         avatar: avatarUrls[`conversation_${otherUser?.id}`] || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser?.first_name || otherUser?.username || 'U')}&background=C42720&color=fff&size=100`,
-        isOnline: otherUser?.is_online || false
+        isOnline: otherUser?.is_online || false,
+        lastMessageStatus: conversation.last_message_status,
+        lastMessageIsFromCurrentUser: conversation.last_message_sender?.id === currentUser?.id
       };
     });
-  }, [conversations, currentUser]);
+  }, [conversations, searchResults, currentUser, avatarUrls, getOtherParticipant]);
 
-  const filteredConversations = displayConversations.filter(conversation => 
+  // Helper function to highlight search text
+  const highlightSearchText = (text: string, searchQuery: string) => {
+    if (!searchQuery.trim()) return text;
+    
+    const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => 
+      regex.test(part) ? (
+        <Text key={index} style={{ fontFamily: fonts.semiBold, color: '#C42720' }}>
+          {part}
+        </Text>
+      ) : part
+    );
+  };
+
+  const filteredConversations = searchQuery.trim() ? displayConversations : displayConversations.filter(conversation => 
     conversation.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -271,14 +296,27 @@ export default function MessagesScreen() {
       {/* Search Bar */}
       <View className="px-4 mb-6 mt-6">
         <View className="flex-row items-center rounded-full p-3 border border-[#333333]">
-          <SearchIcon width={20} height={20} />
+          {isSearching ? (
+            <ActivityIndicator size="small" color="#C42720" />
+          ) : (
+            <SearchIcon width={20} height={20} />
+          )}
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search"
+            placeholder="Search conversations and messages"
             placeholderTextColor="#8A8A8E"
             className="flex-1 text-white text-base ml-3"
+            style={{ fontFamily: fonts.regular }}
           />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity 
+              onPress={() => setSearchQuery('')}
+              className="ml-2 w-6 h-6 rounded-full bg-[#666666] justify-center items-center"
+            >
+              <Text className="text-black text-xs font-bold">×</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -335,9 +373,6 @@ export default function MessagesScreen() {
                       </Text>
                     </View>
                   )}
-                  {user.is_online && !user.is_live && (
-                    <View className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-black" />
-                  )}
                 </TouchableOpacity>
               ))
             )}
@@ -350,6 +385,18 @@ export default function MessagesScreen() {
           {error && (
             <View className="p-4 bg-red-500/20 border border-red-500 rounded-lg mx-4 mb-4">
               <Text className="text-red-400 text-sm">Error: {error}</Text>
+            </View>
+          )}
+
+          {/* Search Results Summary */}
+          {searchQuery.trim() && searchResults && !isSearching && (
+            <View className="px-4 py-2 mb-2">
+              <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
+                {searchResults.conversations.length + (searchResults.messages?.length || 0) > 0 
+                  ? `Found ${searchResults.conversations.length} conversations and ${searchResults.messages?.length || 0} messages`
+                  : `No results for "${searchQuery}"`
+                }
+              </Text>
             </View>
           )}
           
@@ -369,6 +416,16 @@ export default function MessagesScreen() {
                   </Text>
                   <Text className="text-gray-400 text-center mt-2">
                     Start a conversation with someone from your following list above
+                  </Text>
+                </View>
+              ) : filteredConversations.length === 0 && searchQuery && !isSearching ? (
+                <View className="flex-1 items-center justify-center py-20 px-4">
+                  <SearchIcon width={48} height={48} />
+                  <Text className="text-white text-lg font-semibold mt-4 text-center">
+                    No results found
+                  </Text>
+                  <Text className="text-gray-400 text-center mt-2">
+                    Try searching with different keywords
                   </Text>
                 </View>
               ) : (
@@ -391,7 +448,7 @@ export default function MessagesScreen() {
                     <View className="flex-1">
                       <View className="flex-row justify-between items-center mb-1">
                         <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base">
-                          {conversation.name}
+                          {searchQuery.trim() ? highlightSearchText(conversation.name, searchQuery) : conversation.name}
                         </Text>
                         <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-xs">
                           {conversation.time}
@@ -399,13 +456,26 @@ export default function MessagesScreen() {
                       </View>
                       
                       <View className="flex-row items-center justify-between">
-                        <Text 
-                          style={{ fontFamily: fonts.regular }} 
-                          className="flex-1 text-gray-400 text-sm mr-2" 
-                          numberOfLines={1}
-                        >
-                          {conversation.message}
-                        </Text>
+                        <View className="flex-row items-center flex-1 mr-2">
+                          <Text 
+                            style={{ fontFamily: fonts.regular }} 
+                            className="flex-1 text-gray-400 text-sm mr-1" 
+                            numberOfLines={1}
+                          >
+                            {searchQuery.trim() ? highlightSearchText(conversation.message, searchQuery) : conversation.message}
+                          </Text>
+                          {conversation.lastMessageIsFromCurrentUser && conversation.lastMessageStatus && (
+                            <View className="ml-1">
+                              {conversation.lastMessageStatus === 'read' ? (
+                                <CheckDoubleIcon size={12} color="#C42720" />
+                              ) : conversation.lastMessageStatus === 'delivered' ? (
+                                <CheckDoubleIcon size={12} color="#666666" />
+                              ) : (
+                                <CheckSingleIcon size={12} color="#666666" />
+                              )}
+                            </View>
+                          )}
+                        </View>
                         {conversation.unread > 0 && (
                           <View className="bg-[#C42720] min-w-[20px] h-5 rounded-full justify-center items-center px-1">
                             <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-xs">
@@ -417,6 +487,59 @@ export default function MessagesScreen() {
                     </View>
                   </TouchableOpacity>
                 ))
+              )}
+
+              {/* Show search results for individual messages when searching */}
+              {searchQuery.trim() && searchResults?.messages && searchResults.messages.length > 0 && (
+                <>
+                  <View className="px-4 py-3 bg-[#1A1A1A] mt-4">
+                    <Text style={{ fontFamily: fonts.semiBold }} className="text-gray-400 text-sm uppercase tracking-wider">
+                      Messages ({searchResults.messages.length})
+                    </Text>
+                  </View>
+                  {searchResults.messages.map((message: any) => {
+                    const otherUser = message.sender?.id === currentUser?.id 
+                      ? message.recipient 
+                      : message.sender;
+                    return (
+                      <TouchableOpacity 
+                        key={`message-${message.id}`}
+                        className="flex-row items-center px-4 py-4 border-b border-[#1A1A1A]"
+                        onPress={() => handleConversationPress(message.conversation.id)}
+                      >
+                        <View className="relative mr-4">
+                          <Image
+                            source={{ 
+                              uri: avatarUrls[`user_${otherUser?.id}`] || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser?.first_name || otherUser?.username || 'U')}&background=C42720&color=fff&size=100`
+                            }}
+                            className="w-12 h-12 rounded-full"
+                          />
+                        </View>
+                        
+                        <View className="flex-1">
+                          <View className="flex-row justify-between items-center mb-1">
+                            <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-sm">
+                              {otherUser?.first_name && otherUser?.last_name 
+                                ? `${otherUser.first_name} ${otherUser.last_name}`
+                                : otherUser?.username || 'Unknown User'}
+                            </Text>
+                            <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-xs">
+                              {formatTime(message.created_at)}
+                            </Text>
+                          </View>
+                          
+                          <Text 
+                            style={{ fontFamily: fonts.regular }} 
+                            className="text-gray-400 text-sm" 
+                            numberOfLines={2}
+                          >
+                            {highlightSearchText(message.content, searchQuery)}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </>
               )}
 
               {/* Show users when searching */}

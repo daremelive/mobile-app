@@ -25,8 +25,11 @@ interface Message {
   created_at: string;
   sender: User;
   recipient: User;
+  is_delivered: boolean;
+  delivered_at?: string;
   is_read: boolean;
   read_at?: string;
+  is_outgoing?: boolean;
 }
 
 interface Conversation {
@@ -36,6 +39,7 @@ interface Conversation {
   last_message?: string;
   last_message_time?: string;
   last_message_sender?: User;
+  last_message_status?: 'pending' | 'delivered' | 'read';
   unread_count: number;
   created_at: string;
   updated_at: string;
@@ -114,6 +118,11 @@ class MessagesApi {
     await this.makeRequest(`/messaging/conversations/${conversationId}/mark-read/`, {
       method: 'POST',
     });
+  }
+
+  // Search conversations and messages
+  async searchMessages(query: string): Promise<{conversations: Conversation[], messages: Message[], query: string}> {
+    return this.makeRequest(`/messaging/search/?q=${encodeURIComponent(query)}`);
   }
 
   // Search conversations

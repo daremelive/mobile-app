@@ -26,6 +26,8 @@ import { SearchIcon } from '../../components/icons/SearchIcon';
 import { createStreamClient, createStreamUser, generateCallId } from '../../src/utils/streamClient';
 import { CALL_SETTINGS, RECORDING_SETTINGS } from '../../src/config/stream';
 import GiftAnimation from '../../components/animations/GiftAnimation';
+import ShareStreamModal from '../../components/ShareStreamModal';
+import IPDetector from '../../src/utils/ipDetector';
 
 export default function SingleStreamScreen() {
   const router = useRouter();
@@ -108,7 +110,11 @@ export default function SingleStreamScreen() {
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [usernameToInvite, setUsernameToInvite] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [streamTitle, setStreamTitle] = useState('');
+  // Check if coming from title screen
+  const fromTitleScreen = params.fromTitleScreen === 'true';
+  const titleFromParams = params.title as string;
+  
+  const [streamTitle, setStreamTitle] = useState(titleFromParams || ''); // Use title from params if available
   
   // Gift modal state
   const [giftModalVisible, setGiftModalVisible] = useState(false);
@@ -116,6 +122,10 @@ export default function SingleStreamScreen() {
   
   // Coin purchase modal state
   const [coinPurchaseModalVisible, setCoinPurchaseModalVisible] = useState(false);
+  
+  // Share modal state
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [endStreamModalVisible, setEndStreamModalVisible] = useState(false);
   
   // Flag to handle modal transition after purchase
   const [shouldOpenGiftModalAfterPurchase, setShouldOpenGiftModalAfterPurchase] = useState(false);
@@ -131,10 +141,44 @@ export default function SingleStreamScreen() {
     animationKey: string;
   }>>([]);
 
+  // Dynamic API base URL from IP detector
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>('http://172.20.10.2:8000'); // Current server IP as fallback
+
+  // Initialize API base URL when component mounts
+  useEffect(() => {
+    const initializeAPIBaseUrl = async () => {
+      try {
+        const detection = await IPDetector.detectIP();
+        const baseUrl = `http://${detection.ip}:8000`;
+        setApiBaseUrl(baseUrl);
+        console.log(`🌐 [SingleStream] API Base URL detected: ${baseUrl} (confidence: ${detection.confidence})`);
+      } catch (error) {
+        console.error('❌ [SingleStream] Failed to detect IP, using fallback:', error);
+        // Keep the fallback IP
+      }
+    };
+
+    initializeAPIBaseUrl();
+  }, []);
+
   // Initialize stream when component mounts
   useEffect(() => {
-    initializeStream();
-  }, []);
+    // If coming from title screen, auto-start stream
+    if (fromTitleScreen && titleFromParams) {
+      console.log('🚀 Auto-starting single stream from title screen with title:', titleFromParams);
+      initializeStream();
+    } else {
+      // Navigate to title screen instead of showing modal
+      router.replace({
+        pathname: '/(stream)/stream-title',
+        params: {
+          mode: 'single',
+          channel: (params.channel as string) || 'video',
+          seats: '1'
+        }
+      });
+    }
+  }, [fromTitleScreen, titleFromParams]);
 
   // Debug current user data
   useEffect(() => {
@@ -208,14 +252,32 @@ export default function SingleStreamScreen() {
       // Only trigger animation for gift messages from OTHER users (not the sender)
       if (latestMessage.message_type === 'gift' && latestMessage.user.id !== currentUser?.id) {
         const animationId = Date.now().toString() + Math.random().toString();
+        
+        // Build icon URL more robustly - handle different icon formats
+        let iconUrl = null;
+        if (latestMessage.gift_icon) {
+          if (latestMessage.gift_icon.startsWith('http')) {
+            // Already a full URL
+            iconUrl = latestMessage.gift_icon;
+          } else if (latestMessage.gift_icon.startsWith('/') || latestMessage.gift_icon.includes('gifts/')) {
+            // Path-based icon - construct full URL using dynamic base URL
+            const iconPath = latestMessage.gift_icon.startsWith('/') 
+              ? latestMessage.gift_icon.substring(1) 
+              : latestMessage.gift_icon;
+            iconUrl = `${apiBaseUrl}/media/${iconPath}`;
+          } else if (latestMessage.gift_icon.includes('.')) {
+            // Likely a filename - assume it's in media/gifts/
+            iconUrl = `${apiBaseUrl}/media/gifts/${latestMessage.gift_icon}`;
+          }
+          // If none of the above, iconUrl stays null and we'll use the emoji fallback
+        }
+        
         const newGiftAnimation = {
           id: animationId,
           gift: {
             id: latestMessage.gift?.id || 0,
             name: latestMessage.gift_name || 'Gift',
-            icon_url: latestMessage.gift_icon && (latestMessage.gift_icon.startsWith('/') || latestMessage.gift_icon.includes('gifts/'))
-              ? `http://192.168.1.117:8000/media/${latestMessage.gift_icon.startsWith('/') ? latestMessage.gift_icon.substring(1) : latestMessage.gift_icon}`
-              : null,
+            icon_url: iconUrl,
             icon: latestMessage.gift_icon || '🎁',
             cost: latestMessage.gift?.cost || 0
           },
@@ -227,10 +289,17 @@ export default function SingleStreamScreen() {
           animationKey: animationId,
         };
         
+        console.log('🎁 Receiver gift animation data:', { 
+          original_gift_icon: latestMessage.gift_icon, 
+          constructed_icon_url: iconUrl,
+          api_base_url: apiBaseUrl,
+          gift_data: newGiftAnimation.gift 
+        });
+        
         setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
       }
     }
-  }, [messages, currentUser?.id]);
+  }, [messages, currentUser?.id, apiBaseUrl]); // Added apiBaseUrl to dependencies
 
   const initializeStream = async () => {
     // Check if user is loaded
@@ -288,8 +357,9 @@ export default function SingleStreamScreen() {
       setStreamId(streamResponse.id);
 
       // Create GetStream call and join (parallel with stream start)
-      const callId = generateCallId(currentUser.id.toString());
-      const call = streamClient.call('livestream', callId);
+      // Use the backend stream ID as the GetStream call ID for consistency
+      const callId = `stream_${streamResponse.id}`;
+      const call = streamClient.call('default', callId);
       
       console.log('🔄 Creating and joining call...');
       
@@ -364,40 +434,102 @@ export default function SingleStreamScreen() {
   };
 
   const handleEndStream = async () => {
+    console.log('🔴 handleEndStream called - starting stream end process');
+    
     try {
-      // End the stream in the database
+      // End the stream in the database first
       if (streamId) {
         try {
-          await streamAction({
+          console.log('🔴 Attempting to end stream in database:', streamId);
+          const result = await streamAction({
             streamId: streamId,
             action: { action: 'end' }
           }).unwrap();
-          console.log('✅ Stream ended in database');
+          console.log('✅ Stream ended in database successfully:', result);
           
-          // Invalidate stream cache to ensure ended streams don't appear in lists
-          dispatch(streamsApi.util.invalidateTags(['Stream']));
+          // Aggressively invalidate ALL stream-related cache to ensure ended streams don't appear
+          console.log('🔄 Invalidating all stream cache tags...');
+          dispatch(streamsApi.util.invalidateTags(['Stream', 'StreamMessage']));
+          
+          // Also reset the entire API state and force immediate refetch
+          dispatch(streamsApi.util.resetApiState());
+          
+          // Add a small delay then invalidate again to ensure cache is completely cleared
+          setTimeout(() => {
+            console.log('🔄 Second cache invalidation to ensure cleanup...');
+            dispatch(streamsApi.util.invalidateTags(['Stream']));
+          }, 500);
+          
+          console.log('✅ All stream cache invalidated and reset');
           
         } catch (endError) {
           console.error('❌ Failed to end stream in database:', endError);
-          // Continue with ending the call even if database update fails
+          
+          // Show error to user
+          Alert.alert(
+            'Error Ending Stream',
+            'Failed to end the stream properly. Please check your connection and try again.',
+            [
+              { text: 'Try Again', onPress: () => handleEndStream() },
+              { text: 'Force Close', onPress: () => {
+                // Force cleanup and navigate back anyway
+                console.log('🔴 Force closing stream - navigating back');
+                router.back();
+              }}
+            ]
+          );
+          return; // Don't continue if database operation failed
         }
         
-        // Note: Stream ending logic for hosts vs participants:
-        // - Hosts: End the stream (which automatically handles their departure)  
-        // - Participants: Leave the stream (handled elsewhere in the app)
-        // The backend prevents hosts from "leaving" their own streams
-        console.log('✅ Stream ended by host - no need to auto-leave');
+        // Stream ending logic: Hosts end the stream (which handles their departure automatically)
+        console.log('✅ Stream ended by host - stream is now offline');
       }
       
       // Leave the GetStream call
       if (call) {
-        await call.leave();
+        console.log('🔴 Leaving GetStream call');
+        try {
+          // Disable camera and microphone BEFORE leaving the call
+          console.log('🎤 Disabling microphone and camera...');
+          await Promise.all([
+            call.microphone.disable().catch((error: any) => {
+              console.log('⚠️ Microphone disable error (may already be disabled):', error.message);
+            }),
+            call.camera.disable().catch((error: any) => {
+              console.log('⚠️ Camera disable error (may already be disabled):', error.message);
+            })
+          ]);
+          console.log('✅ Microphone and camera disabled');
+          
+          // Small delay to ensure media streams are properly closed
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Now leave the call
+          await call.leave();
+          console.log('✅ Left GetStream call successfully');
+        } catch (callError) {
+          console.log('⚠️ GetStream call leave error (may already be left):', callError);
+          // Don't fail the entire operation for this
+        }
       }
       
-      router.back();
+      console.log('🔴 Navigating to homepage from single stream');
+      router.replace('/(tabs)/home'); // Navigate to homepage instead of going back
     } catch (error) {
-      console.error('End stream error:', error);
-      router.back();
+      console.error('❌ End stream error:', error);
+      
+      // Show error to user
+      Alert.alert(
+        'Error',
+        'An error occurred while ending the stream. The stream may still be live.',
+        [
+          { text: 'Try Again', onPress: () => handleEndStream() },
+          { text: 'Close Anyway', onPress: () => {
+            console.log('🔴 Force closing stream anyway - navigating to homepage');
+            router.replace('/(tabs)/home'); // Also navigate to homepage on force close
+          }}
+        ]
+      );
     }
   };
 
@@ -541,6 +673,13 @@ export default function SingleStreamScreen() {
         },
         animationKey: animationId, // Unique key to trigger animation
       };
+      
+      console.log('🎁 Sender gift animation data:', { 
+        gift_icon_url: gift.icon_url,
+        gift_icon: gift.icon,
+        gift_name: gift.name,
+        gift_data: gift 
+      });
       
       setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
       
@@ -708,7 +847,7 @@ export default function SingleStreamScreen() {
             <View className="w-12 h-12 rounded-full bg-gray-400 mr-3 overflow-hidden">
               {(currentUser?.profile_picture_url || currentUser?.profile_picture) ? (
                 <Image 
-                  source={{ uri: `http://192.168.1.117:8000${currentUser.profile_picture_url || currentUser.profile_picture}` }}
+                  source={{ uri: `${apiBaseUrl}${currentUser.profile_picture_url || currentUser.profile_picture}` }}
                   className="w-full h-full"
                   resizeMode="cover"
                   onError={(e) => console.log('Header avatar load error:', e.nativeEvent.error)}
@@ -735,20 +874,18 @@ export default function SingleStreamScreen() {
               </Text>
             </View>
             
-            {/* Follow Button */}
-            <TouchableOpacity className="bg-white rounded-full px-6 py-3 ml-2">
-              <Text className="text-black font-semibold text-sm">Follow</Text>
-            </TouchableOpacity>
-            
-            {/* Share Button */}
-            <TouchableOpacity className="w-12 h-12 rounded-full bg-white items-center justify-center ml-2">
+            {/* Share Button - Only show share button, no follow button for hosts */}
+            <TouchableOpacity 
+              className="w-12 h-12 rounded-full bg-white items-center justify-center ml-2"
+              onPress={() => setShareModalVisible(true)}
+            >
               <Ionicons name="share-social" size={20} color="black" fillColor="white" />
             </TouchableOpacity>
           </View>
           
           {/* Close Button */}
           <TouchableOpacity 
-            onPress={handleEndStream}
+            onPress={() => setEndStreamModalVisible(true)}
             className="w-10 h-10 rounded-full items-center justify-center"
           >
             <CancelIcon width={25} height={25} />
@@ -809,7 +946,7 @@ export default function SingleStreamScreen() {
                         <View className="w-6 h-6 rounded-full bg-gray-400 mr-2 overflow-hidden">
                           {(item.user.profile_picture_url || item.user.avatar_url) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                              source={{ uri: `${apiBaseUrl}${item.user.profile_picture_url || item.user.avatar_url}` }}
                               className="w-full h-full"
                               resizeMode="cover"
                             />
@@ -833,7 +970,7 @@ export default function SingleStreamScreen() {
                         <View className="w-6 h-6 rounded-full bg-gray-400 mr-2 overflow-hidden">
                           {(item.user.profile_picture_url || item.user.avatar_url) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                              source={{ uri: `${apiBaseUrl}${item.user.profile_picture_url || item.user.avatar_url}` }}
                               className="w-full h-full"
                               resizeMode="cover"
                             />
@@ -857,7 +994,7 @@ export default function SingleStreamScreen() {
                         <View className="w-8 h-8 rounded-full bg-gray-400 mr-3 overflow-hidden">
                           {(item.user.profile_picture_url || item.user.avatar_url) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                              source={{ uri: `${apiBaseUrl}${item.user.profile_picture_url || item.user.avatar_url}` }}
                               className="w-full h-full"
                               resizeMode="cover"
                             />
@@ -879,7 +1016,7 @@ export default function SingleStreamScreen() {
                           {/* Gift Icon - Show image if available, fallback to emoji */}
                           {item.gift_icon && (item.gift_icon.startsWith('/') || item.gift_icon.includes('gifts/')) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000/media/${item.gift_icon.startsWith('/') ? item.gift_icon.substring(1) : item.gift_icon}` }}
+                              source={{ uri: `${apiBaseUrl}/media/${item.gift_icon.startsWith('/') ? item.gift_icon.substring(1) : item.gift_icon}` }}
                               style={{ width: 20, height: 20, marginRight: 4 }}
                               resizeMode="contain"
                               onError={(e) => {
@@ -905,7 +1042,7 @@ export default function SingleStreamScreen() {
                       <View className="w-8 h-8 rounded-full bg-gray-400 mr-3 overflow-hidden flex-shrink-0">
                         {(item.user.profile_picture_url || item.user.avatar_url) ? (
                           <Image 
-                            source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                            source={{ uri: `${apiBaseUrl}${item.user.profile_picture_url || item.user.avatar_url}` }}
                             className="w-full h-full"
                             resizeMode="cover"
                             onError={(e) => console.log('Chat avatar load error for user:', item.user.username, e.nativeEvent.error)}
@@ -955,7 +1092,7 @@ export default function SingleStreamScreen() {
         </View>
       )}
 
-      {/* Bottom Comment Bar - Moved down by 50% */}
+      {/* Bottom Comment Bar - For hosts: no gift icon, no add team button */}
       {isLive && (
         <Animated.View 
           className="absolute left-4 right-4 flex-row items-center gap-3" 
@@ -979,22 +1116,6 @@ export default function SingleStreamScreen() {
               blurOnSubmit={false}
             />
           </View>
-          
-          {/* Gift Icon */}
-          <TouchableOpacity 
-            className="w-12 h-12 bg-black/40 rounded-full items-center justify-center"
-            onPress={handleGiftPress}
-          >
-            <GiftIcon width={24} height={24} />
-          </TouchableOpacity>
-          
-          {/* Add Team Icon */}
-          <TouchableOpacity 
-            className="w-12 h-12 bg-black/40 rounded-full items-center justify-center"
-            onPress={handleAddTeamPress}
-          >
-            <AddTeamIcon width={24} height={24} />
-          </TouchableOpacity>
         </Animated.View>
       )}
 
@@ -1198,7 +1319,7 @@ export default function SingleStreamScreen() {
                         <View className="w-10 h-10 rounded-full bg-gray-400 overflow-hidden flex-shrink-0">
                           {(item.user.profile_picture_url || item.user.avatar_url) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                              source={{ uri: `${apiBaseUrl}${item.user.profile_picture_url || item.user.avatar_url}` }}
                               className="w-full h-full"
                               resizeMode="cover"
                             />
@@ -1540,6 +1661,92 @@ export default function SingleStreamScreen() {
           onAnimationComplete={() => handleGiftAnimationComplete(animation.id)}
         />
       ))}
+
+      {/* End Stream Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={endStreamModalVisible}
+        onRequestClose={() => setEndStreamModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/70 items-center justify-center px-6">
+          <View className="bg-gray-800/95 rounded-3xl p-8 w-full max-w-sm items-center">
+            {/* Icon */}
+            <View className="w-20 h-20 rounded-full bg-gray-700 items-center justify-center mb-6">
+              <DareMeLiveIcon width={40} height={40} />
+            </View>
+            
+            {/* Title */}
+            <Text className="text-white text-2xl font-bold text-center mb-3">
+              End Stream
+            </Text>
+            
+            {/* Description */}
+            <Text className="text-gray-300 text-base text-center leading-6 mb-8">
+              Are you sure you want to end your live stream? All viewers will be disconnected and the stream will stop broadcasting.
+            </Text>
+            
+            {/* Buttons */}
+            <View className="w-full space-y-3">
+              {/* Not Now Button */}
+              <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
+                <LinearGradient
+                  colors={['#FF0000', '#330000']}
+                  locations={[0, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  className="w-full h-full"
+                >
+                  <TouchableOpacity 
+                    className="w-full h-full items-center justify-center"
+                    onPress={() => setEndStreamModalVisible(false)}
+                  >
+                    <Text className="text-white text-[17px] font-semibold">Not Now</Text>
+                  </TouchableOpacity>
+                </LinearGradient>
+              </View>
+              
+              {/* End Stream Button */}
+              <View className="w-full h-[52px] rounded-full overflow-hidden">
+                <LinearGradient
+                  colors={['#4A5568', '#2D3748']}
+                  locations={[0, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  className="w-full h-full"
+                >
+                  <TouchableOpacity 
+                    className="w-full h-full items-center justify-center"
+                    onPress={() => {
+                      setEndStreamModalVisible(false);
+                      handleEndStream();
+                    }}
+                  >
+                    <Text className="text-white text-[17px] font-semibold">End Stream</Text>
+                  </TouchableOpacity>
+                </LinearGradient>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Share Stream Modal */}
+      <ShareStreamModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        streamData={{
+          id: streamId || '',
+          title: streamTitle,
+          host: {
+            username: currentUser?.username || '',
+            full_name: currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : '',
+          },
+          mode: 'single',
+          channel: params.channel as string || 'general',
+          is_live: isLive,
+        }}
+      />
     </KeyboardAvoidingView>
   );
 } 

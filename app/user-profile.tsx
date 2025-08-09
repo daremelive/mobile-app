@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,8 @@ import {
   useUnfollowUserMutation 
 } from '../src/store/followApi';
 import { useGetUserProfileQuery } from '../src/store/usersApi';
+import ShareProfileModal from '../components/ShareProfileModal';
+import ipDetector from '../src/utils/ipDetector';
 
 // SVG Icons
 const sentIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -48,6 +50,25 @@ export default function UserProfileScreen() {
   const [unfollowUser, { isLoading: unfollowLoading }] = useUnfollowUserMutation();
   
   const [actionLoading, setActionLoading] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [baseURL, setBaseURL] = useState<string>('');
+
+  // Initialize base URL with IP detection
+  useEffect(() => {
+    const initializeBaseURL = async () => {
+      try {
+        const detection = await ipDetector.detectIP();
+        const url = `http://${detection.ip}:8000`;
+        setBaseURL(url);
+        console.log('🔗 Profile Base URL initialized:', url);
+      } catch (error) {
+        console.error('❌ Failed to detect IP in profile:', error);
+        setBaseURL('http://172.20.10.2:8000'); // Fallback
+      }
+    };
+    
+    initializeBaseURL();
+  }, []);
 
   const handleFollowToggle = async () => {
     if (!userProfile || actionLoading) return;
@@ -145,7 +166,7 @@ export default function UserProfileScreen() {
   const profileImageUrl = userProfile.profile_picture_url 
     ? (userProfile.profile_picture_url.startsWith('http') 
         ? userProfile.profile_picture_url 
-        : `http://172.20.10.2:8000${userProfile.profile_picture_url}`)
+        : `${baseURL}${userProfile.profile_picture_url}`)
     : null;
 
   return (
@@ -223,8 +244,11 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
 
           {/* Share Button */}
-          <TouchableOpacity className="bg-gray-700 w-12 h-12 rounded-full items-center justify-center">
-            <SvgXml xml={sentIcon} width="16" height="16" />
+          <TouchableOpacity 
+            onPress={() => setShareModalVisible(true)}
+            className="bg-gray-700 w-12 h-12 rounded-full items-center justify-center"
+          >
+            <Ionicons name="share-outline" size={20} color="white" />
           </TouchableOpacity>
         </View>
 
@@ -233,7 +257,7 @@ export default function UserProfileScreen() {
           {/* Following */}
           <View className="items-center">
             <Text className="text-white text-2xl font-bold">
-              {userProfile.following_count || '720'}
+              {userProfile.following_count}
             </Text>
             <Text className="text-gray-400 text-base">Following</Text>
           </View>
@@ -244,7 +268,7 @@ export default function UserProfileScreen() {
           {/* Followers */}
           <View className="items-center">
             <Text className="text-white text-2xl font-bold">
-              {userProfile.followers_count || '720'}
+              {userProfile.followers_count}
             </Text>
             <Text className="text-gray-400 text-base">Followers</Text>
           </View>
@@ -255,7 +279,7 @@ export default function UserProfileScreen() {
           {/* Likes */}
           <View className="items-center">
             <Text className="text-white text-2xl font-bold">
-              {userProfile.total_likes_count || '720'}
+              {userProfile.total_likes_count}
             </Text>
             <Text className="text-gray-400 text-base">Likes</Text>
           </View>
@@ -289,6 +313,20 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      
+      {/* Share Profile Modal */}
+      {userProfile && (
+        <ShareProfileModal
+          visible={shareModalVisible}
+          onClose={() => setShareModalVisible(false)}
+          userProfile={{
+            id: userProfile.id,
+            username: userProfile.username,
+            full_name: userProfile.full_name,
+            profile_picture_url: userProfile.profile_picture_url,
+          }}
+        />
+      )}
     </View>
   );
 }

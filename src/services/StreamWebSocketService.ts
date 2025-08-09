@@ -12,6 +12,8 @@ interface StreamWebSocketConfig {
   onError: (error: string) => void;
 }
 
+import IPDetector from '../utils/ipDetector';
+
 export class StreamWebSocketService {
   private websocket: WebSocket | null = null;
   private config: StreamWebSocketConfig;
@@ -27,8 +29,18 @@ export class StreamWebSocketService {
   async connect(): Promise<void> {
     if (this.isConnected) return;
 
-    return new Promise((resolve, reject) => {
-      const wsUrl = `ws://172.20.10.3:8000/ws/stream/${this.config.streamId}/`;
+    return new Promise(async (resolve, reject) => {
+      // Always use IP detector for WebSocket URL
+      let wsUrl = `ws://172.20.10.3:8000/ws/stream/${this.config.streamId}/`; // Default fallback
+      
+      try {
+        const detectionResult = await IPDetector.detectIP();
+        wsUrl = `ws://${detectionResult.ip}:8000/ws/stream/${this.config.streamId}/`;
+        console.log('🔗 [StreamWS] Using detected WebSocket URL:', wsUrl);
+      } catch (error) {
+        console.error('❌ [StreamWS] IP detection failed, using fallback:', error);
+      }
+      
       this.websocket = new WebSocket(wsUrl);
 
       this.websocket.onopen = () => {

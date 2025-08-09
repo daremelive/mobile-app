@@ -6,12 +6,15 @@ export const useConversations = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchResults, setSearchResults] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
   const fetchConversations = useCallback(async () => {
     try {
       setError(null);
       const response = await messagesApi.getConversations();
       setConversations(response.results);
+      setSearchResults(null); // Clear search results when fetching all conversations
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch conversations');
     } finally {
@@ -27,16 +30,21 @@ export const useConversations = () => {
 
   const searchConversations = useCallback(async (query: string) => {
     if (!query.trim()) {
+      setSearchResults(null);
+      setIsSearching(false);
       await fetchConversations();
       return;
     }
     
     try {
+      setIsSearching(true);
       setError(null);
-      const results = await messagesApi.searchConversations(query);
-      setConversations(results);
+      const results = await messagesApi.searchMessages(query);
+      setSearchResults(results);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to search conversations');
+    } finally {
+      setIsSearching(false);
     }
   }, [fetchConversations]);
 
@@ -49,6 +57,8 @@ export const useConversations = () => {
     loading,
     error,
     refreshing,
+    searchResults,
+    isSearching,
     refreshConversations,
     searchConversations,
   };

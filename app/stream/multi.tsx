@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, FlatList, ScrollView, Image, Keyboard, RefreshControl } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, FlatList, ScrollView, Image, Keyboard, RefreshControl, TouchableWithoutFeedback, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector } from 'react-redux';
 import { useDispatch } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
-import { selectCurrentUser } from '../../src/store/authSlice';
+import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
 import { useCreateStreamMutation, useInviteUsersToStreamMutation, useStreamActionMutation, useGetStreamMessagesQuery, useSendMessageMutation, useGetGiftsQuery, useSendGiftMutation, useJoinStreamMutation, useLeaveStreamMutation, useGetStreamQuery, streamsApi } from '../../src/store/streamsApi';
 import { useGetWalletSummaryQuery, useGetCoinPackagesQuery, usePurchaseCoinsMutation } from '../../src/api/walletApi';
 import { walletApi } from '../../src/api/walletApi';
+import ipDetector from '../../src/utils/ipDetector';
 import { Camera } from 'expo-camera';
 import { 
   StreamVideoClient, 
@@ -26,11 +27,13 @@ import { SearchIcon } from '../../components/icons/SearchIcon';
 import { createStreamClient, createStreamUser, generateCallId } from '../../src/utils/streamClient';
 import { CALL_SETTINGS, RECORDING_SETTINGS } from '../../src/config/stream';
 import GiftAnimation from '../../components/animations/GiftAnimation';
+import ShareStreamModal from '../../components/ShareStreamModal';
 
 export default function SingleStreamScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const currentUser = useSelector(selectCurrentUser);
+  const accessToken = useSelector(selectAccessToken);
   const dispatch = useDispatch();
   const [createStream, { isLoading }] = useCreateStreamMutation();
   const [inviteUsers] = useInviteUsersToStreamMutation();
@@ -75,10 +78,15 @@ export default function SingleStreamScreen() {
   const [call, setCall] = useState<any>(null);
   const [isLive, setIsLive] = useState(false);
   const [streamId, setStreamId] = useState<string | null>(null);
+  const [apiBaseUrl, setApiBaseUrl] = useState('');
   
   // Get max seats from URL params
   const maxSeats = parseInt(params.seats as string) || 2; // Default to 2 seats if not specified
   const [currentParticipantCount, setCurrentParticipantCount] = useState(1); // Host counts as 1
+  
+  // Check if coming from title screen
+  const fromTitleScreen = params.fromTitleScreen === 'true';
+  const titleFromParams = params.title as string;
   
   // Get stream details to track participants - enable polling when live
   const { data: streamDetails, refetch: refetchStreamDetails } = useGetStreamQuery(
@@ -124,9 +132,26 @@ export default function SingleStreamScreen() {
   const activeParticipants = streamDetails?.participants?.filter(p => 
     p.is_active && (p.participant_type === 'host' || p.participant_type === 'guest')
   ) || [];
+  
+  // Separate guests only (for Guests tab)
+  const activeGuests = streamDetails?.participants?.filter(p => 
+    p.is_active && p.participant_type === 'guest'
+  ) || [];
+  
+  // Separate viewers only (for Audience tab)
+  const activeViewers = streamDetails?.participants?.filter(p => 
+    p.is_active && p.participant_type === 'viewer'
+  ) || [];
   const currentActiveSeats = activeParticipants.length;
   const availableSeats = maxSeats - currentActiveSeats;
   
+  // Initialize API base URL with IP detector
+  useEffect(() => {
+    ipDetector.getAPIBaseURL().then(url => {
+      setApiBaseUrl(url);
+    });
+  }, []);
+
   // Update participant count when stream details change
   useEffect(() => {
     if (streamDetails?.participants) {
@@ -134,14 +159,198 @@ export default function SingleStreamScreen() {
         p.is_active && (p.participant_type === 'host' || p.participant_type === 'guest')
       ).length;
       setCurrentParticipantCount(activeCount);
+      
+      console.log('📊 Stream participants updated:', {
+        streamId,
+        totalParticipants: streamDetails.participants.length,
+        activeParticipants: activeCount,
+        allParticipants: streamDetails.participants.map(p => ({
+          id: p.id,
+          userId: p.user?.id,
+          username: p.user?.username,
+          type: p.participant_type,
+          isActive: p.is_active,
+          // status: p.status
+        }))
+      });
+      
+      console.log('👥 GUESTS TAB - Active Guests:', activeGuests.map(g => ({
+        id: g.id,
+        username: g.user?.username,
+        type: g.participant_type,
+        isActive: g.is_active
+      })));
+      
+      console.log('👀 AUDIENCE TAB - Active Viewers:', activeViewers.map(v => ({
+        id: v.id,
+        username: v.user?.username,
+        type: v.participant_type,
+        isActive: v.is_active
+      })));
     }
-  }, [streamDetails?.participants]);
+  }, [streamDetails?.participants, streamId, activeGuests, activeViewers]);
+  
+  // Keyboard listeners for Members List modal
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      'keyboardDidShow',
+      (e) => {
+        if (addParticipantModalVisible) {
+          setIsKeyboardVisible(true);
+          setKeyboardHeight(e.endCoordinates.height);
+        }
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      'keyboardDidHide',
+      () => {
+        if (addParticipantModalVisible) {
+          setIsKeyboardVisible(false);
+          setKeyboardHeight(0);
+        }
+      }
+    );
+
+    return () => {
+      keyboardDidHideListener.remove();
+      keyboardDidShowListener.remove();
+    };
+  }, [addParticipantModalVisible]);
   
   // Invitation modal state
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [addParticipantModalVisible, setAddParticipantModalVisible] = useState(false);
   const [usernameToInvite, setUsernameToInvite] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
-  const [streamTitle, setStreamTitle] = useState('');
+  const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTab, setSelectedTab] = useState('guests');
+  
+  const [streamTitle, setStreamTitle] = useState(titleFromParams || ''); // Use title from params if available
+  
+  // Helper function to get dynamic media URL (for profile pictures, gift icons, etc.)
+  const getDynamicMediaUrl = async (mediaUrl: string | null) => {
+    if (!mediaUrl) return null;
+    
+    try {
+      const detectionResult = await ipDetector.detectIP();
+      const dynamicIP = detectionResult.ip;
+      const baseURL = `http://${dynamicIP}:8000`;
+      
+      // If URL already contains http, return as is, otherwise prepend base URL
+      if (mediaUrl.startsWith('http')) {
+        return mediaUrl;
+      }
+      
+      // Handle different media URL formats
+      if (mediaUrl.startsWith('/')) {
+        return `${baseURL}${mediaUrl}`;
+      } else {
+        return `${baseURL}/${mediaUrl}`;
+      }
+    } catch (error) {
+      console.error('Error getting dynamic IP for media URL:', error);
+      // Fallback to hardcoded IP if detection fails
+      if (mediaUrl.startsWith('http')) {
+        return mediaUrl;
+      } else if (mediaUrl.startsWith('/')) {
+        return `http://172.20.10.2:8000${mediaUrl}`;
+      } else {
+        return `http://172.20.10.2:8000/${mediaUrl}`;
+      }
+    }
+  };
+  
+  // Helper function for profile pictures specifically
+  const getProfilePictureUrl = (profilePictureUrl: string | null) => getDynamicMediaUrl(profilePictureUrl);
+  
+  // Dynamic Image Component for any media (profile pictures, gift icons, etc.)
+  const DynamicImage = ({ 
+    mediaUrl, 
+    width = 48, 
+    height = 48, 
+    className = "", 
+    style = {}, 
+    children 
+  }: { 
+    mediaUrl: string | null, 
+    width?: number, 
+    height?: number,
+    className?: string,
+    style?: any,
+    children?: React.ReactNode 
+  }) => {
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    
+    useEffect(() => {
+      const loadImageUrl = async () => {
+        setLoading(true);
+        const dynamicUrl = await getDynamicMediaUrl(mediaUrl);
+        setImageUrl(dynamicUrl);
+        setLoading(false);
+      };
+      
+      if (mediaUrl) {
+        loadImageUrl();
+      } else {
+        setLoading(false);
+      }
+    }, [mediaUrl]);
+    
+    if (loading) {
+      return children || (
+        <View 
+          className={`bg-gray-600 items-center justify-center ${className}`}
+          style={{ width, height, ...style }}
+        >
+          <Text className="text-gray-400 text-xs">...</Text>
+        </View>
+      );
+    }
+    
+    if (imageUrl) {
+      return (
+        <Image
+          source={{ uri: imageUrl }}
+          className={className}
+          style={{ width, height, ...style }}
+        />
+      );
+    }
+    
+    return children || (
+      <View 
+        className={`bg-[#3A3A3A] items-center justify-center ${className}`}
+        style={{ width, height, ...style }}
+      >
+        <Text className="text-white font-bold text-lg">
+          U
+        </Text>
+      </View>
+    );
+  };
+  
+  // Dynamic Profile Picture Component (convenience wrapper)
+  const DynamicProfileImage = ({ profilePictureUrl, size = 48, children }: { 
+    profilePictureUrl: string | null, 
+    size?: number, 
+    children?: React.ReactNode 
+  }) => {
+    return (
+      <DynamicImage
+        mediaUrl={profilePictureUrl}
+        width={size}
+        height={size}
+        className="rounded-full"
+      >
+        {children}
+      </DynamicImage>
+    );
+  };
   
   // Gift modal state
   const [giftModalVisible, setGiftModalVisible] = useState(false);
@@ -149,6 +358,10 @@ export default function SingleStreamScreen() {
   
   // Coin purchase modal state
   const [coinPurchaseModalVisible, setCoinPurchaseModalVisible] = useState(false);
+  
+  // Share modal state
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [endStreamModalVisible, setEndStreamModalVisible] = useState(false);
   
   // Flag to handle modal transition after purchase
   const [shouldOpenGiftModalAfterPurchase, setShouldOpenGiftModalAfterPurchase] = useState(false);
@@ -166,8 +379,15 @@ export default function SingleStreamScreen() {
 
   // Initialize stream when component mounts
   useEffect(() => {
-    initializeStream();
-  }, []);
+    // If coming from title screen, auto-start stream
+    if (fromTitleScreen && titleFromParams) {
+      console.log('🚀 Auto-starting stream from title screen with title:', titleFromParams);
+      initializeStream();
+    } else {
+      // Show setup modal for manual configuration
+      setInviteModalVisible(true);
+    }
+  }, [fromTitleScreen, titleFromParams]);
 
   // Debug current user data
   useEffect(() => {
@@ -247,7 +467,7 @@ export default function SingleStreamScreen() {
             id: latestMessage.gift?.id || 0,
             name: latestMessage.gift_name || 'Gift',
             icon_url: latestMessage.gift_icon && (latestMessage.gift_icon.startsWith('/') || latestMessage.gift_icon.includes('gifts/'))
-              ? `http://192.168.1.117:8000/media/${latestMessage.gift_icon.startsWith('/') ? latestMessage.gift_icon.substring(1) : latestMessage.gift_icon}`
+              ? `${apiBaseUrl}/media/${latestMessage.gift_icon.startsWith('/') ? latestMessage.gift_icon.substring(1) : latestMessage.gift_icon}`
               : null,
             icon: latestMessage.gift_icon || '🎁',
             cost: latestMessage.gift?.cost || 0
@@ -289,7 +509,6 @@ export default function SingleStreamScreen() {
       if (audioStatus.status !== 'granted') {
         Alert.alert('Microphone Permission', 'Microphone access is required for live streaming');
         setIsLive(false);
-        return;
       }
 
       // Start all async operations in parallel for faster launch
@@ -321,8 +540,9 @@ export default function SingleStreamScreen() {
       setStreamId(streamResponse.id);
 
       // Create GetStream call and join (parallel with stream start)
-      const callId = generateCallId(currentUser.id.toString());
-      const call = streamClient.call('livestream', callId);
+      // Use the backend stream ID as the GetStream call ID for consistency
+      const callId = `stream_${streamResponse.id}`;
+      const call = streamClient.call('default', callId);
       
       console.log('🔄 Creating and joining call...');
       
@@ -397,22 +617,47 @@ export default function SingleStreamScreen() {
   };
 
   const handleEndStream = async () => {
+    console.log('🔴 handleEndStream called - starting stream end process');
+    
     try {
       // End the stream in the database
       if (streamId) {
         try {
-          await streamAction({
+          console.log('🔴 Attempting to end stream in database:', streamId);
+          const result = await streamAction({
             streamId: streamId,
             action: { action: 'end' }
           }).unwrap();
-          console.log('✅ Stream ended in database');
+          console.log('✅ Stream ended in database successfully:', result);
           
-          // Invalidate stream cache to ensure ended streams don't appear in lists
-          dispatch(streamsApi.util.invalidateTags(['Stream']));
+          // Aggressively invalidate ALL stream-related cache to ensure ended streams don't appear instantly
+          console.log('🔄 Invalidating all stream cache tags...');
+          dispatch(streamsApi.util.invalidateTags(['Stream', 'StreamMessage']));
+          
+          // Also reset the entire API state and force immediate refetch
+          dispatch(streamsApi.util.resetApiState());
+          
+          // Add a small delay then invalidate again to ensure cache is completely cleared
+          setTimeout(() => {
+            console.log('🔄 Second cache invalidation to ensure cleanup...');
+            dispatch(streamsApi.util.invalidateTags(['Stream']));
+          }, 500);
+          
+          console.log('✅ All stream cache invalidated and reset');
           
         } catch (endError) {
           console.error('❌ Failed to end stream in database:', endError);
-          // Continue with ending the call even if database update fails
+          
+          // Show error to user
+          Alert.alert(
+            'Error Ending Stream',
+            'Failed to end the stream properly. Please check your connection and try again.',
+            [
+              { text: 'Try Again', onPress: () => handleEndStream() },
+              { text: 'Force Close', onPress: () => router.back() }
+            ]
+          );
+          return; // Don't continue if database operation failed
         }
         
         // Note: Stream ending logic for hosts vs participants:
@@ -424,50 +669,25 @@ export default function SingleStreamScreen() {
       
       // Leave the GetStream call
       if (call) {
+        console.log('🔴 Leaving GetStream call');
         await call.leave();
+        console.log('✅ Left GetStream call successfully');
       }
       
-      router.back();
+      console.log('🔴 Navigating to homepage from stream');
+      router.replace('/(tabs)/home'); // Navigate to homepage instead of going back
     } catch (error) {
-      console.error('End stream error:', error);
-      router.back();
-    }
-  };
-
-  const handleInviteUser = async () => {
-    if (!usernameToInvite.trim() || !streamId) {
-      Alert.alert('Error', 'Please enter a username');
-      return;
-    }
-
-    // Check if stream is full before inviting
-    if (availableSeats <= 0) {
+      console.error('❌ End stream error:', error);
+      
+      // Show error to user
       Alert.alert(
-        'Stream Full', 
-        `This multi-live stream is full (${maxSeats}/${maxSeats} seats occupied). You can't invite more participants.`,
-        [{ text: 'OK' }]
+        'Error',
+        'An error occurred while ending the stream. The stream may still be live.',
+        [
+          { text: 'Try Again', onPress: () => handleEndStream() },
+          { text: 'Close Anyway', onPress: () => router.replace('/(tabs)/home') } // Also navigate to homepage on force close
+        ]
       );
-      return;
-    }
-
-    setInviteLoading(true);
-    try {
-      await inviteUsers({
-        streamId,
-        username: usernameToInvite.trim()
-      }).unwrap();
-      
-      Alert.alert('Success', `Invitation sent to @${usernameToInvite}!`);
-      setUsernameToInvite('');
-      setInviteModalVisible(false);
-      
-      // Refresh stream details to get updated participant count
-      refetchStreamDetails();
-    } catch (error: any) {
-      console.error('Invite error:', error);
-      Alert.alert('Error', error.data?.error || 'Failed to send invitation');
-    } finally {
-      setInviteLoading(false);
     }
   };
 
@@ -678,14 +898,433 @@ export default function SingleStreamScreen() {
       return;
     }
     
-    // Open the invite modal when add team is pressed
-    setInviteModalVisible(true);
+    // Open the add participant modal when add team is pressed
+    setAddParticipantModalVisible(true);
+  };
+
+
+
+  // Handle user search
+  const handleUserSearch = async (searchTerm: string) => {
+    if (searchTerm.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    
+    setSearchLoading(true);
+    
+    try {
+      const detectionResult = await ipDetector.detectIP();
+      const baseURL = `http://${detectionResult.ip}:8000`;
+      const searchURL = `${baseURL}/api/users/search/?search=${encodeURIComponent(searchTerm)}`;
+      
+      console.log('🔍 Searching users:', {
+        searchTerm,
+        searchURL,
+        hasToken: !!accessToken,
+        detectedIP: detectionResult.ip,
+        streamId,
+        streamDetailsAvailable: !!streamDetails,
+        participantsCount: streamDetails?.participants?.length || 0
+      });
+      
+      const response = await fetch(searchURL, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('📱 Search response status:', response.status);
+      const data = await response.json();
+      console.log('📥 Search response data:', data);
+      
+      if (response.ok) {
+        // Get existing participants from THIS specific stream only
+        const currentStreamParticipantIds = streamDetails?.participants?.map(p => p.user?.id).filter(Boolean) || [];
+        
+        console.log('📊 Stream participants analysis:', {
+          streamId,
+          streamDetails: !!streamDetails,
+          rawParticipants: streamDetails?.participants || [],
+          participantIds: currentStreamParticipantIds,
+          searchTermLower: searchTerm.toLowerCase(),
+          allResultsFromAPI: data.results?.map((u: any) => ({ 
+            id: u.id, 
+            username: u.username, 
+            isCurrentUser: u.id === currentUser?.id,
+            isParticipant: currentStreamParticipantIds.includes(u.id)
+          })) || []
+        });
+        
+        // Smart filtering based on selected tab and user context
+        const filteredUsers = data.results?.filter((user: any) => {
+          const isCurrentUser = user.id === currentUser?.id;
+          
+          // Check if user is already a participant in this stream
+          const existingParticipant = streamDetails?.participants?.find(p => 
+            p.user?.id === user.id && p.is_active
+          );
+          
+          if (selectedTab === 'guests') {
+            // In Guests tab: Show viewers who can be promoted + external users who can be invited
+            const isViewer = existingParticipant && existingParticipant.participant_type === 'viewer';
+            const isGuestOrHost = existingParticipant && 
+              (existingParticipant.participant_type === 'guest' || existingParticipant.participant_type === 'host');
+            
+            // Allow viewers (for promotion) and non-participants (for invitation)
+            const canBeInvited = !isCurrentUser && !isGuestOrHost;
+            
+            console.log(`🔍 Filtering user ${user.username} in GUESTS tab:`, {
+            id: user.id,
+            username: user.username,
+            isCurrentUser,
+              existingParticipant: existingParticipant ? {
+                type: existingParticipant.participant_type,
+                isActive: existingParticipant.is_active
+              } : null,
+              isViewer,
+              isGuestOrHost,
+              canBeInvited,
+              willInclude: canBeInvited
+            });
+            
+            return canBeInvited;
+          } else {
+            // In Audience tab: Only show current viewers (no invitation/promotion actions)
+            const isViewer = existingParticipant && existingParticipant.participant_type === 'viewer';
+            
+            console.log(`🔍 Filtering user ${user.username} in AUDIENCE tab:`, {
+              id: user.id,
+              username: user.username,
+              isCurrentUser,
+              isViewer,
+              willInclude: !isCurrentUser && isViewer
+            });
+            
+            return !isCurrentUser && isViewer;
+          }
+        }) || [];
+        
+        console.log('✅ Final filtered search results:', {
+          totalResults: data.results?.length || 0,
+          filteredCount: filteredUsers.length,
+          currentUserId: currentUser?.id,
+          currentStreamParticipantIds,
+          streamId,
+          results: filteredUsers.map((u: any) => ({ id: u.id, username: u.username, name: u.first_name }))
+        });
+        
+        setSearchResults(filteredUsers.slice(0, 10)); // Limit to 10 results
+      } else {
+        console.error('❌ Search API error:', {
+          status: response.status,
+          data,
+          url: searchURL
+        });
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error('❌ Network error searching users:', error);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Handle user selection from search results
+  const handleSelectUser = (user: any) => {
+    setSelectedUser(user);
+    setSearchQuery(user.username); // Update search query to show selected user
+    setUsernameToInvite(user.username);
+    setSearchResults([]);
+  };
+
+  // Handle invitation for selected user
+  const handleInviteSelectedUser = async () => {
+    if (!selectedUser) return;
+    
+    setInviteLoading(true);
+    
+    try {
+      const detectionResult = await ipDetector.detectIP();
+      const baseURL = `http://${detectionResult.ip}:8000`;
+      
+      console.log('🚀 Sending invitation to:', {
+        userId: selectedUser.id,
+        username: selectedUser.username,
+        streamId,
+        hasToken: !!accessToken,
+        detectedIP: detectionResult.ip
+      });
+      
+      const response = await fetch(`${baseURL}/api/streams/${streamId}/invite-users/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          username: selectedUser.username,
+          stream_type: 'multi',
+          max_seats: maxSeats,
+        }),
+      });
+
+      console.log('📱 Response status:', response.status);
+      
+      const data = await response.json();
+      console.log('📥 Response data:', data);
+
+      if (response.ok) {
+        Alert.alert(
+          'Invitation Sent! 🎉',
+          `Successfully invited ${selectedUser.first_name || selectedUser.username} to join your multi-live stream. They will receive a notification to approve or decline.`,
+          [{ text: 'Great!', style: 'default' }]
+        );
+        
+        // Clear form and close modal
+        setUsernameToInvite('');
+        setSelectedUser(null);
+        setSearchResults([]);
+        setAddParticipantModalVisible(false);
+        
+      } else {
+        Alert.alert(
+          'Invitation Failed',
+          data.error || 'Could not send invitation. Please try again.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
+      
+    } catch (error: any) {
+      console.error('💥 Error inviting user:', error);
+      
+      if (error?.message === 'Network request failed') {
+        Alert.alert(
+          'Connection Error',
+          'Unable to connect to the server. Please check your internet connection and try again.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      } else {
+        Alert.alert(
+          'Network Error',
+          'Could not send invitation. Please check your connection and try again.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  // Handle removing participant from stream
+  const handleRemoveParticipant = async (participantId: string) => {
+    try {
+      // Show confirmation alert
+      Alert.alert(
+        'Remove Participant',
+        'Are you sure you want to remove this participant from the stream?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                console.log('🔄 Starting participant removal process...');
+                
+                const detectionResult = await ipDetector.detectIP();
+                const dynamicIP = detectionResult.ip;
+                const baseURL = `http://${dynamicIP}:8000`;
+                const removeURL = `${baseURL}/api/streams/${streamId}/remove-participant/`;
+                
+                console.log('🌐 IP Detection Result:', {
+                  ip: dynamicIP,
+                  method: detectionResult.method,
+                  confidence: detectionResult.confidence
+                });
+                
+                console.log('📡 Remove Participant Request:', {
+                  url: removeURL,
+                  participantId,
+                  streamId,
+                  hasToken: !!accessToken
+                });
+                
+                const response = await fetch(removeURL, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                  },
+                  body: JSON.stringify({
+                    participant_id: participantId,
+                  }),
+                });
+                
+                console.log('📥 Remove Response Status:', response.status);
+                
+                const data = await response.json();
+                console.log('📥 Remove Response Data:', data);
+                
+                if (response.ok) {
+                  // Refresh stream details to update participants list
+                  refetchStreamDetails();
+                  
+                  Alert.alert(
+                    'Participant Removed',
+                    'The participant has been removed from your stream.',
+                    [{ text: 'OK', style: 'default' }]
+                  );
+                } else {
+                  console.error('❌ Remove Participant Failed:', {
+                    status: response.status,
+                    error: data.error || data,
+                    url: removeURL
+                  });
+                  
+                  Alert.alert(
+                    'Error',
+                    data.error || data.detail || `Failed to remove participant (Status: ${response.status}). Please try again.`,
+                    [{ text: 'OK', style: 'default' }]
+                  );
+                }
+              } catch (error: any) {
+                console.error('💥 Remove Participant Error:', {
+                  error: error.message || error,
+                  participantId,
+                  streamId,
+                  hasToken: !!accessToken
+                });
+                
+                if (error?.message === 'Network request failed') {
+                  Alert.alert(
+                    'Connection Error',
+                    'Unable to connect to the server. Please check your internet connection and try again.',
+                    [{ text: 'OK', style: 'default' }]
+                  );
+                } else {
+                  Alert.alert(
+                    'Connection Error',
+                    `Unable to remove participant. Error: ${error?.message || 'Unknown error'}. Please check your connection and try again.`,
+                    [{ text: 'OK', style: 'default' }]
+                  );
+                }
+              }
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Error in handleRemoveParticipant:', error);
+    }
+  };
+
+  // Handle inviting user directly from search results (simplified version)
+  const handleInviteUser = async (user: any) => {
+    if (!user) return;
+    
+    setInviteLoading(true);
+    setInvitingUserId(user.id);
+    
+    try {
+      const detectionResult = await ipDetector.detectIP();
+      const dynamicIP = detectionResult.ip;
+      const baseURL = `http://${dynamicIP}:8000`;
+      const inviteURL = `${baseURL}/api/streams/${streamId}/invite-users/`;
+      
+      // Check if user is already a viewer in this stream
+      const existingViewer = streamDetails?.participants?.find(p => 
+        p.user?.id === user.id && p.is_active && p.participant_type === 'viewer'
+      );
+      
+      console.log('🚀 Sending invitation:', {
+        url: inviteURL,
+        username: user.username,
+        streamId,
+        hasToken: !!accessToken,
+        isCurrentViewer: !!existingViewer,
+        action: existingViewer ? 'promote_viewer_to_guest' : 'invite_new_guest'
+      });
+      
+      const response = await fetch(inviteURL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          username: user.username, // Changed from usernames array to single username
+        }),
+      });
+      
+      const data = await response.json();
+      console.log('📥 Invite response:', { status: response.status, data });
+      
+      if (response.ok) {
+        const successMessage = existingViewer 
+          ? `🎉 @${user.username} has been promoted from viewer to guest! They can now join as a co-host with video and audio.`
+          : `🎉 Guest invitation sent to @${user.username}! They will receive a notification to join your stream as a co-host.`;
+        
+        Alert.alert(
+          existingViewer ? 'Viewer Promoted to Guest! 🚀' : 'Guest Invitation Sent! 📧',
+          successMessage,
+          [{ text: 'Awesome!', style: 'default' }]
+        );
+        
+        // Clear search and close modal
+        setSearchQuery('');
+        setSearchResults([]);
+      } else {
+        Alert.alert(
+          'Invitation Failed',
+          data.error || 'Could not send invitation. Please try again.',
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error inviting user:', error);
+      Alert.alert(
+        'Connection Error',
+        'Unable to send invitation. Please check your connection and try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    } finally {
+      setInviteLoading(false);
+      setInvitingUserId(null);
+    }
   };
 
   const CustomStreamContent = () => {
     const { useParticipants } = useCallStateHooks();
     const participants = useParticipants();
     const localParticipant = participants.find(p => p.isLocalParticipant);
+    const remoteParticipants = participants.filter(p => !p.isLocalParticipant);
+    const allActiveParticipants = participants.filter(p => p.videoStream);
+
+    console.log('🎥 Stream participants (HOST VIEW):', {
+      total: participants.length,
+      local: localParticipant ? 1 : 0,
+      remote: remoteParticipants.length,
+      activeVideo: allActiveParticipants.length,
+      participantDetails: participants.map(p => ({
+        id: p.userId,
+        name: p.name,
+        isLocal: p.isLocalParticipant,
+        hasVideo: !!p.videoStream,
+        hasAudio: !!p.audioStream,
+      })),
+      remoteDetails: remoteParticipants.map(p => ({
+        id: p.userId,
+        name: p.name,
+        hasVideo: !!p.videoStream,
+        hasAudio: !!p.audioStream,
+      }))
+    });
 
     // Show loading if no participant found
     if (!localParticipant) {
@@ -707,6 +1346,142 @@ export default function SingleStreamScreen() {
       );
     }
 
+    // Multi-participant layout logic
+    if (allActiveParticipants.length === 1) {
+      // Single participant (host only) - full screen
+      return (
+        <View className="flex-1 bg-black">
+          <VideoRenderer 
+            participant={localParticipant}
+            objectFit="cover"
+          />
+        </View>
+      );
+    } else if (allActiveParticipants.length === 2) {
+      // Two participants - split screen vertically
+      return (
+        <View className="flex-1 bg-black">
+          <View className="flex-1">
+            <VideoRenderer 
+              participant={allActiveParticipants[0]}
+              objectFit="cover"
+            />
+            {/* Participant label */}
+            <View className="absolute bottom-4 left-4 bg-black/60 rounded-full px-3 py-1">
+              <Text className="text-white text-xs font-semibold">
+                {allActiveParticipants[0].isLocalParticipant ? 'You' : allActiveParticipants[0].name || 'Guest'}
+              </Text>
+            </View>
+          </View>
+          <View className="flex-1">
+            <VideoRenderer 
+              participant={allActiveParticipants[1]}
+              objectFit="cover"
+            />
+            {/* Participant label */}
+            <View className="absolute bottom-4 left-4 bg-black/60 rounded-full px-3 py-1">
+              <Text className="text-white text-xs font-semibold">
+                {allActiveParticipants[1].isLocalParticipant ? 'You' : allActiveParticipants[1].name || 'Guest'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      );
+    } else if (allActiveParticipants.length === 3) {
+      // Three participants - one large, two small
+      const [mainParticipant, ...smallParticipants] = allActiveParticipants;
+      return (
+        <View className="flex-1 bg-black">
+          {/* Main participant (larger view) */}
+          <View className="flex-2">
+            <VideoRenderer 
+              participant={mainParticipant}
+              objectFit="cover"
+            />
+            <View className="absolute bottom-4 left-4 bg-black/60 rounded-full px-3 py-1">
+              <Text className="text-white text-xs font-semibold">
+                {mainParticipant.isLocalParticipant ? 'You' : mainParticipant.name || 'Guest'}
+              </Text>
+            </View>
+          </View>
+          
+          {/* Bottom row with two smaller participants */}
+          <View className="flex-1 flex-row">
+            {smallParticipants.map((participant, index) => (
+              <View key={participant.sessionId} className="flex-1">
+                <VideoRenderer 
+                  participant={participant}
+                  objectFit="cover"
+                />
+                <View className="absolute bottom-2 left-2 bg-black/60 rounded-full px-2 py-1">
+                  <Text className="text-white text-xs font-semibold">
+                    {participant.isLocalParticipant ? 'You' : participant.name || 'Guest'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      );
+    } else if (allActiveParticipants.length >= 4) {
+      // Four or more participants - 2x2 grid
+      return (
+        <View className="flex-1 bg-black">
+          <View className="flex-1 flex-row">
+            <View className="flex-1">
+              <VideoRenderer 
+                participant={allActiveParticipants[0]}
+                objectFit="cover"
+              />
+              <View className="absolute bottom-2 left-2 bg-black/60 rounded-full px-2 py-1">
+                <Text className="text-white text-xs font-semibold">
+                  {allActiveParticipants[0].isLocalParticipant ? 'You' : allActiveParticipants[0].name || 'Guest'}
+                </Text>
+              </View>
+            </View>
+            <View className="flex-1">
+              <VideoRenderer 
+                participant={allActiveParticipants[1]}
+                objectFit="cover"
+              />
+              <View className="absolute bottom-2 left-2 bg-black/60 rounded-full px-2 py-1">
+                <Text className="text-white text-xs font-semibold">
+                  {allActiveParticipants[1].isLocalParticipant ? 'You' : allActiveParticipants[1].name || 'Guest'}
+                </Text>
+              </View>
+            </View>
+          </View>
+          <View className="flex-1 flex-row">
+            <View className="flex-1">
+              <VideoRenderer 
+                participant={allActiveParticipants[2]}
+                objectFit="cover"
+              />
+              <View className="absolute bottom-2 left-2 bg-black/60 rounded-full px-2 py-1">
+                <Text className="text-white text-xs font-semibold">
+                  {allActiveParticipants[2].isLocalParticipant ? 'You' : allActiveParticipants[2].name || 'Guest'}
+                </Text>
+              </View>
+            </View>
+            {allActiveParticipants[3] && (
+              <View className="flex-1">
+                <VideoRenderer 
+                  participant={allActiveParticipants[3]}
+                  objectFit="cover"
+                />
+                <View className="absolute bottom-2 left-2 bg-black/60 rounded-full px-2 py-1">
+                  <Text className="text-white text-xs font-semibold">
+                    {allActiveParticipants[3].isLocalParticipant ? 'You' : allActiveParticipants[3].name || 'Guest'}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    // Fallback - show local participant only
     return (
       <View className="flex-1 bg-black">
         <VideoRenderer 
@@ -771,21 +1546,19 @@ export default function SingleStreamScreen() {
           <View className="flex-row items-center bg-black/60 rounded-full px-2 py-2 flex-1 mr-3">
             {/* Avatar */}
             <View className="w-12 h-12 rounded-full bg-gray-400 mr-3 overflow-hidden">
-              {(currentUser?.profile_picture_url || currentUser?.profile_picture) ? (
-                <Image 
-                  source={{ uri: `http://192.168.1.117:8000${currentUser.profile_picture_url || currentUser.profile_picture}` }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                  onError={(e) => console.log('Header avatar load error:', e.nativeEvent.error)}
-                  onLoad={() => console.log('Header avatar loaded successfully')}
-                />
-              ) : (
+              <DynamicImage
+                mediaUrl={currentUser?.profile_picture_url || currentUser?.profile_picture}
+                width={40}
+                height={40}
+                className="w-full h-full rounded-full"
+                style={{ resizeMode: 'cover' }}
+              >
                 <View className="w-full h-full bg-gray-400 items-center justify-center">
                   <Text className="text-white font-bold text-sm">
                     {currentUser?.username?.charAt(0).toUpperCase() || 'U'}
                   </Text>
                 </View>
-              )}
+              </DynamicImage>
             </View>
             
             {/* Name and Username */}
@@ -800,20 +1573,18 @@ export default function SingleStreamScreen() {
               </Text>
             </View>
             
-            {/* Follow Button */}
-            <TouchableOpacity className="bg-white rounded-full px-6 py-3 ml-2">
-              <Text className="text-black font-semibold text-sm">Follow</Text>
-            </TouchableOpacity>
-            
-            {/* Share Button */}
-            <TouchableOpacity className="w-12 h-12 rounded-full bg-white items-center justify-center ml-2">
+            {/* Share Button - Only show share button, no follow button for hosts */}
+            <TouchableOpacity 
+              className="w-12 h-12 rounded-full bg-white items-center justify-center ml-2"
+              onPress={() => setShareModalVisible(true)}
+            >
               <Ionicons name="share-social" size={20} color="black" fillColor="white" />
             </TouchableOpacity>
           </View>
           
           {/* Close Button */}
           <TouchableOpacity 
-            onPress={handleEndStream}
+            onPress={() => setEndStreamModalVisible(true)}
             className="w-10 h-10 rounded-full items-center justify-center"
           >
             <CancelIcon width={25} height={25} />
@@ -877,7 +1648,19 @@ export default function SingleStreamScreen() {
                         <View className="w-6 h-6 rounded-full bg-gray-400 mr-2 overflow-hidden">
                           {(item.user.profile_picture_url || item.user.avatar_url) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                              source={{ uri: (() => {
+                                const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
+                                const baseUrl = apiBaseUrl.replace('/api/', '');
+                                if (profileUrl && typeof profileUrl === 'string') {
+                                  if (profileUrl.startsWith('http')) {
+                                    return profileUrl;
+                                  } else {
+                                    const cleanPath = profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
+                                    return baseUrl + cleanPath;
+                                  }
+                                }
+                                return '';
+                              })() }}
                               className="w-full h-full"
                               resizeMode="cover"
                             />
@@ -901,7 +1684,19 @@ export default function SingleStreamScreen() {
                         <View className="w-6 h-6 rounded-full bg-gray-400 mr-2 overflow-hidden">
                           {(item.user.profile_picture_url || item.user.avatar_url) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                              source={{ uri: (() => {
+                                const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
+                                const baseUrl = apiBaseUrl.replace('/api/', '');
+                                if (profileUrl && typeof profileUrl === 'string') {
+                                  if (profileUrl.startsWith('http')) {
+                                    return profileUrl;
+                                  } else {
+                                    const cleanPath = profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
+                                    return baseUrl + cleanPath;
+                                  }
+                                }
+                                return '';
+                              })() }}
                               className="w-full h-full"
                               resizeMode="cover"
                             />
@@ -925,7 +1720,19 @@ export default function SingleStreamScreen() {
                         <View className="w-8 h-8 rounded-full bg-gray-400 mr-3 overflow-hidden">
                           {(item.user.profile_picture_url || item.user.avatar_url) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                              source={{ uri: (() => {
+                                const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
+                                const baseUrl = apiBaseUrl.replace('/api/', '');
+                                if (profileUrl && typeof profileUrl === 'string') {
+                                  if (profileUrl.startsWith('http')) {
+                                    return profileUrl;
+                                  } else {
+                                    const cleanPath = profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
+                                    return baseUrl + cleanPath;
+                                  }
+                                }
+                                return '';
+                              })() }}
                               className="w-full h-full"
                               resizeMode="cover"
                             />
@@ -947,7 +1754,7 @@ export default function SingleStreamScreen() {
                           {/* Gift Icon - Show image if available, fallback to emoji */}
                           {item.gift_icon && (item.gift_icon.startsWith('/') || item.gift_icon.includes('gifts/')) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000/media/${item.gift_icon.startsWith('/') ? item.gift_icon.substring(1) : item.gift_icon}` }}
+                              source={{ uri: `${apiBaseUrl}/media/${item.gift_icon.startsWith('/') ? item.gift_icon.substring(1) : item.gift_icon}` }}
                               style={{ width: 20, height: 20, marginRight: 4 }}
                               resizeMode="contain"
                               onError={(e) => {
@@ -973,7 +1780,19 @@ export default function SingleStreamScreen() {
                       <View className="w-8 h-8 rounded-full bg-gray-400 mr-3 overflow-hidden flex-shrink-0">
                         {(item.user.profile_picture_url || item.user.avatar_url) ? (
                           <Image 
-                            source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                            source={{ uri: (() => {
+                              const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
+                              const baseUrl = apiBaseUrl.replace('/api/', '');
+                              if (profileUrl && typeof profileUrl === 'string') {
+                                if (profileUrl.startsWith('http')) {
+                                  return profileUrl;
+                                } else {
+                                  const cleanPath = profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
+                                  return baseUrl + cleanPath;
+                                }
+                              }
+                              return '';
+                            })() }}
                             className="w-full h-full"
                             resizeMode="cover"
                             onError={(e) => console.log('Chat avatar load error for user:', item.user.username, e.nativeEvent.error)}
@@ -1023,7 +1842,7 @@ export default function SingleStreamScreen() {
         </View>
       )}
 
-      {/* Bottom Comment Bar - Moved down by 50% */}
+      {/* Bottom Comment Bar - For hosts: no gift icon, keep add team for inviting participants */}
       {isLive && (
         <Animated.View 
           className="absolute left-4 right-4 flex-row items-center gap-3" 
@@ -1048,15 +1867,7 @@ export default function SingleStreamScreen() {
             />
           </View>
           
-          {/* Gift Icon */}
-          <TouchableOpacity 
-            className="w-12 h-12 bg-black/40 rounded-full items-center justify-center"
-            onPress={handleGiftPress}
-          >
-            <GiftIcon width={24} height={24} />
-          </TouchableOpacity>
-          
-          {/* Add Team Icon */}
+          {/* Add Team Icon - Keep for hosts to invite participants */}
           <TouchableOpacity 
             className={`w-12 h-12 rounded-full items-center justify-center ${
               availableSeats <= 0 ? 'bg-red-500/40' : 'bg-black/40'
@@ -1112,112 +1923,364 @@ export default function SingleStreamScreen() {
         </View>
       )}
 
-      {/* Invitation Modal */}
+      {/* Members List Modal - Matches the design from the image */}
       <Modal
         animationType="slide"
         transparent={true}
-        visible={inviteModalVisible}
-        onRequestClose={() => setInviteModalVisible(false)}
+        visible={addParticipantModalVisible}
+        onRequestClose={() => setAddParticipantModalVisible(false)}
       >
         <KeyboardAvoidingView 
+          className="flex-1" 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          className="flex-1 justify-end bg-black/50"
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          <View className="bg-[#1A1A1A] rounded-t-3xl p-6">
-            <View className="w-12 h-1 bg-gray-600 rounded-full self-center mb-6" />
-            
-            <Text className="text-white text-xl font-semibold mb-2">
-              Start Your Multi Stream
-            </Text>
-            
-            {/* Stream Title Input */}
-            <Text className="text-white text-sm font-medium mb-2">
-              Stream Title
-            </Text>
-            <View className="bg-[#2A2A2A] rounded-xl p-4 mb-4">
-              <TextInput
-                placeholder={`${currentUser?.username || 'User'}'s Multi Live Stream`}
-                placeholderTextColor="#666"
-                value={streamTitle}
-                onChangeText={setStreamTitle}
-                className="text-white text-base"
-                autoCorrect={false}
-                maxLength={100}
-              />
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View className="flex-1 bg-black/80">
+            <View 
+              className="bg-[#1A1A1A]/50 rounded-t-3xl"
+              style={{
+                marginTop: isKeyboardVisible ? 10 : 80,
+                maxHeight: isKeyboardVisible ? '85%' : '90%',
+                flex: 1,
+              }}
+            >
+            {/* Header */}
+            <View className="flex-row items-center justify-between p-6 pb-4">
+              <Text className="text-white text-xl font-bold">
+                Members List
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setUsernameToInvite('');
+                  setSearchQuery('');
+                  setSearchResults([]);
+                  setSelectedUser(null);
+                  setAddParticipantModalVisible(false);
+                }}
+                className="w-8 h-8 items-center justify-center"
+              >
+                <Ionicons name="close" size={24} color="#999" />
+              </TouchableOpacity>
             </View>
             
-            {/* Seat availability info */}
-            <View className="bg-[#2A2A2A] rounded-xl p-3 mb-4">
-              <View className="flex-row items-center justify-between">
-                <Text className="text-gray-300 text-sm">Available Seats:</Text>
-                <Text className={`text-sm font-semibold ${availableSeats > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {availableSeats}/{maxSeats}
+            {/* Tabs */}
+            <View className="px-6 mb-4">
+              <View className="flex-row bg-[#2A2A2A] rounded-lg p-1 gap-2">
+                <TouchableOpacity
+                  onPress={() => setSelectedTab('guests')}
+                  className={`flex-1 py-3 rounded-md ${
+                    selectedTab === 'guests' ? 'bg-white' : 'bg-transparent'
+                  }`}
+                >
+                  <Text className={`text-center font-semibold ${
+                    selectedTab === 'guests' ? 'text-black' : 'text-gray-400'
+                  }`}>
+                    Guests
+            </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setSelectedTab('audience')}
+                  className={`flex-1 py-3 rounded-md ${
+                    selectedTab === 'audience' ? 'bg-white' : 'bg-transparent'
+                  }`}
+                >
+                  <Text className={`text-center font-semibold ${
+                    selectedTab === 'audience' ? 'text-black' : 'text-gray-400'
+                  }`}>
+                    Audience
                 </Text>
+                </TouchableOpacity>
               </View>
-              {availableSeats <= 0 && (
-                <Text className="text-red-400 text-xs mt-1">
-                  Stream is full. Cannot invite more participants.
-                </Text>
-              )}
             </View>
 
-            {/* Username Input */}
-            <Text className="text-white text-sm font-medium mb-2">
-              Invite Friends (Optional)
-            </Text>
-            <View className="bg-[#2A2A2A] rounded-xl p-4 mb-4">
-              <TextInput
-                placeholder="Enter @username"
-                placeholderTextColor="#666"
-                value={usernameToInvite}
-                onChangeText={setUsernameToInvite}
-                className="text-white text-base"
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </View>
-            
-            <View className="flex-row gap-3">
-              <TouchableOpacity
-                onPress={() => setInviteModalVisible(false)}
-                className="flex-1 bg-[#2A2A2A] rounded-xl py-4 items-center"
+            {/* Search Input */}
+            <View className="px-6 mb-4">
+              <View
+                className="flex-row items-center rounded-full px-3 h-14"
+                style={{
+                  borderWidth: 1,
+                  borderColor: searchQuery.length > 0 ? '#C42720' : '#353638'
+                }}
               >
-                <Text className="text-white font-semibold">Cancel</Text>
-              </TouchableOpacity>
-              
-              {usernameToInvite.trim() ? (
-                <TouchableOpacity
-                  onPress={handleInviteUser}
-                  disabled={inviteLoading || availableSeats <= 0}
-                  className="flex-1 rounded-xl py-4 items-center"
-                >
-                  <LinearGradient
-                    colors={inviteLoading || availableSeats <= 0 ? ['#666', '#666'] : ['#8B5CF6', '#EC4899']}
-                    className="w-full py-4 rounded-xl items-center"
-                  >
-                    <Text className="text-white font-semibold">
-                      {inviteLoading ? 'Sending...' : availableSeats <= 0 ? 'Stream Full' : 'Send Invite'}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  onPress={() => {
-                    setInviteModalVisible(false);
-                    initializeStream();
+                <Ionicons name="search" size={20} color="#FFFFFF" />
+                <TextInput
+                  placeholder={selectedTab === 'guests' ? 'Search anyone to invite as guest' : 'Search viewers'}
+                  placeholderTextColor="#757688"
+                  value={searchQuery}
+                  onChangeText={(text) => {
+                    setSearchQuery(text);
+                    if (text.length >= 2) {
+                      handleUserSearch(text);
+                    } else {
+                      setSearchResults([]);
+                      setSelectedUser(null);
+                    }
                   }}
-                  className="flex-1 rounded-xl py-4 items-center"
-                >
-                  <LinearGradient
-                    colors={['#8B5CF6', '#EC4899']}
-                    className="w-full py-4 rounded-xl items-center"
-                  >
-                    <Text className="text-white font-semibold">Start Stream</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                  className="text-white text-base ml-2 flex-1"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  maxLength={50}
+                  returnKeyType="search"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => {
+                    if (searchQuery.length >= 2) {
+                      handleUserSearch(searchQuery);
+                    }
+                  }}
+                />
+              </View>
+              
+              {/* Enhanced Helper Text for Guests Tab */}
+              {selectedTab === 'guests' && searchQuery.length === 0 && (
+                <Text className="text-gray-500 text-xs mt-2 px-3">
+                  💡 Search for viewers to promote or any user to invite as guest
+                </Text>
               )}
             </View>
+            
+            {/* Members List */}
+            <ScrollView 
+              className="flex-1 px-6" 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{
+                paddingBottom: isKeyboardVisible ? keyboardHeight + 40 : 20,
+                flexGrow: 1
+              }}
+            >
+              {/* Search Results - Show at top when searching */}
+              {searchQuery.length >= 2 && (
+              <View className="mb-4">
+                  {searchLoading ? (
+                    <View className="flex-1 items-center justify-center py-8">
+                      <ActivityIndicator size="small" color="#C42720" />
+                      <Text className="text-gray-400 text-sm mt-2">Searching users...</Text>
+                    </View>
+                  ) : searchResults.length > 0 ? (
+                    <>
+                      <Text className="text-gray-400 text-sm mb-3">
+                        {selectedTab === 'guests' ? 'Invite as Guest' : 'Search Results'}
+                </Text>
+                  {searchResults.map((user) => (
+                    <TouchableOpacity
+                      key={user.id}
+                      onPress={() => handleSelectUser(user)}
+                          className="flex-row items-center py-4"
+                    >
+                      <View className="relative">
+                            <DynamicProfileImage 
+                              profilePictureUrl={user.profile_picture_url}
+                              size={48}
+                            >
+                          <View className="w-12 h-12 rounded-full bg-[#3A3A3A] items-center justify-center">
+                            <Text className="text-white font-bold text-lg">
+                              {(user.first_name || user.username || 'U').charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                            </DynamicProfileImage>
+                      </View>
+                      
+                          <View className="flex-1 ml-4">
+                            <Text className="text-white font-semibold text-base">
+                          {user.first_name && user.last_name 
+                            ? `${user.first_name} ${user.last_name}`
+                            : user.username
+                          }
+                        </Text>
+                            {(() => {
+                              const existingViewer = streamDetails?.participants?.find(p => 
+                                p.user?.id === user.id && p.is_active && p.participant_type === 'viewer'
+                              );
+                              
+                              if (existingViewer) {
+                                return (
+                                  <View className="flex-row items-center mt-1">
+                                    <View className="w-2 h-2 bg-green-500 rounded-full mr-2" />
+                                    <Text className="text-green-400 text-sm font-medium">🔴 Currently viewing • Can promote</Text>
+                                  </View>
+                                );
+                              } else {
+                                return (
+                                  <View className="flex-row items-center mt-1">
+                                    <Text className="text-red-500 text-sm font-medium">
+                                      {user.follower_count || 0} followers
+                        </Text>
+                                  </View>
+                                );
+                              }
+                            })()}
+                      </View>
+                      
+                          {(() => {
+                            const existingViewer = streamDetails?.participants?.find(p => 
+                              p.user?.id === user.id && p.is_active && p.participant_type === 'viewer'
+                            );
+                            
+                            if (existingViewer) {
+                              return (
+                                <TouchableOpacity
+                                  onPress={() => handleInviteUser(user)}
+                                  className="rounded-full overflow-hidden"
+                                >
+                                  <LinearGradient
+                                    colors={['#10B981', '#059669']}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    className="px-4 py-2 flex-row items-center"
+                                  >
+                                    <Ionicons name="arrow-up-circle" size={16} color="white" />
+                                    <Text className="text-white font-semibold text-sm ml-1">Promote to Guest</Text>
+                                  </LinearGradient>
+                                </TouchableOpacity>
+                              );
+                            } else {
+                              return (
+                                <TouchableOpacity
+                                  onPress={() => handleInviteUser(user)}
+                                  disabled={invitingUserId === user.id}
+                                  className={`px-4 py-2 rounded-full flex-row items-center ${invitingUserId === user.id ? 'bg-red-400' : 'bg-red-600'}`}
+                                >
+                                  {invitingUserId === user.id ? (
+                                    <ActivityIndicator size="small" color="white" />
+                                  ) : (
+                                    <Ionicons name="person-add" size={16} color="white" />
+                                  )}
+                                  <Text className="text-white font-semibold text-sm ml-1">
+                                    {invitingUserId === user.id ? 'Inviting...' : 'Invite as Guest'}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            }
+                          })()}
+                    </TouchableOpacity>
+                  ))}
+                    </>
+                  ) : (
+                    <View className="flex-1 items-center justify-center py-8">
+                      <Ionicons name="search-outline" size={48} color="#666" />
+                      <Text className="text-gray-400 text-center mt-2">
+                        {selectedTab === 'guests' ? 'No users found' : 'No viewers found'}
+                      </Text>
+                      <Text className="text-gray-500 text-center text-sm mt-1">
+                        {selectedTab === 'guests' 
+                          ? 'Try searching for viewers to promote or any user to invite as guest'
+                          : 'Only current viewers appear in search results'
+                        }
+                      </Text>
+                    </View>
+                  )}
+              </View>
+            )}
+            
+              {/* Regular Lists - Hidden when searching */}
+              {searchQuery.length < 2 && selectedTab === 'guests' && (
+                activeGuests.length > 0 ? (
+                  activeGuests.map((participant) => (
+                <View key={participant.id} className="flex-row items-center py-4">
+                  {/* Profile Picture */}
+                  <View className="relative">
+                    <DynamicProfileImage 
+                      profilePictureUrl={participant.user?.profile_picture_url}
+                      size={48}
+                    >
+                      <View className="w-12 h-12 rounded-full bg-[#3A3A3A] items-center justify-center">
+                        <Text className="text-white font-bold text-lg">
+                          {(participant.user?.first_name || participant.user?.username || 'U').charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    </DynamicProfileImage>
+                  </View>
+                  
+                  {/* User Info */}
+                  <View className="flex-1 ml-4">
+                    <Text className="text-white font-semibold text-base">
+                      {participant.user?.first_name || participant.user?.username || 'Unknown User'}
+                    </Text>
+                    <Text className="text-gray-400 text-sm">
+                      {participant.user?.vip_level || 'basic'} • {participant.participant_type}
+                    </Text>
+                  </View>
+                  
+                  {/* Remove Button */}
+                  <TouchableOpacity
+                    onPress={() => handleRemoveParticipant(participant.id.toString())}
+                    className="bg-red-500/20 px-4 py-2 rounded-full"
+                  >
+                    <Text className="text-red-400 font-semibold text-sm">Remove</Text>
+                  </TouchableOpacity>
+                </View>
+                  ))
+                ) : (
+                  <View className="flex-1 items-center justify-center py-20">
+                    <Ionicons name="people-outline" size={48} color="#666" />
+                    <Text className="text-gray-400 text-center mt-4">
+                      No guests yet
+                    </Text>
+                    <Text className="text-gray-500 text-center text-sm mt-2">
+                      Invited guests will appear here when they join your stream
+                    </Text>
+              </View>
+                )
+              )}
+              
+              {searchQuery.length < 2 && selectedTab === 'audience' && (
+                <View className="mt-4">
+                  {/* Show viewers/audience */}
+                  {activeViewers.length > 0 ? (
+                    activeViewers.map((viewer) => (
+                        <View key={viewer.id} className="flex-row items-center py-4">
+                          {/* Profile Picture */}
+                          <View className="relative">
+                            <DynamicProfileImage 
+                              profilePictureUrl={viewer.user?.profile_picture_url}
+                              size={48}
+                            >
+                              <View className="w-12 h-12 rounded-full bg-[#3A3A3A] items-center justify-center">
+                                <Text className="text-white font-bold text-lg">
+                                  {(viewer.user?.first_name || viewer.user?.username || 'V').charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                            </DynamicProfileImage>
+                          </View>
+                          
+                          {/* User Info */}
+                          <View className="flex-1 ml-4">
+                            <Text className="text-white font-semibold text-base">
+                              {viewer.user?.first_name || viewer.user?.username || 'Viewer'}
+                            </Text>
+                            <Text className="text-gray-400 text-sm">
+                              Viewing • {viewer.user?.vip_level || 'basic'}
+                            </Text>
+                          </View>
+                          
+                          {/* Remove Button */}
+              <TouchableOpacity
+                            onPress={() => handleRemoveParticipant(viewer.id.toString())}
+                            className="bg-red-500/20 px-4 py-2 rounded-full"
+                          >
+                            <Text className="text-red-400 font-semibold text-sm">Remove</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))
+                  ) : (
+                    <View className="flex-1 items-center justify-center py-20">
+                      <Ionicons name="people-outline" size={48} color="#666" />
+                      <Text className="text-gray-400 text-center mt-4">
+                        No audience members yet
+                      </Text>
+                      <Text className="text-gray-500 text-center text-sm mt-2">
+                        Viewers will appear here when they join your stream
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            
+            </ScrollView>
           </View>
+            </View>
+          </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -1288,7 +2351,19 @@ export default function SingleStreamScreen() {
                         <View className="w-10 h-10 rounded-full bg-gray-400 overflow-hidden flex-shrink-0">
                           {(item.user.profile_picture_url || item.user.avatar_url) ? (
                             <Image 
-                              source={{ uri: `http://192.168.1.117:8000${item.user.profile_picture_url || item.user.avatar_url}` }}
+                              source={{ uri: (() => {
+                                const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
+                                const baseUrl = apiBaseUrl.replace('/api/', '');
+                                if (profileUrl && typeof profileUrl === 'string') {
+                                  if (profileUrl.startsWith('http')) {
+                                    return profileUrl;
+                                  } else {
+                                    const cleanPath = profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
+                                    return baseUrl + cleanPath;
+                                  }
+                                }
+                                return '';
+                              })() }}
                               className="w-full h-full"
                               resizeMode="cover"
                             />
@@ -1630,6 +2705,108 @@ export default function SingleStreamScreen() {
           onAnimationComplete={() => handleGiftAnimationComplete(animation.id)}
         />
       ))}
+
+      {/* Share Stream Modal */}
+      {/* End Stream Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={endStreamModalVisible}
+        onRequestClose={() => setEndStreamModalVisible(false)}
+      >
+        <View className="flex-1 bg-black/70 items-center justify-center px-6">
+          <View className="bg-gray-800/95 rounded-3xl p-8 w-full max-w-sm items-center">
+            {/* Icon */}
+            <View className="w-20 h-20 rounded-full bg-gray-700 items-center justify-center mb-6">
+              <DareMeLiveIcon width={40} height={40} />
+            </View>
+            
+            {/* Title */}
+            <Text className="text-white text-2xl font-bold text-center mb-3">
+              End Stream
+            </Text>
+            
+            {/* Description */}
+            <Text className="text-gray-300 text-base text-center leading-6 mb-8">
+              Are you sure you want to end your live stream? All viewers will be disconnected and the stream will stop broadcasting.
+            </Text>
+            
+            {/* Buttons */}
+            <View className="w-full space-y-3">
+              {/* Not Now Button */}
+              {/* <TouchableOpacity
+                onPress={() => setEndStreamModalVisible(false)}
+                className="w-full py-4 rounded-full overflow-hidden"
+              >
+                <LinearGradient
+                  colors={['#DC2626', '#B91C1C']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  className="w-full py-4 items-center justify-center"
+                >
+                  <Text className="text-white text-lg font-semibold">
+                    Not Now
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity> */}
+
+              <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
+                  <LinearGradient
+                    colors={['#FF0000', '#330000']}
+                    locations={[0, 1]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    className="w-full h-full"
+                  >
+                    <TouchableOpacity 
+                      className="w-full h-full items-center justify-center"
+                      onPress={() => setEndStreamModalVisible(false)}
+                    >
+                      <Text className="text-white text-[17px] font-semibold">Not Now</Text>
+                    </TouchableOpacity>
+                  </LinearGradient>
+              </View>
+              
+                              {/* End Stream Button */}
+                <View className="w-full h-[52px] rounded-full overflow-hidden">
+                  <LinearGradient
+                    colors={['#4A5568', '#2D3748']}
+                    locations={[0, 1]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    className="w-full h-full"
+                  >
+                    <TouchableOpacity 
+                      className="w-full h-full items-center justify-center"
+                      onPress={() => {
+                        setEndStreamModalVisible(false);
+                        handleEndStream();
+                      }}
+                    >
+                      <Text className="text-white text-[17px] font-semibold">End Stream</Text>
+                    </TouchableOpacity>
+                  </LinearGradient>
+                </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <ShareStreamModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        streamData={{
+          id: streamId || '',
+          title: streamTitle,
+          host: {
+            username: currentUser?.username || '',
+            full_name: currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : '',
+          },
+          mode: 'multi',
+          channel: params.channel as string || 'general',
+          is_live: isLive,
+        }}
+      />
     </KeyboardAvoidingView>
   );
 } 

@@ -60,6 +60,20 @@ export interface FollowListResponse {
   previous: string | null;
 }
 
+export interface UserProfile {
+  id: number;
+  username: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  profile_picture_url?: string;
+  followers_count: number;
+  following_count: number;
+  is_following: boolean;
+  vip_level: string;
+  is_content_creator: boolean;
+}
+
 // Create API with base query that includes token
 const baseQuery = fetchBaseQuery({
   baseUrl: BASE_URL,
@@ -120,13 +134,18 @@ export const followApi = createApi({
         method: 'POST',
         body: data,
       }),
-      invalidatesTags: ['Following', 'Users', 'Search'],
+      invalidatesTags: (result, error, { user_id }) => [
+        'Following', 
+        'Users', 
+        'Search',
+        { type: 'Users', id: user_id }
+      ],
       // Optimistic update
       async onQueryStarted({ user_id }, { dispatch, queryFulfilled }) {
-        // Update following list
+        // Update user profile cache
         const patchResult = dispatch(
-          followApi.util.updateQueryData('getFollowing', { search: '' }, (draft) => {
-            // Add user to following list if successful
+          followApi.util.updateQueryData('getUserProfile', user_id, (draft) => {
+            draft.is_following = true;
           })
         );
         
@@ -145,13 +164,18 @@ export const followApi = createApi({
         method: 'POST',
         body: data,
       }),
-      invalidatesTags: ['Following', 'Users', 'Search'],
+      invalidatesTags: (result, error, { user_id }) => [
+        'Following', 
+        'Users', 
+        'Search',
+        { type: 'Users', id: user_id }
+      ],
       // Optimistic update
       async onQueryStarted({ user_id }, { dispatch, queryFulfilled }) {
-        // Update following list
+        // Update user profile cache
         const patchResult = dispatch(
-          followApi.util.updateQueryData('getFollowing', { search: '' }, (draft) => {
-            return draft.filter(user => user.id !== user_id);
+          followApi.util.updateQueryData('getUserProfile', user_id, (draft) => {
+            draft.is_following = false;
           })
         );
         
@@ -171,6 +195,8 @@ export const followApi = createApi({
       }),
       providesTags: ['Following'],
       transformResponse: (response: FollowListResponse) => response.results,
+      // Add more aggressive cache invalidation for live status
+      keepUnusedDataFor: 0, // Don't cache this data
     }),
 
     // Get list of users following the current user
@@ -192,6 +218,15 @@ export const followApi = createApi({
       providesTags: ['Users'],
       transformResponse: (response: FollowListResponse) => response.results,
     }),
+
+    // Get user profile with follow status
+    getUserProfile: builder.query<UserProfile, number>({
+      query: (userId) => ({
+        url: `/users/${userId}/`,
+        method: 'GET',
+      }),
+      providesTags: (result, error, userId) => [{ type: 'Users', id: userId }],
+    }),
   }),
 });
 
@@ -201,4 +236,5 @@ export const {
   useGetFollowingQuery,
   useGetFollowersQuery,
   useDiscoverUsersQuery,
+  useGetUserProfileQuery,
 } = followApi;

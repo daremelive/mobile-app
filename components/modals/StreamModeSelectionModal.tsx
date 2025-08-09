@@ -86,8 +86,9 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
       });
     } else if (selectedMode === 'multi' && selectedChannel && selectedSeats) {
       onClose();
+      // Navigate to stream title screen for multi streams
       router.push({
-        pathname: '/stream/multi',
+        pathname: '/(stream)/stream-title',
         params: { 
           mode: selectedMode,
           channel: selectedChannel,

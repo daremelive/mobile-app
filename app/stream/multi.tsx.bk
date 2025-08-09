@@ -1,0 +1,562 @@
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { View, Text, SafeAreaView, TouchableOpacity, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, FlatList, ScrollView, Image, Keyboard, RefreshControl } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
+import { Ionicons } from '@expo/vector-icons';
+import { selectCurrentUser } from '../../src/store/authSlice';
+import { useCreateStreamMutation, useInviteUsersToStreamMutation, useStreamActionMutation, useGetStreamMessagesQuery, useSendMessageMutation, useGetGiftsQuery, useSendGiftMutation, useJoinStreamMutation, useLeaveStreamMutation, streamsApi } from '../../src/store/streamsApi';
+import { useGetWalletSummaryQuery, useGetCoinPackagesQuery, usePurchaseCoinsMutation } from '../../src/api/walletApi';
+import { walletApi } from '../../src/api/walletApi';
+import { Camera } from 'expo-camera';
+import { 
+  StreamVideoClient, 
+  StreamCall,
+  StreamVideo,
+  VideoRenderer,
+  useCallStateHooks
+} from '@stream-io/video-react-native-sdk';
+import CancelIcon from '../../assets/icons/cancel.svg';
+import DareMeLiveIcon from '../../assets/icons/daremelive.svg';
+import GiftIcon from '../../assets/icons/gift.svg';
+import AddTeamIcon from '../../assets/icons/add-team.svg';
+import { SearchIcon } from '../../components/icons/SearchIcon';
+import { createStreamClient, createStreamUser, generateCallId } from '../../src/utils/streamClient';
+import { CALL_SETTINGS, RECORDING_SETTINGS } from '../../src/config/stream';
+import GiftAnimation from '../../components/animations/GiftAnimation';
+
+export default function MultiStreamScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const currentUser = useSelector(selectCurrentUser);
+  const dispatch = useDispatch();
+  
+  // Parse URL parameters for guest joining logic
+  const existingStreamId = params.existingStreamId as string;
+  const isJoiningExisting = params.isJoiningExisting === 'true';
+  
+  // RTK Query hooks
+  const [createStream, { isLoading }] = useCreateStreamMutation();
+  const [inviteUsers] = useInviteUsersToStreamMutation();
+  const [streamAction] = useStreamActionMutation();
+  const [sendMessage] = useSendMessageMutation();
+  const [sendGift] = useSendGiftMutation();
+  const [purchaseCoins] = usePurchaseCoinsMutation();
+  const [joinStream] = useJoinStreamMutation();
+  const [leaveStream] = useLeaveStreamMutation();
+
+  // Get wallet data from API
+  const { data: walletSummary, isLoading: walletLoading, refetch: refetchWallet } = useGetWalletSummaryQuery();
+  const { data: coinPackages = [], isLoading: packagesLoading } = useGetCoinPackagesQuery();
+
+  // Get gifts from API
+  const { 
+    data: gifts = [], 
+    isLoading: giftsLoading, 
+    error: giftsError,
+    refetch: refetchGifts 
+  } = useGetGiftsQuery(undefined, {
+    refetchOnMountOrArgChange: true,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+    pollingInterval: 30000,
+  });
+
+  const safeGifts = useMemo(() => {
+    if (!Array.isArray(gifts)) return [];
+    
+    const validGifts = gifts
+      .filter(gift => gift && typeof gift === 'object' && gift.id)
+      .filter(gift => gift.is_active !== false);
+    
+    return validGifts;
+  }, [gifts]);
+
+  // Stream state
+  const [streamClient, setStreamClient] = useState<StreamVideoClient | null>(null);
+  const [call, setCall] = useState<any>(null);
+  const [isLive, setIsLive] = useState(false);
+  const [streamId, setStreamId] = useState<string | null>(null);
+  const [streamTitle, setStreamTitle] = useState('Multi Live Stream');
+  
+  // Chat state
+  const [chatVisible, setChatVisible] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  
+  // Participant management state
+  const [showParticipantModal, setShowParticipantModal] = useState(false);
+  const [participantSearchQuery, setParticipantSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [invitingUsers, setInvitingUsers] = useState<{ [key: string]: boolean }>({});
+  
+  // Gift modal state
+  const [showGiftModal, setShowGiftModal] = useState(false);
+  const [selectedGift, setSelectedGift] = useState(null);
+  const [isGiftModalVisible, setIsGiftModalVisible] = useState(false);
+  const [giftAnimations, setGiftAnimations] = useState([]);
+  const [isSendingGift, setIsSendingGift] = useState(false);
+  
+  // Coin purchase modal state
+  const [showCoinModal, setShowCoinModal] = useState(false);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+  
+  // Comment input state
+  const [comment, setComment] = useState('');
+  
+  // Keyboard handling state
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  
+  // Get stream messages
+  const { data: messages = [], refetch: refetchMessages } = useGetStreamMessagesQuery(
+    streamId || '', 
+    { 
+      skip: !streamId,
+      pollingInterval: isLive ? 3000 : 0,
+      refetchOnMountOrArgChange: true,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+    }
+  );
+
+  // Participants state for multi-stream
+  const [participants, setParticipants] = useState([]);
+  const [hostParticipant, setHostParticipant] = useState(null);
+  const [remoteParticipants, setRemoteParticipants] = useState([]);
+
+  // Check for required parameters and user
+  useEffect(() => {
+    if (!currentUser) {
+      Alert.alert('Error', 'User not authenticated');
+      router.back();
+      return;
+    }
+
+    // Handle initial setup based on URL parameters
+    if (isJoiningExisting && existingStreamId) {
+      console.log('🔄 Joining existing multi-stream:', existingStreamId);
+      handleJoinExistingStream();
+    } else {
+      console.log('🔄 Preparing new multi-stream creation');
+    }
+  }, [currentUser, isJoiningExisting, existingStreamId]);
+
+  const handleJoinExistingStream = async () => {
+    if (!existingStreamId) {
+      Alert.alert('Error', 'No stream ID provided');
+      return;
+    }
+
+    try {
+      await joinExistingMultiStream(existingStreamId);
+      setIsLive(true);
+    } catch (error) {
+      console.error('❌ Failed to join existing multi-stream:', error);
+      Alert.alert('Error', 'Failed to join stream');
+      router.back();
+    }
+  };
+
+  const createNewMultiStream = async () => {
+    // Create GetStream client and backend stream in parallel
+    const [streamClient, streamResponse] = await Promise.all([
+      (async () => {
+        const streamUser = createStreamUser(currentUser!);
+        const client = await createStreamClient(streamUser);
+        if (!client) {
+          throw new Error('Failed to initialize streaming client');
+        }
+        return client;
+      })(),
+      
+      (async () => {
+        const streamData = {
+          title: streamTitle.trim() || `${currentUser!.username || 'User'}'s Multi Live Stream`,
+          mode: 'multi' as const,
+          channel: (params.channel as 'video' | 'game' | 'truth-or-dare' | 'banter') || 'video',
+          max_seats: 4, // Multi-stream default
+        };
+        return await createStream(streamData).unwrap();
+      })()
+    ]);
+
+    setStreamClient(streamClient);
+    setStreamId(streamResponse.id);
+
+    // Create GetStream call and join
+    const callId = generateCallId();
+    const call = streamClient.call('default', callId);
+    
+    console.log('🔄 Creating and joining multi-stream call as host...');
+    
+    await call.getOrCreate({
+      data: {
+        custom: {
+          ...CALL_SETTINGS,
+          streamId: streamResponse.id,
+          mode: 'multi',
+        },
+      }
+    });
+    
+    await call.join({ create: true });
+    
+    // Configure media for host
+    try {
+      console.log('🔄 Enabling camera and microphone for host...');
+      await Promise.all([
+        call.camera.enable(),
+        call.microphone.enable()
+      ]);
+      console.log('✅ Camera and microphone enabled for host');
+    } catch (error) {
+      console.error('❌ Failed to enable camera/microphone:', error);
+    }
+
+    // Start recording if enabled
+    if (RECORDING_SETTINGS.AUTO_START) {
+      try {
+        await call.startRecording();
+        console.log('🎥 Recording started');
+      } catch (error) {
+        console.error('❌ Failed to start recording:', error);
+      }
+    }
+
+    // Start stream in database
+    try {
+      await streamAction({
+        streamId: streamResponse.id,
+        action: { action: 'start' }
+      }).unwrap();
+      console.log('✅ Multi-stream started in database');
+    } catch (startError) {
+      console.error('❌ Failed to start stream in database:', startError);
+    }
+    
+    setCall(call);
+    console.log('✅ Multi-stream setup complete as host!');
+  };
+
+  const joinExistingMultiStream = async (streamId: string) => {
+    const streamUser = createStreamUser(currentUser!);
+    const streamClient = await createStreamClient(streamUser);
+    if (!streamClient) {
+      throw new Error('Failed to initialize streaming client');
+    }
+
+    setStreamClient(streamClient);
+    setStreamId(streamId);
+
+    // Join the existing GetStream call
+    const callId = `stream_${streamId}`;
+    const call = streamClient.call('default', callId);
+    
+    console.log('🔄 Joining existing multi-stream call as guest...', callId);
+    
+    try {
+      await call.join({ create: false });
+      
+      // Configure media for guest
+      console.log('🔄 Enabling camera and microphone for guest...');
+      await Promise.all([
+        call.camera.enable(),
+        call.microphone.enable()
+      ]);
+      console.log('✅ Camera and microphone enabled for guest');
+      
+      setCall(call);
+      console.log('✅ Joined existing multi-stream as guest!');
+      
+    } catch (error) {
+      console.error('❌ Failed to join existing call:', error);
+      throw error;
+    }
+  };
+
+  const startMultiStream = async () => {
+    if (!currentUser) {
+      Alert.alert('Error', 'User not authenticated');
+      return;
+    }
+
+    // Check permissions first
+    const cameraPermission = await Camera.requestCameraPermissionsAsync();
+    if (!cameraPermission.granted) {
+      Alert.alert('Camera Permission', 'Camera access is required for live streaming');
+      return;
+    }
+
+    setIsLive(true);
+
+    try {
+      await createNewMultiStream();
+      console.log('✅ Multi-stream started successfully');
+    } catch (error) {
+      console.error('❌ Failed to start multi-stream:', error);
+      Alert.alert('Error', 'Failed to start stream');
+      setIsLive(false);
+    }
+  };
+
+  const endMultiStream = async () => {
+    if (!streamId || !call) {
+      router.back();
+      return;
+    }
+
+    try {
+      // Stop recording if active
+      try {
+        await call.stopRecording();
+        console.log('🎥 Recording stopped');
+      } catch (error) {
+        console.log('ℹ️ No recording to stop or already stopped');
+      }
+
+      // End stream in database
+      await streamAction({
+        streamId,
+        action: { action: 'end' }
+      }).unwrap();
+
+      // Leave GetStream call
+      await call.leave();
+      
+      console.log('✅ Multi-stream ended successfully');
+    } catch (error) {
+      console.error('❌ Error ending multi-stream:', error);
+    } finally {
+      router.back();
+    }
+  };
+
+  const leaveMultiStream = async () => {
+    if (!streamId || !call) {
+      router.back();
+      return;
+    }
+
+    try {
+      await leaveStream(streamId).unwrap();
+      await call.leave();
+      
+      console.log('✅ Left multi-stream successfully');
+    } catch (error) {
+      console.error('❌ Error leaving multi-stream:', error);
+    } finally {
+      router.back();
+    }
+  };
+
+  // Multi-participant video layout component
+  const MultiParticipantLayout = () => {
+    const { useParticipants, useLocalParticipant } = useCallStateHooks();
+    const allParticipants = useParticipants();
+    const localParticipant = useLocalParticipant();
+
+    console.log('📺 Multi-participant layout render:', {
+      totalParticipants: allParticipants.length,
+      localParticipant: localParticipant ? 'present' : 'missing',
+      participants: allParticipants.map(p => ({
+        userId: p.userId,
+        name: p.name,
+        hasVideo: p.hasVideo,
+        hasAudio: p.hasAudio,
+      }))
+    });
+
+    if (allParticipants.length === 0) {
+      return (
+        <View className="flex-1 bg-gray-900 items-center justify-center">
+          <Text className="text-white text-lg">No participants</Text>
+        </View>
+      );
+    }
+
+    // Handle different layouts based on participant count
+    if (allParticipants.length === 1) {
+      // Single participant (full screen)
+      return (
+        <View className="flex-1">
+          <VideoRenderer participant={allParticipants[0]} style={{ flex: 1 }} />
+        </View>
+      );
+    } else if (allParticipants.length === 2) {
+      // Two participants (split screen)
+      return (
+        <View className="flex-1 flex-col">
+          <View className="flex-1">
+            <VideoRenderer participant={allParticipants[0]} style={{ flex: 1 }} />
+          </View>
+          <View className="flex-1">
+            <VideoRenderer participant={allParticipants[1]} style={{ flex: 1 }} />
+          </View>
+        </View>
+      );
+    } else if (allParticipants.length === 3) {
+      // Three participants (one large, two small)
+      return (
+        <View className="flex-1">
+          <View className="flex-2">
+            <VideoRenderer participant={allParticipants[0]} style={{ flex: 1 }} />
+          </View>
+          <View className="flex-1 flex-row">
+            <View className="flex-1">
+              <VideoRenderer participant={allParticipants[1]} style={{ flex: 1 }} />
+            </View>
+            <View className="flex-1">
+              <VideoRenderer participant={allParticipants[2]} style={{ flex: 1 }} />
+            </View>
+          </View>
+        </View>
+      );
+    } else {
+      // Four or more participants (2x2 grid)
+      return (
+        <View className="flex-1 flex-col">
+          <View className="flex-1 flex-row">
+            <View className="flex-1">
+              <VideoRenderer participant={allParticipants[0]} style={{ flex: 1 }} />
+            </View>
+            <View className="flex-1">
+              <VideoRenderer participant={allParticipants[1]} style={{ flex: 1 }} />
+            </View>
+          </View>
+          <View className="flex-1 flex-row">
+            <View className="flex-1">
+              <VideoRenderer participant={allParticipants[2]} style={{ flex: 1 }} />
+            </View>
+            <View className="flex-1">
+              {allParticipants[3] ? (
+                <VideoRenderer participant={allParticipants[3]} style={{ flex: 1 }} />
+              ) : (
+                <View className="flex-1 bg-gray-800 items-center justify-center">
+                  <Text className="text-gray-400">Empty Seat</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      );
+    }
+  };
+
+  // Show pre-stream setup (for hosts creating new streams)
+  if (!isLive && !isJoiningExisting) {
+    return (
+      <SafeAreaView className="flex-1 bg-black">
+        <StatusBar style="light" backgroundColor="black" />
+        
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="text-white text-3xl font-bold mb-4">Multi Live Stream</Text>
+          <Text className="text-gray-400 text-lg text-center mb-12">
+            Connect with up to 4 participants
+          </Text>
+          
+          <TouchableOpacity 
+            className="bg-purple-600 rounded-full px-8 py-4 flex-row items-center mb-8"
+            onPress={startMultiStream}
+            disabled={isLoading}
+          >
+            <Ionicons name="videocam" size={24} color="white" />
+            <Text className="text-white text-xl font-bold ml-3">Start Multi Stream</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            className="px-6 py-3"
+            onPress={() => router.back()}
+          >
+            <Text className="text-gray-400 text-lg">Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show stream interface
+  if (!streamClient || !call) {
+    return (
+      <SafeAreaView className="flex-1 bg-black items-center justify-center">
+        <StatusBar style="light" backgroundColor="black" />
+        <View className="w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <Text className="text-white text-lg">Setting up multi-stream...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView className="flex-1 bg-black">
+      <StatusBar style="light" backgroundColor="black" />
+      
+      <StreamVideo client={streamClient}>
+        <StreamCall call={call}>
+          <View className="flex-1">
+            {/* Multi-participant video layout */}
+            <MultiParticipantLayout />
+            
+            {/* Stream controls overlay */}
+            <View className="absolute top-12 left-6 right-6 flex-row justify-between items-center">
+              <View className="bg-black/60 rounded-full px-4 py-2">
+                <Text className="text-white font-bold">
+                  {isJoiningExisting ? 'Guest' : 'Host'} • {participants.length} viewers
+                </Text>
+              </View>
+              
+              <TouchableOpacity
+                className="bg-red-600 rounded-full p-3"
+                onPress={isJoiningExisting ? leaveMultiStream : endMultiStream}
+              >
+                <Ionicons name="close" size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Bottom controls */}
+            <View className="absolute bottom-12 left-6 right-6 flex-row justify-center space-x-4">
+              {/* Add Participant Button (Host only) */}
+              {!isJoiningExisting && (
+                <TouchableOpacity
+                  className="bg-purple-600 rounded-full p-4"
+                  onPress={() => setShowParticipantModal(true)}
+                >
+                  <AddTeamIcon width={24} height={24} />
+                </TouchableOpacity>
+              )}
+              
+              {/* Chat Button */}
+              <TouchableOpacity
+                className="bg-gray-800 rounded-full p-4"
+                onPress={() => setChatVisible(true)}
+              >
+                <Ionicons name="chatbubble" size={24} color="white" />
+              </TouchableOpacity>
+              
+              {/* Gift Button */}
+              <TouchableOpacity
+                className="bg-yellow-600 rounded-full p-4"
+                onPress={() => setShowGiftModal(true)}
+              >
+                <GiftIcon width={24} height={24} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </StreamCall>
+      </StreamVideo>
+      
+      {/* Gift animations */}
+      {giftAnimations.map((gift, index) => (
+        <GiftAnimation
+          key={`${gift.id}-${index}`}
+          gift={gift}
+          onAnimationComplete={() => {
+            setGiftAnimations(prev => prev.filter((_, i) => i !== index));
+          }}
+        />
+      ))}
+    </SafeAreaView>
+  );
+}

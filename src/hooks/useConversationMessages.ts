@@ -8,6 +8,8 @@ interface Message {
   id: number;
   content: string;
   created_at: string;
+  is_delivered: boolean;
+  delivered_at?: string;
   is_read: boolean;
   read_at?: string;
   sender: {
@@ -47,6 +49,14 @@ export const useConversationMessages = (conversationId: string) => {
     try {
       const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
+      
+      console.log('🔍 Fetching conversation:', {
+        conversationId,
+        baseUrl,
+        hasToken: !!token,
+        fullUrl: `${baseUrl}messaging/conversations/${conversationId}/`
+      });
+      
       const response = await fetch(`${baseUrl}messaging/conversations/${conversationId}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -54,8 +64,20 @@ export const useConversationMessages = (conversationId: string) => {
         },
       });
 
+      console.log('🔍 Conversation fetch response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to fetch conversation');
+        const errorText = await response.text();
+        console.error('❌ Conversation fetch failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText
+        });
+        throw new Error(`Failed to fetch conversation: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -70,7 +92,7 @@ export const useConversationMessages = (conversationId: string) => {
       
       return data;
     } catch (err: any) {
-      console.error('Error fetching conversation:', err);
+      console.error('❌ Error fetching conversation:', err);
       setError(err.message);
       return null;
     }
@@ -93,6 +115,14 @@ export const useConversationMessages = (conversationId: string) => {
     try {
       const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
+      
+      console.log('📨 Fetching messages:', {
+        conversationId,
+        baseUrl,
+        hasToken: !!token,
+        fullUrl: `${baseUrl}messaging/conversations/${conversationId}/messages/`
+      });
+      
       const response = await fetch(`${baseUrl}messaging/conversations/${conversationId}/messages/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -100,8 +130,20 @@ export const useConversationMessages = (conversationId: string) => {
         },
       });
 
+      console.log('📨 Messages fetch response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to fetch messages');
+        const errorText = await response.text();
+        console.error('❌ Messages fetch failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText
+        });
+        throw new Error(`Failed to fetch messages: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
@@ -109,10 +151,16 @@ export const useConversationMessages = (conversationId: string) => {
       
       // Handle both paginated and non-paginated responses
       const messagesArray = Array.isArray(data) ? data : (data.results || []);
-      console.log('📨 Messages Array:', messagesArray);
+      console.log('📨 Messages Array:', messagesArray.length, 'messages');
+      console.log('📨 First few messages:', messagesArray.slice(0, 3).map((m: any) => ({ 
+        id: m.id, 
+        content: m.content?.substring(0, 20), 
+        is_outgoing: m.is_outgoing,
+        sender: m.sender?.username 
+      })));
       setMessages(messagesArray);
     } catch (err: any) {
-      console.error('Error fetching messages:', err);
+      console.error('❌ Error fetching messages:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -193,7 +241,26 @@ export const useConversationMessages = (conversationId: string) => {
 
       const data = await response.json();
       console.log('✅ Message sent successfully:', data);
-      setMessages(prev => [...prev, data]);
+      
+      // Ensure the message has the correct format
+      const messageWithCorrectFormat = {
+        ...data,
+        is_outgoing: true, // Ensure this is set for sent messages
+        sender: {
+          ...data.sender,
+          id: currentUser.id,
+          username: currentUser.username,
+          first_name: currentUser.first_name,
+          last_name: currentUser.last_name,
+        }
+      };
+      
+      console.log('📝 Adding message to state:', messageWithCorrectFormat);
+      setMessages(prev => {
+        const newMessages = [...prev, messageWithCorrectFormat];
+        console.log('📨 New messages array length:', newMessages.length);
+        return newMessages;
+      });
       return data;
     } catch (err) {
       console.error('❌ Error sending message:', err);

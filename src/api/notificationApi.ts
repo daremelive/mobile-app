@@ -6,13 +6,12 @@ import IPDetector from '../utils/ipDetector';
 const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
   let baseUrl = 'http://172.20.10.3:8000/api/notifications/'; // Default fallback
   
-  if (__DEV__) {
-    try {
-      baseUrl = await IPDetector.getAPIBaseURL('notifications');
-      console.log('🔗 [NotificationAPI] Using detected URL:', baseUrl);
-    } catch (error) {
-      console.error('❌ [NotificationAPI] IP detection failed, using fallback:', error);
-    }
+  // Always use IP detector
+  try {
+    baseUrl = await IPDetector.getAPIBaseURL('notifications');
+    console.log('🔗 [NotificationAPI] Using detected URL:', baseUrl);
+  } catch (error) {
+    console.error('❌ [NotificationAPI] IP detection failed, using fallback:', error);
   }
   
   // Create a temporary baseQuery with the detected URL
@@ -54,7 +53,7 @@ export interface AccountNotificationSetting {
     id: number;
     username: string;
     email: string;
-    avatar?: string;
+    profile_picture_url?: string;
   };
   live_notifications: boolean;
   new_content_notifications: boolean;
@@ -97,7 +96,7 @@ export interface Notification {
 export const notificationApi = createApi({
   reducerPath: 'notificationApi',
   baseQuery: dynamicBaseQuery,
-  tagTypes: ['NotificationSettings', 'AccountNotificationSettings', 'Notifications'],
+  tagTypes: ['NotificationSettings', 'AccountNotificationSettings', 'Notifications', 'InboxNotifications', 'NotificationStats'],
   endpoints: (builder) => ({
     // Get user's notification settings
     getNotificationSettings: builder.query<NotificationSetting, void>({
@@ -112,7 +111,7 @@ export const notificationApi = createApi({
     >({
       query: (data) => ({
         url: 'settings/',
-        method: 'PUT',
+        method: 'PATCH',
         body: data,
       }),
       invalidatesTags: ['NotificationSettings'],
@@ -134,9 +133,12 @@ export const notificationApi = createApi({
       }
     >({
       query: ({ following_user_id, data }) => ({
-        url: `account-settings/${following_user_id}/`,
-        method: 'PUT',
-        body: data,
+        url: `account-settings/update/`,
+        method: 'PATCH',
+        body: { 
+          following_user_id,
+          ...data 
+        },
       }),
       invalidatesTags: ['AccountNotificationSettings'],
     }),
@@ -176,11 +178,37 @@ export const notificationApi = createApi({
       invalidatesTags: ['Notifications'],
     }),
 
-    // Get user's notification inbox (in-app notifications)
-    getInboxNotifications: builder.query<InboxNotification[], void>({
+    // Clear all inbox notifications
+    clearAllInboxNotifications: builder.mutation<void, void>({
       query: () => ({
+        url: 'inbox/clear-all/',
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['InboxNotifications', 'Notifications', 'NotificationStats'],
+    }),
+
+    // Clear a specific inbox notification
+    clearInboxNotification: builder.mutation<{ message: string }, number>({
+      query: (notificationId) => ({
+        url: `inbox/${notificationId}/clear/`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['InboxNotifications', 'Notifications', 'NotificationStats'],
+    }),
+
+    // Get user's notification inbox (in-app notifications)
+    getInboxNotifications: builder.query<
+      { 
+        notifications: InboxNotification[];
+        total_count: number;
+        has_next: boolean;
+      }, 
+      { page?: number; page_size?: number } | void
+    >({
+      query: (params) => ({
         url: 'inbox/',
         method: 'GET',
+        params: params || {},
       }),
       providesTags: ['InboxNotifications'],
     }),
@@ -191,7 +219,16 @@ export const notificationApi = createApi({
         url: `inbox/${notificationId}/read/`,
         method: 'PATCH',
       }),
-      invalidatesTags: ['InboxNotifications', 'Notifications'],
+      invalidatesTags: ['InboxNotifications', 'Notifications', 'NotificationStats'],
+    }),
+
+    // Get notification stats (total and unread count)
+    getNotificationStats: builder.query<{ total_notifications: number; unread_notifications: number }, void>({
+      query: () => ({
+        url: 'stats/',
+        method: 'GET',
+      }),
+      providesTags: ['NotificationStats'],
     }),
   }),
 });
@@ -206,4 +243,7 @@ export const {
   useMarkAllNotificationsAsReadMutation,
   useGetInboxNotificationsQuery,
   useMarkInboxNotificationAsReadMutation,
+  useClearAllInboxNotificationsMutation,
+  useClearInboxNotificationMutation,
+  useGetNotificationStatsQuery,
 } = notificationApi;

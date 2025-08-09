@@ -6,6 +6,7 @@ import { SvgXml } from 'react-native-svg';
 import * as SecureStore from 'expo-secure-store';
 import ArrowLeftIcon from '../../../assets/icons/arrow-left.svg';
 import { CheckDoubleIcon } from '../../../components/icons/CheckDoubleIcon';
+import { CheckSingleIcon } from '../../../components/icons/CheckSingleIcon';
 import { useConversationMessages } from '../../../src/hooks/useConversationMessages';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../../../src/store/authSlice';
@@ -56,6 +57,7 @@ export default function MessageDetailScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const textInputRef = useRef<TextInput>(null);
   
@@ -95,35 +97,6 @@ export default function MessageDetailScreen() {
 
   // State for dynamic avatar URLs
   const [avatarUrls, setAvatarUrls] = useState<{[key: string]: string}>({});
-
-  // Update avatar URLs when participant changes
-  useEffect(() => {
-    const updateAvatarUrls = async () => {
-      const urls: {[key: string]: string} = {};
-      
-      console.log('🔄 Updating avatar URLs. Other participant:', otherParticipant);
-      
-      if (otherParticipant) {
-        urls['other'] = await buildAvatarUrl(otherParticipant);
-        console.log('✅ Set avatar URL for other participant:', urls['other']);
-      }
-      
-      // Update avatar URLs for all message senders
-      for (const message of messages) {
-        if (message.sender && !message.is_outgoing) {
-          const senderId = `sender_${message.sender.id}`;
-          if (!urls[senderId]) {
-            urls[senderId] = await buildAvatarUrl(message.sender);
-          }
-        }
-      }
-      
-      setAvatarUrls(urls);
-      console.log('📸 Final avatar URLs:', urls);
-    };
-    
-    updateAvatarUrls();
-  }, [otherParticipant, messages, buildAvatarUrl]);
   
   const { messages, loading, error, conversation, fetchMessages, fetchConversation, sendMessage } = useConversationMessages(conversationId);
 
@@ -181,6 +154,49 @@ export default function MessageDetailScreen() {
 
   // Get other participant info
   const otherParticipant = getOtherParticipant();
+
+  // Update avatar URLs when participant changes
+  useEffect(() => {
+    const updateAvatarUrls = async () => {
+      const urls: {[key: string]: string} = {};
+      
+      console.log('🔄 Updating avatar URLs. Other participant:', otherParticipant);
+      
+      if (otherParticipant) {
+        urls['other'] = await buildAvatarUrl(otherParticipant);
+        console.log('✅ Set avatar URL for other participant:', urls['other']);
+      }
+      
+      // Update avatar URLs for all message senders
+      for (const message of messages) {
+        if (message.sender && !message.is_outgoing) {
+          const senderId = `sender_${message.sender.id}`;
+          if (!urls[senderId]) {
+            urls[senderId] = await buildAvatarUrl(message.sender);
+          }
+        }
+      }
+      
+      setAvatarUrls(urls);
+      console.log('📸 Final avatar URLs:', urls);
+    };
+    
+    updateAvatarUrls();
+  }, [otherParticipant, messages, buildAvatarUrl]);
+
+  // Scroll to show newest messages when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        try {
+          // For inverted ScrollView, scroll to top (y: 0) to show newest messages
+          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+        } catch (error) {
+          console.error('Auto-scroll error:', error);
+        }
+      }, 200); // Increased delay to ensure state updates are rendered
+    }
+  }, [messages.length]);
   
   // Keyboard event listeners
   useEffect(() => {
@@ -189,9 +205,10 @@ export default function MessageDetailScreen() {
         Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
         (event) => {
           try {
-            // Scroll to bottom when keyboard appears
+            setKeyboardVisible(true);
+            // Scroll to show newest messages when keyboard appears (for inverted ScrollView)
             setTimeout(() => {
-              scrollViewRef.current?.scrollToEnd({ animated: true });
+              scrollViewRef.current?.scrollTo({ y: 0, animated: true });
             }, 100);
           } catch (error) {
             console.error('Keyboard show error:', error);
@@ -203,7 +220,8 @@ export default function MessageDetailScreen() {
         Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
         () => {
           try {
-            // Optional: handle keyboard hide
+            setKeyboardVisible(false);
+            // Keep scroll position when keyboard hides
           } catch (error) {
             console.error('Keyboard hide error:', error);
           }
@@ -230,10 +248,11 @@ export default function MessageDetailScreen() {
       fetchRecipient();
     } else if (conversationId && conversationId !== '0') {
       // For existing conversations, fetch conversation and messages
+      console.log('🔍 Loading conversation:', conversationId);
       fetchConversation();
       fetchMessages();
     }
-  }, [conversationId, isNewConversation, fetchRecipient]);
+  }, [conversationId, isNewConversation, fetchRecipient, fetchConversation, fetchMessages]);
 
   // Set up periodic refresh for real-time messaging
   React.useEffect(() => {
@@ -277,12 +296,7 @@ export default function MessageDetailScreen() {
   const handleSend = async () => {
     if (!input.trim() || sending) return;
     
-    // Dismiss keyboard first
-    try {
-      Keyboard.dismiss();
-    } catch (error) {
-      console.error('Keyboard dismiss error:', error);
-    }
+    // Don't dismiss keyboard - keep it open for continued messaging
     
     setSending(true);
     try {
@@ -310,6 +324,11 @@ export default function MessageDetailScreen() {
         const messageData = await response.json();
         setInput('');
         
+        // Keep focus on input after sending
+        setTimeout(() => {
+          textInputRef.current?.focus();
+        }, 100);
+        
         // After sending, try to find the conversation and redirect to it
         const conversationsResponse = await fetch(`${baseUrl}messaging/conversations/`, {
           headers: {
@@ -333,18 +352,29 @@ export default function MessageDetailScreen() {
         }
       } else {
         // For existing conversations, use the existing sendMessage function
+        console.log('📤 Sending message for existing conversation...');
         await sendMessage(input.trim());
         setInput('');
+        
+        // Keep focus on input after sending
+        setTimeout(() => {
+          textInputRef.current?.focus();
+        }, 100);
+        
+        // Force a refresh of messages after sending
+        setTimeout(() => {
+          fetchMessages();
+        }, 500);
       }
       
-      // Scroll to bottom after sending
+      // Scroll to show newest messages after sending (for inverted ScrollView, scroll to top)
       setTimeout(() => {
         try {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
+          scrollViewRef.current?.scrollTo({ y: 0, animated: true });
         } catch (error) {
           console.error('Post-send scroll error:', error);
         }
-      }, 100);
+      }, 600); // Delay to allow message to be added first
     } catch (error: any) {
       console.error('❌ Failed to send message:', error);
       const errorMessage = error?.message || 'Unknown error occurred';
@@ -364,6 +394,16 @@ export default function MessageDetailScreen() {
   const sortedMessages = [...messages].sort((a, b) => 
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
+
+  // Debug logging
+  useEffect(() => {
+    console.log('📨 Messages state updated:', {
+      messageCount: messages.length,
+      sortedMessageCount: sortedMessages.length,
+      lastMessage: messages[messages.length - 1]?.content || 'No messages',
+      lastMessageOutgoing: messages[messages.length - 1]?.is_outgoing
+    });
+  }, [messages, sortedMessages]);
 
   return (
     <View className="flex-1 bg-black">
@@ -441,6 +481,7 @@ export default function MessageDetailScreen() {
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? (isKeyboardVisible ? -100 : 90) : 0}
       >
         <ScrollView 
           ref={scrollViewRef}
@@ -454,21 +495,30 @@ export default function MessageDetailScreen() {
           // Invert the scroll view to show recent messages at bottom
           style={{ transform: [{ scaleY: -1 }] }}
         >
-          {loading && messages.length === 0 ? (
+          {loading && sortedMessages.length === 0 ? (
             <View className="flex-1 justify-center items-center py-20" style={{ transform: [{ scaleY: -1 }] }}>
               <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-base">Loading messages...</Text>
             </View>
           ) : error ? (
             <View className="flex-1 justify-center items-center py-20" style={{ transform: [{ scaleY: -1 }] }}>
-              <Text style={{ fontFamily: fonts.regular }} className="text-red-400 text-base mb-4">Failed to load messages</Text>
+              <Text style={{ fontFamily: fonts.regular }} className="text-red-400 text-base mb-2">Failed to load messages</Text>
+              <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm mb-4 text-center px-4">
+                {error.includes('404') ? 'Conversation not found' : 
+                 error.includes('401') || error.includes('403') ? 'Access denied' :
+                 error.includes('fetch') ? 'Network error - check your connection' :
+                 `Error: ${error}`}
+              </Text>
               <TouchableOpacity 
-                onPress={fetchMessages}
+                onPress={() => {
+                  fetchMessages();
+                  fetchConversation();
+                }}
                 className="bg-[#C42720] px-6 py-3 rounded-full"
               >
                 <Text style={{ fontFamily: fonts.semiBold }} className="text-white">Retry</Text>
               </TouchableOpacity>
             </View>
-          ) : messages.length === 0 ? (
+          ) : sortedMessages.length === 0 ? (
             <View className="flex-1 justify-center items-center py-20" style={{ transform: [{ scaleY: -1 }] }}>
               <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-base mb-2">
                 {isNewConversation ? 'Start a conversation' : 'No messages yet'}
@@ -483,7 +533,7 @@ export default function MessageDetailScreen() {
           ) : (
             <View className="py-2">
               {/* Display messages in reverse order (most recent first, but inverted scroll makes them appear at bottom) */}
-              {messages.map((msg, index) => (
+              {sortedMessages.map((msg, index) => (
                 <View key={msg.id} className={`mb-4 flex-row ${msg.is_outgoing ? 'justify-end' : 'justify-start'}`} style={{ transform: [{ scaleY: -1 }] }}>
                   {!msg.is_outgoing && (
                     <Image 
@@ -513,7 +563,13 @@ export default function MessageDetailScreen() {
                       </Text>
                       {msg.is_outgoing && (
                         <View className="ml-2 flex-row items-center">
-                          <CheckDoubleIcon size={14} color={msg.is_read ? "#C42720" : "#666666"} />
+                          {msg.is_read ? (
+                            <CheckDoubleIcon size={14} color="#C42720" />
+                          ) : msg.is_delivered ? (
+                            <CheckDoubleIcon size={14} color="#666666" />
+                          ) : (
+                            <CheckSingleIcon size={14} color="#666666" />
+                          )}
                         </View>
                       )}
                     </View>
@@ -527,8 +583,8 @@ export default function MessageDetailScreen() {
           )}
         </ScrollView>
 
-        {/* Input Bar - Above tab bar with send icon inside */}
-        <View className="px-4 py-4 pb-28 bg-black">
+        {/* Input Bar - Dynamic padding based on keyboard state */}
+        <View className={`px-4 py-2 bg-black ${isKeyboardVisible ? 'pb-4' : 'pb-28'}`}>
           <View className="flex-row items-center bg-[#1E1E1E] rounded-full px-4 py-3">
             <TextInput
               ref={textInputRef}
