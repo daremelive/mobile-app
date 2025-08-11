@@ -54,14 +54,20 @@ export default function ShareProfileModal({ visible, onClose, userProfile }: Sha
     const initializeProfileUrl = async () => {
       try {
         const detection = await ipDetector.detectIP();
-        const baseUrl = `http://${detection.ip}:8000`;
+        let baseUrl;
+        // Check if it's production domain or local IP
+        if (detection.ip === 'daremelive.pythonanywhere.com') {
+          baseUrl = `https://${detection.ip}`;
+        } else {
+          baseUrl = `http://${detection.ip}:8000`;
+        }
         // Use a more user-friendly URL structure for profile sharing
         const url = `${baseUrl}/profile/${userProfile.username}?utm_source=mobile_share&utm_medium=social`;
         setProfileUrl(url);
         console.log('🔗 Share Profile URL initialized:', url);
       } catch (error) {
         console.error('❌ Failed to detect IP for sharing:', error);
-        setProfileUrl(`http://172.20.10.2:8000/profile/${userProfile.username}?utm_source=mobile_share&utm_medium=social`); // Fallback
+        setProfileUrl(`https://daremelive.pythonanywhere.com/profile/${userProfile.username}?utm_source=mobile_share&utm_medium=social`); // Production fallback
       }
     };
     

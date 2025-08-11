@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, SafeAreaView, Image, Alert, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import EyeOffIcon from '../../assets/icons/eye-off.svg';
 import EyeIcon from '../../assets/icons/eye.svg';
-import { useSigninMutation } from '../../src/store/authApi';
+import { useSigninMutation, useGoogleAuthMutation } from '../../src/store/authApi';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../../src/store/authSlice';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+import { makeRedirectUri } from 'expo-auth-session';
+import Constants from 'expo-constants';
 
 export default function SigninScreen() {
   const [email, setEmail] = useState('');
@@ -18,7 +22,55 @@ export default function SigninScreen() {
   
   const dispatch = useDispatch();
   const [signin, { isLoading }] = useSigninMutation();
+  const [googleAuth, { isLoading: isGoogleLoading }] = useGoogleAuthMutation();
 
+  // Prepare Google AuthSession
+  WebBrowser.maybeCompleteAuthSession();
+  useEffect(() => {
+    // Work around iOS auth sheet interaction issues by warming up the browser
+    WebBrowser.warmUpAsync();
+    return () => {
+      WebBrowser.coolDownAsync();
+    };
+  }, []);
+  const extra = (Constants?.expoConfig as any)?.extra || (Constants?.manifest as any)?.extra || {};
+  const googleClientId = extra?.GOOGLE_CLIENT_ID || extra?.googleClientId || undefined;
+  const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || undefined;
+  const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || undefined;
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: googleClientId,
+    iosClientId,
+    androidClientId,
+    scopes: ['openid', 'profile', 'email'],
+    // Let provider choose responseType; we'll derive id_token from response
+  });
+
+  useEffect(() => {
+    const handleResponse = async () => {
+      if (response?.type === 'success') {
+        const idToken = (response as any)?.authentication?.idToken || (response as any)?.params?.id_token;
+        if (!idToken) {
+          Alert.alert('Google Sign-In', 'Failed to retrieve ID token');
+          return;
+        }
+        try {
+          const result = await googleAuth({ id_token: idToken } as any).unwrap();
+          dispatch(setCredentials(result));
+          if (!result.user.profile_completed) {
+            router.replace('/(auth)/signup-two');
+          } else {
+            router.replace('/(tabs)/home');
+          }
+        } catch (e: any) {
+          console.error('Google auth error:', e);
+          const msg = e?.data?.message || e?.data?.error || 'Google authentication failed';
+          Alert.alert('Google Sign-In', msg);
+        }
+      }
+    };
+    handleResponse();
+  }, [response]);
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
@@ -28,7 +80,7 @@ export default function SigninScreen() {
     // Clear previous errors
     setEmailError('');
     setPasswordError('');
-
+                      // no-op (leftover)
     // Validate inputs
     if (!email.trim()) {
       setEmailError('Email is required');
@@ -194,9 +246,21 @@ export default function SigninScreen() {
           <View className="flex-1 h-px bg-gray-600" />
         </View>
 
-        <TouchableOpacity className="w-full h-14 bg-[#1C1C1E] border border-[#333333] rounded-full flex-row items-center justify-center mb-8">
+        <TouchableOpacity
+          className="w-full h-14 bg-[#1C1C1E] border border-[#333333] rounded-full flex-row items-center justify-center mb-8"
+          onPress={async () => {
+            if (!iosClientId && !androidClientId && !googleClientId) {
+              Alert.alert('Google Sign-In', 'Google client IDs are not configured.');
+              return;
+            }
+            setTimeout(() => {
+              promptAsync();
+            }, 100);
+          }}
+          disabled={isGoogleLoading || !request}
+        >
           <Image source={require('../../assets/icons/google.png')} className="w-6 h-6 mr-3" />
-          <Text className="text-white text-lg font-semibold">Sign Up with Google</Text>
+          <Text className="text-white text-lg font-semibold">{isGoogleLoading ? 'Signing in...' : 'Continue with Google'}</Text>
         </TouchableOpacity>
 
         <View className="flex-row justify-center">
@@ -209,4 +273,4 @@ export default function SigninScreen() {
       </ScrollView>
     </SafeAreaView>
   );
-} 
+}

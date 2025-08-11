@@ -93,19 +93,19 @@ export default function StreamTitleScreen() {
   useEffect(() => {
     // Get the dynamic API base URL
     IPDetector.getAPIBaseURL().then(url => {
-      console.log('Stream title - IP detector result:', url);
+      // console.log('Stream title - IP detector result:', url);
       setApiBaseUrl(url);
     }).catch(error => {
       console.error('Stream title - IP detector error:', error);
     });
 
     // Debug current user profile picture data
-    console.log('Stream title - Current user profile data:', {
-      hasUser: !!currentUser,
-      profilePictureUrl: currentUser?.profile_picture_url,
-      profilePicture: currentUser?.profile_picture,
-      username: currentUser?.username
-    });
+    // console.log('Stream title - Current user profile data:', {
+    //   hasUser: !!currentUser,
+    //   profilePictureUrl: currentUser?.profile_picture_url,
+    //   profilePicture: currentUser?.profile_picture,
+    //   username: currentUser?.username
+    // });
 
     Animated.parallel([
       Animated.timing(fadeInAnimation, {
@@ -123,15 +123,15 @@ export default function StreamTitleScreen() {
 
   // Debug effect to track changes
   useEffect(() => {
-    console.log('Stream title - State change detected:', {
-      apiBaseUrl,
-      currentUser: currentUser ? {
-        id: currentUser.id,
-        username: currentUser.username,
-        profile_picture_url: currentUser.profile_picture_url,
-        profile_picture: currentUser.profile_picture
-      } : null
-    });
+    // console.log('Stream title - State change detected:', {
+    //   apiBaseUrl,
+    //   currentUser: currentUser ? {
+    //     id: currentUser.id,
+    //     username: currentUser.username,
+    //     profile_picture_url: currentUser.profile_picture_url,
+    //     profile_picture: currentUser.profile_picture
+    //   } : null
+    // });
   }, [apiBaseUrl, currentUser]);
 
   return (
@@ -174,14 +174,14 @@ export default function StreamTitleScreen() {
                   const hasApiUrl = !!apiBaseUrl;
                   const shouldShow = hasProfilePic && hasApiUrl;
                   
-                  console.log('Stream title render check:', {
-                    hasProfilePic,
-                    hasApiUrl,
-                    shouldShow,
-                    profileUrl: currentUser?.profile_picture_url,
-                    profilePic: currentUser?.profile_picture,
-                    apiBaseUrl
-                  });
+                  // console.log('Stream title render check:', {
+                  //   hasProfilePic,
+                  //   hasApiUrl,
+                  //   shouldShow,
+                  //   profileUrl: currentUser?.profile_picture_url,
+                  //   profilePic: currentUser?.profile_picture,
+                  //   apiBaseUrl
+                  // });
                   
                   return shouldShow;
                 })() ? (
@@ -202,12 +202,12 @@ export default function StreamTitleScreen() {
                       }
                     }
                     
-                    console.log('Stream title final URL construction:', {
-                      profileUrl,
-                      baseUrl,
-                      finalUrl,
-                      isValidUrl: !!(finalUrl && finalUrl !== baseUrl && finalUrl.includes('http'))
-                    });
+                    // console.log('Stream title final URL construction:', {
+                    //   profileUrl,
+                    //   baseUrl,
+                    //   finalUrl,
+                    //   isValidUrl: !!(finalUrl && finalUrl !== baseUrl && finalUrl.includes('http'))
+                    // });
                     
                     // Only render if we have a valid, complete HTTP URL
                     const isValidUrl = finalUrl && finalUrl !== baseUrl && finalUrl.includes('http');
@@ -218,16 +218,16 @@ export default function StreamTitleScreen() {
                         className="w-full h-full"
                         resizeMode="cover"
                         onError={(e) => {
-                          console.log('Stream title profile picture error:', {
-                            finalUrl,
-                            apiBaseUrl,
-                            baseServerUrl: apiBaseUrl?.replace('/api/', ''),
-                            originalUrl: currentUser?.profile_picture_url || currentUser?.profile_picture,
-                            error: e.nativeEvent.error
-                          });
+                          // console.log('Stream title profile picture error:', {
+                          //   finalUrl,
+                          //   apiBaseUrl,
+                          //   baseServerUrl: apiBaseUrl?.replace('/api/', ''),
+                          //   originalUrl: currentUser?.profile_picture_url || currentUser?.profile_picture,
+                          //   error: e.nativeEvent.error
+                          // });
                         }}
                         onLoad={() => {
-                          console.log('Stream title profile picture loaded successfully');
+                          // console.log('Stream title profile picture loaded successfully');
                         }}
                       />
                     ) : (

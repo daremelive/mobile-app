@@ -38,7 +38,7 @@ const getBaseUrl = () => {
   }
   
   // Fallback for production or if IP detection fails
-  const fallbackUrl = 'http://172.20.10.2:8000/api';
+  const fallbackUrl = 'https://daremelive.pythonanywhere.com/api';
   console.log(`🔗 Using fallback API URL: ${fallbackUrl}`);
   return fallbackUrl;
 };
@@ -310,8 +310,8 @@ export const authApi = createApi({
       invalidatesTags: ['Auth', 'User'],
     }),
 
-    // Google OAuth (placeholder - will return 501 for now)
-    googleAuth: builder.mutation<AuthResponse, { token: string }>({
+    // Google OAuth
+    googleAuth: builder.mutation<AuthResponse, { id_token: string }>({
       query: (data) => ({
         url: '/auth/google/',
         method: 'POST',

@@ -7,15 +7,26 @@ let client: StreamVideoClient | null = null;
 // Fetch GetStream token from backend
 export const fetchStreamToken = async (): Promise<{token: string, apiKey: string, appId: string}> => {
   try {
+    console.log('🔑 Fetching GetStream token from backend...');
     const result = await store.dispatch(streamsApi.endpoints.getStreamToken.initiate()).unwrap();
+    console.log('✅ GetStream token received from backend:', {
+      hasToken: !!result.token,
+      tokenLength: result.token?.length || 0,
+      apiKey: result.api_key?.substring(0, 8) + '***',
+      appId: result.app_id?.substring(0, 12) + '***',
+    });
     return {
       token: result.token,
       apiKey: result.api_key,
       appId: result.app_id,
     };
   } catch (error) {
-    console.error('❌ Failed to fetch GetStream token:', error);
-    throw new Error('Failed to authenticate with GetStream. Please try again.');
+    console.error('❌ Failed to fetch GetStream token:', {
+      error: error.message || error,
+      status: error.status,
+      data: error.data,
+    });
+    throw new Error(`Failed to authenticate with GetStream. Please check your network connection and try again.`);
   }
 };
 
@@ -40,6 +51,11 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
       tokenLength: token?.length || 0 
     });
     
+    // Validate credentials before proceeding
+    if (!token || !apiKey) {
+      throw new Error('Invalid GetStream credentials received from backend');
+    }
+    
     // Create GetStream user object from app user
     const streamUser: User = createStreamUser(appUser);
     console.log('👤 Created GetStream user:', { 
@@ -52,9 +68,11 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
     client = new StreamVideoClient({
       apiKey,
       options: {
-        timeout: 12000, // Increased timeout for better reliability
+        timeout: 15000, // Increased timeout for production reliability
         logger: (logLevel, message, extraData) => {
-          console.log(`GetStream ${logLevel}:`, message, extraData ? JSON.stringify(extraData) : '');
+          if (logLevel === 'error' || logLevel === 'warn') {
+            console.log(`GetStream ${logLevel}:`, message, extraData ? JSON.stringify(extraData) : '');
+          }
         },
       },
     });
@@ -64,7 +82,7 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
     console.log('🔗 Connecting to GetStream servers...');
     const connectionPromise = client.connectUser(streamUser, token);
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('GetStream connection timeout after 12 seconds')), 12000)
+      setTimeout(() => reject(new Error('GetStream connection timeout after 15 seconds')), 15000)
     );
     
     await Promise.race([connectionPromise, timeoutPromise]);
@@ -89,7 +107,14 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
       client = null;
     }
     
-    throw new Error(`GetStream connection failed: ${error.message}. Please check your network connection and try again.`);
+    // Provide more specific error messages
+    if (error.message?.includes('timeout')) {
+      throw new Error(`GetStream connection failed: Connection timeout. Please check your network connection and try again.`);
+    } else if (error.message?.includes('credentials')) {
+      throw new Error(`GetStream connection failed: Invalid credentials. Please contact support.`);
+    } else {
+      throw new Error(`GetStream connection failed: ${error.message}. Please check your network connection and try again.`);
+    }
   }
 };
 

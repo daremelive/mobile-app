@@ -14,6 +14,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../../src/store/authSlice';
+import IPDetector from '../../src/utils/ipDetector';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function StreamTitleScreen() {
@@ -28,10 +29,34 @@ export default function StreamTitleScreen() {
   
   // State management
   const [title, setTitle] = useState('');
+  const [baseURL, setBaseURL] = useState('https://daremelive.pythonanywhere.com'); // Production fallback
   
   // Animation references
   const fadeInAnimation = useRef(new Animated.Value(0)).current;
   const slideUpAnimation = useRef(new Animated.Value(50)).current;
+  
+  // Initialize base URL
+  useEffect(() => {
+    const initializeBaseURL = async () => {
+      try {
+        const detection = await IPDetector.detectIP();
+        let url;
+        // Check if it's production domain or local IP
+        if (detection.ip === 'daremelive.pythonanywhere.com') {
+          url = `https://${detection.ip}`;
+        } else {
+          url = `http://${detection.ip}:8000`;
+        }
+        setBaseURL(url);
+        console.log('🔗 Stream Title Simple Base URL initialized:', url);
+      } catch (error) {
+        console.error('❌ Failed to detect IP in stream title simple:', error);
+        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
+      }
+    };
+    
+    initializeBaseURL();
+  }, []);
   
   // Handle proceed action
   const handleProceed = () => {
@@ -127,7 +152,7 @@ export default function StreamTitleScreen() {
                     source={{ 
                       uri: currentUser.profile_picture_url?.startsWith('http')
                         ? currentUser.profile_picture_url
-                        : `http://192.168.1.117:8000${currentUser.profile_picture_url || currentUser.profile_picture}`
+                        : `${baseURL}${currentUser.profile_picture_url || currentUser.profile_picture}`
                     }}
                     className="w-full h-full"
                     resizeMode="cover"

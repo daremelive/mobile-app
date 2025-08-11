@@ -142,7 +142,7 @@ export default function SingleStreamScreen() {
   }>>([]);
 
   // Dynamic API base URL from IP detector
-  const [apiBaseUrl, setApiBaseUrl] = useState<string>('http://172.20.10.2:8000'); // Current server IP as fallback
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>('https://daremelive.pythonanywhere.com'); // Production domain as fallback
 
   // Initialize API base URL when component mounts
   useEffect(() => {
@@ -151,7 +151,7 @@ export default function SingleStreamScreen() {
         const detection = await IPDetector.detectIP();
         const baseUrl = `http://${detection.ip}:8000`;
         setApiBaseUrl(baseUrl);
-        console.log(`🌐 [SingleStream] API Base URL detected: ${baseUrl} (confidence: ${detection.confidence})`);
+        // console.log(`🌐 [SingleStream] API Base URL detected: ${baseUrl} (confidence: ${detection.confidence})`);
       } catch (error) {
         console.error('❌ [SingleStream] Failed to detect IP, using fallback:', error);
         // Keep the fallback IP
@@ -165,7 +165,7 @@ export default function SingleStreamScreen() {
   useEffect(() => {
     // If coming from title screen, auto-start stream
     if (fromTitleScreen && titleFromParams) {
-      console.log('🚀 Auto-starting single stream from title screen with title:', titleFromParams);
+      // console.log('🚀 Auto-starting single stream from title screen with title:', titleFromParams);
       initializeStream();
     } else {
       // Navigate to title screen instead of showing modal
@@ -180,12 +180,12 @@ export default function SingleStreamScreen() {
     }
   }, [fromTitleScreen, titleFromParams]);
 
-  // Debug current user data
-  useEffect(() => {
-    console.log('🔍 Current User Data:', JSON.stringify(currentUser, null, 2));
-    console.log('🖼️ Profile Picture URL:', currentUser?.profile_picture_url);
-    console.log('🖼️ Profile Picture:', currentUser?.profile_picture);
-  }, [currentUser]);
+  // Debug current user data - commented out to prevent blinking
+  // useEffect(() => {
+  //   console.log('🔍 Current User Data:', JSON.stringify(currentUser, null, 2));
+  //   console.log('🖼️ Profile Picture URL:', currentUser?.profile_picture_url);
+  //   console.log('🖼️ Profile Picture:', currentUser?.profile_picture);
+  // }, [currentUser]);
 
   // IP detection runs silently without logging
 
@@ -228,7 +228,7 @@ export default function SingleStreamScreen() {
   // Handle modal transition after purchase
   useEffect(() => {
     if (shouldOpenGiftModalAfterPurchase && !coinPurchaseModalVisible) {
-      console.log('Opening gift modal after purchase completion');
+      // console.log('Opening gift modal after purchase completion');
       setGiftModalVisible(true);
       setShouldOpenGiftModalAfterPurchase(false);
     }
@@ -289,12 +289,12 @@ export default function SingleStreamScreen() {
           animationKey: animationId,
         };
         
-        console.log('🎁 Receiver gift animation data:', { 
-          original_gift_icon: latestMessage.gift_icon, 
-          constructed_icon_url: iconUrl,
-          api_base_url: apiBaseUrl,
-          gift_data: newGiftAnimation.gift 
-        });
+        // console.log('🎁 Receiver gift animation data:', { 
+        //   original_gift_icon: latestMessage.gift_icon, 
+        //   constructed_icon_url: iconUrl,
+        //   api_base_url: apiBaseUrl,
+        //   gift_data: newGiftAnimation.gift 
+        // });
         
         setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
       }
@@ -304,7 +304,7 @@ export default function SingleStreamScreen() {
   const initializeStream = async () => {
     // Check if user is loaded
     if (!currentUser?.id) {
-      console.log('User not loaded yet, waiting...');
+      // console.log('User not loaded yet, waiting...');
       setTimeout(initializeStream, 1000); // Retry after 1 second
       return;
     }
@@ -604,14 +604,14 @@ export default function SingleStreamScreen() {
   };
 
   const handleGiftPress = () => {
-    console.log('🎁 Gift modal opening...', { giftsCount: safeGifts.length, walletBalance: walletSummary?.coins || 0 });
+    // console.log('🎁 Gift modal opening...', { giftsCount: safeGifts.length, walletBalance: walletSummary?.coins || 0 });
     setGiftModalVisible(true);
     // Refresh gifts when modal opens to get latest gifts from admin
     refetchGifts();
   };
 
   const handleSendGift = async (gift: any) => {
-    console.log('🎁 Gift sending initiated:', { giftId: gift.id, giftName: gift.name, giftCost: gift.cost, streamId });
+    // console.log('🎁 Gift sending initiated:', { giftId: gift.id, giftName: gift.name, giftCost: gift.cost, streamId });
     
     if (!streamId) {
       console.error('❌ No streamId available for gift sending');

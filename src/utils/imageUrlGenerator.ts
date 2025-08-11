@@ -29,13 +29,18 @@ class ImageURLGenerator {
 
     try {
       const detection = await IPDetector.detectIP();
-      this.cachedBaseURL = `http://${detection.ip}:8000`;
+      // Check if it's production domain or local IP
+      if (detection.ip === 'daremelive.pythonanywhere.com') {
+        this.cachedBaseURL = `https://${detection.ip}`;
+      } else {
+        this.cachedBaseURL = `http://${detection.ip}:8000`;
+      }
       this.cacheTimestamp = now;
       return this.cachedBaseURL;
     } catch (error) {
       console.warn('❌ [ImageURLGenerator] Failed to detect IP, using fallback');
-      // Use the current known working IP as fallback
-      this.cachedBaseURL = 'http://172.20.10.2:8000';
+      // Use production domain as fallback
+      this.cachedBaseURL = 'https://daremelive.pythonanywhere.com';
       this.cacheTimestamp = now;
       return this.cachedBaseURL;
     }

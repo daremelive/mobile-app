@@ -23,12 +23,18 @@ export default function FollowingsScreen() {
     const initializeBaseURL = async () => {
       try {
         const detection = await ipDetector.detectIP();
-        const url = `http://${detection.ip}:8000`;
+        let url;
+        // Check if it's production domain or local IP
+        if (detection.ip === 'daremelive.pythonanywhere.com') {
+          url = `https://${detection.ip}`;
+        } else {
+          url = `http://${detection.ip}:8000`;
+        }
         setBaseURL(url);
         console.log('🔗 Followings Base URL initialized:', url);
       } catch (error) {
         console.error('❌ Failed to detect IP in followings:', error);
-        setBaseURL('http://172.20.10.2:8000'); // Fallback
+        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
       }
     };
     
@@ -58,7 +64,7 @@ export default function FollowingsScreen() {
   
   useFocusEffect(
     React.useCallback(() => {
-      console.log('📱 Followings screen focused - refreshing data');
+      // console.log('📱 Followings screen focused - refreshing data');
       refetch();
     }, [refetch])
   );
@@ -193,7 +199,7 @@ export default function FollowingsScreen() {
                       source={{ 
                         uri: user.profile_picture_url.startsWith('http') 
                           ? user.profile_picture_url 
-                          : baseURL ? `${baseURL}${user.profile_picture_url}` : `http://172.20.10.2:8000${user.profile_picture_url}`
+                          : baseURL ? `${baseURL}${user.profile_picture_url}` : `https://daremelive.pythonanywhere.com${user.profile_picture_url}`
                       }} 
                       className={`w-14 h-14 rounded-full ${user.is_live ? 'border-2 border-[#C42720]' : 'border-2 border-transparent'}`}
                     />

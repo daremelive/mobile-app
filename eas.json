@@ -12,10 +12,28 @@
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://daremelive.pythonanywhere.com",
+        "EXPO_PUBLIC_WS_BASE_URL": "wss://daremelive.pythonanywhere.com"
+      },
+      "ios": {
+        "distribution": "store"
+      }
+    },
+    "production-simulator": {
+      "ios": {
+        "simulator": true
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "Makkyjane.d@gmail.com",
+        "appleTeamId": "VNFUB55J7S",
+        "ascAppId": "6747582460"
+      }
+    }
   }
 }

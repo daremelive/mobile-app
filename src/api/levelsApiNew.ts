@@ -4,7 +4,7 @@ import IPDetector from '../utils/ipDetector';
 
 // Dynamic base query that handles IP detection
 const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = 'http://192.168.1.100:8000/api/levels/'; // Default fallback
+  let baseUrl = 'https://daremelive.pythonanywhere.com/api/levels/'; // Production fallback
   
   if (__DEV__) {
     try {

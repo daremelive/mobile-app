@@ -4,7 +4,7 @@ import IPDetector from '../utils/ipDetector';
 
 // Dynamic base query that detects the API URL
 const dynamicBaseQuery = async (args: any, api: any, extraOptions: any) => {
-  let baseUrl = 'http://172.20.10.2:8000/api/';
+  let baseUrl = 'https://daremelive.pythonanywhere.com/api/';
   
   try {
     if (IPDetector) {

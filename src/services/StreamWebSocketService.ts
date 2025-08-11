@@ -30,12 +30,17 @@ export class StreamWebSocketService {
     if (this.isConnected) return;
 
     return new Promise(async (resolve, reject) => {
-      // Always use IP detector for WebSocket URL
-      let wsUrl = `ws://172.20.10.3:8000/ws/stream/${this.config.streamId}/`; // Default fallback
+      // Always use IP detector for WebSocket URL with production domain support
+      let wsUrl = `wss://daremelive.pythonanywhere.com/ws/stream/${this.config.streamId}/`; // Production fallback
       
       try {
         const detectionResult = await IPDetector.detectIP();
-        wsUrl = `ws://${detectionResult.ip}:8000/ws/stream/${this.config.streamId}/`;
+        // Check if it's production domain or local IP
+        if (detectionResult.ip === 'daremelive.pythonanywhere.com') {
+          wsUrl = `wss://${detectionResult.ip}/ws/stream/${this.config.streamId}/`;
+        } else {
+          wsUrl = `ws://${detectionResult.ip}:8000/ws/stream/${this.config.streamId}/`;
+        }
         console.log('🔗 [StreamWS] Using detected WebSocket URL:', wsUrl);
       } catch (error) {
         console.error('❌ [StreamWS] IP detection failed, using fallback:', error);

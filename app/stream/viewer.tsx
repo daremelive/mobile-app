@@ -129,10 +129,10 @@ export default function StreamViewerScreen() {
     }
   );
 
-  // Debug messages
-  useEffect(() => {
-    console.log('📬 Messages in viewer:', messages.length, messages);
-  }, [messages]);
+  // Debug messages - commented out to prevent blinking
+  // useEffect(() => {
+  //   console.log('📬 Messages in viewer:', messages.length, messages);
+  // }, [messages]);
 
   // Initialize base URL with IP detection
   useEffect(() => {

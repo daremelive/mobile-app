@@ -4,14 +4,27 @@ import Constants from 'expo-constants';
 import IPDetector from '../utils/ipDetector';
 
 const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = 'http://172.20.10.2:8000/api/'; // Updated fallback IP
+  let baseUrl = 'https://daremelive.pythonanywhere.com/api/'; // Production fallback
   
   try {
-    if (IPDetector) {
+    // In development mode, always use IP detector
+    if (__DEV__) {
       baseUrl = await IPDetector.getAPIBaseURL();
+      console.log('🔧 [DEV] Using IP detector URL:', baseUrl);
+    } else {
+      // In production, check for environment variables from EAS build
+      const envApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL;
+      
+      if (envApiBaseUrl) {
+        // Use environment variable from EAS build configuration
+        baseUrl = envApiBaseUrl.endsWith('/api/') ? envApiBaseUrl : `${envApiBaseUrl}/api/`;
+        console.log('🌐 [PROD] Using EAS environment URL:', baseUrl);
+      } else {
+        console.log('⚠️ [PROD] No environment variables found, using fallback:', baseUrl);
+      }
     }
   } catch (error) {
-    // Use fallback silently
+    console.log('⚠️ URL detection failed, using fallback:', baseUrl, error);
   }
 
   // Create a temporary baseQuery with the detected URL

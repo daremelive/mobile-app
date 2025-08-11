@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, SafeAreaView, Image, Alert, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useSignupMutation } from '../../src/store/authApi';
+import { useSignupMutation, useGoogleAuthMutation } from '../../src/store/authApi';
 import { useDispatch } from 'react-redux';
-import { setPendingEmail, setError } from '../../src/store/authSlice';
+import { setPendingEmail, setError, setCredentials } from '../../src/store/authSlice';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+// import { makeRedirectUri } from 'expo-auth-session';
+import Constants from 'expo-constants';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -19,6 +23,53 @@ export default function SignupScreen() {
   
   const dispatch = useDispatch();
   const [signup, { isLoading }] = useSignupMutation();
+  const [googleAuth, { isLoading: isGoogleLoading }] = useGoogleAuthMutation();
+
+  // Google Auth for signup (same as signin)
+  WebBrowser.maybeCompleteAuthSession();
+  useEffect(() => {
+    WebBrowser.warmUpAsync();
+    return () => {
+      WebBrowser.coolDownAsync();
+    };
+  }, []);
+  const extra = (Constants?.expoConfig as any)?.extra || (Constants?.manifest as any)?.extra || {};
+  const googleClientId = extra?.GOOGLE_CLIENT_ID || extra?.googleClientId || undefined;
+  const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || undefined;
+  const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || undefined;
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: googleClientId,
+    iosClientId,
+    androidClientId,
+    scopes: ['openid', 'profile', 'email'],
+  });
+
+  useEffect(() => {
+    const handleResponse = async () => {
+      if (response?.type === 'success') {
+        const idToken = (response as any)?.authentication?.idToken;
+        if (!idToken) {
+          Alert.alert('Google Sign-In', 'Failed to retrieve ID token');
+          return;
+        }
+        try {
+          const result = await googleAuth({ id_token: idToken } as any).unwrap();
+          dispatch(setCredentials(result));
+          if (!result.user.profile_completed) {
+            router.replace('/(auth)/signup-two');
+          } else {
+            router.replace('/(tabs)/home');
+          }
+        } catch (e: any) {
+          console.error('Google signup error:', e);
+          const msg = e?.data?.message || e?.data?.error || 'Google authentication failed';
+          Alert.alert('Google Sign-In', msg);
+        }
+      }
+    };
+    handleResponse();
+  }, [response]);
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -237,13 +288,25 @@ export default function SignupScreen() {
           <View className="flex-1 h-[1px] bg-[#2C2C2E]" />
         </View>
 
-        {/* Google Sign Up Button */}
-        <TouchableOpacity className="w-full h-[52px] bg-[#1C1C1E] border border-[#2C2C2E] rounded-full flex-row items-center justify-center mb-8">
+        {/* Google Continue Button */}
+        <TouchableOpacity
+          className="w-full h-[52px] bg-[#1C1C1E] border border-[#2C2C2E] rounded-full flex-row items-center justify-center mb-8"
+          onPress={async () => {
+            if (!iosClientId && !androidClientId && !googleClientId) {
+              Alert.alert('Google Sign-In', 'Google client IDs are not configured.');
+              return;
+            }
+            setTimeout(() => {
+              promptAsync();
+            }, 100);
+          }}
+          disabled={isGoogleLoading || !request}
+        >
           <Image 
             source={require('../../assets/icons/google.png')} 
             className="w-8 h-8 mr-3"
           />
-          <Text className="text-white text-[17px] font-medium ml-3">Sign Up with Google</Text>
+          <Text className="text-white text-[17px] font-medium ml-3">{isGoogleLoading ? 'Signing in...' : 'Continue with Google'}</Text>
         </TouchableOpacity>
 
         {/* Sign In Link */}
@@ -259,4 +322,4 @@ export default function SignupScreen() {
       </ScrollView>
     </SafeAreaView>
   );
-} 
+}

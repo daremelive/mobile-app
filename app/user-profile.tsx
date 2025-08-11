@@ -58,12 +58,18 @@ export default function UserProfileScreen() {
     const initializeBaseURL = async () => {
       try {
         const detection = await ipDetector.detectIP();
-        const url = `http://${detection.ip}:8000`;
+        let url;
+        // Check if it's production domain or local IP
+        if (detection.ip === 'daremelive.pythonanywhere.com') {
+          url = `https://${detection.ip}`;
+        } else {
+          url = `http://${detection.ip}:8000`;
+        }
         setBaseURL(url);
         console.log('🔗 Profile Base URL initialized:', url);
       } catch (error) {
         console.error('❌ Failed to detect IP in profile:', error);
-        setBaseURL('http://172.20.10.2:8000'); // Fallback
+        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
       }
     };
     

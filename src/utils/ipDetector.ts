@@ -36,30 +36,89 @@ class IPDetector {
       return this.cachedResult;
     }
 
-    const detectionMethods = [
-      this.detectFromManifest.bind(this),
-      this.detectFromConstants.bind(this),
-      this.detectFromMetro.bind(this),
-      this.detectFromNetwork.bind(this),
-    ];
+    // In development mode, prioritize local IP detection
+    if (__DEV__) {
+      const detectionMethods = [
+        this.detectFromManifest.bind(this),
+        this.detectFromConstants.bind(this),
+        this.detectFromMetro.bind(this),
+        this.detectFromNetwork.bind(this),
+      ];
 
-    for (const method of detectionMethods) {
-      try {
-        const result = await method();
-        if (result) {
-          this.cachedResult = result;
-          this.cacheTimestamp = now;
-          return result;
+      for (const method of detectionMethods) {
+        try {
+          const result = await method();
+          if (result) {
+            this.cachedResult = result;
+            this.cacheTimestamp = now;
+            return result;
+          }
+        } catch (error) {
+          // Silently continue to next method
         }
-      } catch (error) {
-        // Silently continue to next method
       }
+
+      // Development fallback
+      const fallback: IPDetectionResult = {
+        ip: '172.20.10.2', // Current machine IP
+        method: 'development-fallback',
+        confidence: 'medium'
+      };
+      
+      this.cachedResult = fallback;
+      this.cacheTimestamp = now;
+      return fallback;
+    }
+
+    // Production mode: Check environment variables first, then production domain
+    const envApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL;
+    
+    if (envApiBaseUrl) {
+      // Extract domain from environment URL
+      try {
+        const url = new URL(envApiBaseUrl);
+        const result: IPDetectionResult = {
+          ip: url.hostname,
+          method: 'environment-variable',
+          confidence: 'high'
+        };
+        this.cachedResult = result;
+        this.cacheTimestamp = now;
+        console.log('🌐 Using environment API URL:', envApiBaseUrl);
+        return result;
+      } catch (error) {
+        console.log('⚠️ Failed to parse environment URL:', envApiBaseUrl);
+      }
+    }
+
+    // Production domain fallback
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
+      const response = await fetch('https://daremelive.pythonanywhere.com/api/health/', {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const result: IPDetectionResult = {
+          ip: 'daremelive.pythonanywhere.com',
+          method: 'production-domain',
+          confidence: 'high'
+        };
+        this.cachedResult = result;
+        this.cacheTimestamp = now;
+        return result;
+      }
+    } catch {
+      // Continue to final fallback
     }
 
     // Final fallback
     const fallback: IPDetectionResult = {
-      ip: '172.20.10.2', // Use the actual server IP as fallback
-      method: 'fallback',
+      ip: 'daremelive.pythonanywhere.com',
+      method: 'final-fallback',
       confidence: 'low'
     };
     
@@ -231,9 +290,9 @@ class IPDetector {
     const isValid = ipRegex.test(ip) && ip !== '0.0.0.0'; // Allow 127.0.0.1 for localhost
     
     if (isValid) {
-      console.log(`✅ [IPDetector] Valid IP found: ${ip}`);
+      // console.log(`✅ [IPDetector] Valid IP found: ${ip}`);
     } else {
-      console.log(`❌ [IPDetector] Invalid IP: ${ip}`);
+      // console.log(`❌ [IPDetector] Invalid IP: ${ip}`);
     }
     
     return isValid;
@@ -258,10 +317,20 @@ class IPDetector {
    */
   async getAPIBaseURL(endpoint: string = ''): Promise<string> {
     const detection = await this.detectIP();
-    const baseUrl = `http://${detection.ip}:8000/api/`;
+    let baseUrl: string;
+    
+    if (detection.ip === 'daremelive.pythonanywhere.com') {
+      baseUrl = `https://${detection.ip}/api/`;
+    } else {
+      baseUrl = `http://${detection.ip}:8000/api/`;
+    }
+    
     const fullUrl = endpoint ? `${baseUrl}${endpoint}/` : baseUrl;
     
-    console.log(`🔗 [IPDetector] Generated API URL: ${fullUrl} (confidence: ${detection.confidence})`);
+    // Only log in development to prevent production noise
+    if (__DEV__) {
+      console.log(`🔗 [IPDetector] API URL: ${fullUrl} (${detection.method}, ${detection.confidence})`);
+    }
     return fullUrl;
   }
 

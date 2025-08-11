@@ -59,14 +59,20 @@ export default function ShareStreamModal({ visible, onClose, streamData }: Share
     const initializeStreamUrl = async () => {
       try {
         const detection = await ipDetector.detectIP();
-        const baseUrl = `http://${detection.ip}:8000`;
+        let baseUrl;
+        // Check if it's production domain or local IP
+        if (detection.ip === 'daremelive.pythonanywhere.com') {
+          baseUrl = `https://${detection.ip}`;
+        } else {
+          baseUrl = `http://${detection.ip}:8000`;
+        }
         // Create a user-friendly URL for stream sharing
         const url = `${baseUrl}/stream/${streamData.id}?utm_source=mobile_share&utm_medium=social&host=${streamData.host.username}`;
         setStreamUrl(url);
         console.log('🔗 Share Stream URL initialized:', url);
       } catch (error) {
         console.error('❌ Failed to detect IP for sharing:', error);
-        setStreamUrl(`http://172.20.10.2:8000/stream/${streamData.id}?utm_source=mobile_share&utm_medium=social&host=${streamData.host.username}`); // Fallback
+        setStreamUrl(`https://daremelive.pythonanywhere.com/stream/${streamData.id}?utm_source=mobile_share&utm_medium=social&host=${streamData.host.username}`); // Production fallback
       }
     };
     

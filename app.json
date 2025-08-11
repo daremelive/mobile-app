@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "Daremelive",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,7 +14,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to camera for live streaming.",
-        "NSMicrophoneUsageDescription": "This app needs access to microphone for live streaming audio."
+        "NSMicrophoneUsageDescription": "This app needs access to microphone for live streaming audio.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to photo library to let you change your profile picture."
       }
     },
     "android": {
@@ -68,8 +69,13 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "0a356789-3c21-40cb-97da-74addebfae3b"
-      }
-    }
+        "projectId": "58187a66-a5c4-43cc-a3d6-29402388b86c"
+  },
+  "GOOGLE_IOS_CLIENT_ID": "158183037990-6lh53kvkqcak52djlbgh3dis8lekjso2.apps.googleusercontent.com",
+  "GOOGLE_ANDROID_CLIENT_ID": "",
+  "GOOGLE_CLIENT_ID": "158183037990-2bou57ddq1nmlt8a57nsn6j5jj01qc51.apps.googleusercontent.com",
+  "GOOGLE_EXPO_CLIENT_ID": ""
+    },
+    "owner": "mrted"
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, FlatList, ScrollView, Image, Keyboard, RefreshControl, TouchableWithoutFeedback, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -9,8 +9,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
 import { useCreateStreamMutation, useInviteUsersToStreamMutation, useStreamActionMutation, useGetStreamMessagesQuery, useSendMessageMutation, useGetGiftsQuery, useSendGiftMutation, useJoinStreamMutation, useLeaveStreamMutation, useGetStreamQuery, streamsApi } from '../../src/store/streamsApi';
 import { useGetWalletSummaryQuery, useGetCoinPackagesQuery, usePurchaseCoinsMutation } from '../../src/api/walletApi';
+import IsolatedMessageInput from '../../components/IsolatedMessageInput';
 import { walletApi } from '../../src/api/walletApi';
 import ipDetector from '../../src/utils/ipDetector';
+import Constants from 'expo-constants';
 import { Camera } from 'expo-camera';
 import { 
   StreamVideoClient, 
@@ -29,9 +31,51 @@ import { CALL_SETTINGS, RECORDING_SETTINGS } from '../../src/config/stream';
 import GiftAnimation from '../../components/animations/GiftAnimation';
 import ShareStreamModal from '../../components/ShareStreamModal';
 
+// Utility function to get the correct API base URL (environment-aware)
+const getAPIBaseURL = async (): Promise<string> => {
+  if (__DEV__) {
+    // In development, use IP detector
+    const detectionResult = await ipDetector.detectIP();
+    const baseUrl = detectionResult.ip === 'daremelive.pythonanywhere.com' 
+      ? `https://${detectionResult.ip}` 
+      : `http://${detectionResult.ip}:8000`;
+    console.log('🔧 [DEV] Using IP detector URL:', baseUrl);
+    return baseUrl;
+  } else {
+    // In production, check for environment variables from EAS build
+    const envApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL;
+    
+    if (envApiBaseUrl) {
+      // Use environment variable from EAS build configuration
+      const baseUrl = envApiBaseUrl.endsWith('/') ? envApiBaseUrl.slice(0, -1) : envApiBaseUrl;
+      console.log('🌐 [PROD] Using EAS environment URL:', baseUrl);
+      return baseUrl;
+    } else {
+      // Production fallback
+      console.log('🔄 [PROD] Using production fallback URL');
+      return 'https://daremelive.pythonanywhere.com';
+    }
+  }
+};
+
 export default function SingleStreamScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  // Add a state to track if user is actively viewing
+  const [isActivelyViewing, setIsActivelyViewing] = useState(true);
+
+  // Pause polling when screen loses focus
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: string) => {
+      setIsActivelyViewing(nextAppState === 'active');
+    };
+
+    // You can add app state listener here if needed
+    return () => {
+      // Cleanup
+    };
+  }, []);
+
   const currentUser = useSelector(selectCurrentUser);
   const accessToken = useSelector(selectAccessToken);
   const dispatch = useDispatch();
@@ -55,10 +99,10 @@ export default function SingleStreamScreen() {
     error: giftsError,
     refetch: refetchGifts 
   } = useGetGiftsQuery(undefined, {
-    refetchOnMountOrArgChange: true, // Allow initial fetch
-    refetchOnFocus: true, // Enable refetch when modal gains focus
-    refetchOnReconnect: true, // Refetch on reconnect to get latest gifts
-    pollingInterval: 30000, // Poll every 30 seconds for new gifts (only when modal is open)
+    refetchOnMountOrArgChange: false, // DISABLED - prevent any automatic refetching
+    refetchOnFocus: false, // DISABLED - was causing screen refresh on keypress
+    refetchOnReconnect: false, // DISABLED - prevents unnecessary refreshes
+    pollingInterval: 0, // DISABLED completely to prevent refresh interference
   });
 
   // Memoize safeGifts to prevent unnecessary re-renders and ensure valid data
@@ -88,21 +132,21 @@ export default function SingleStreamScreen() {
   const fromTitleScreen = params.fromTitleScreen === 'true';
   const titleFromParams = params.title as string;
   
-  // Get stream details to track participants - enable polling when live
+  // Get stream details to track participants - reduce polling frequency to minimize re-renders
   const { data: streamDetails, refetch: refetchStreamDetails } = useGetStreamQuery(
     streamId || '', 
     { 
       skip: !streamId,
-      pollingInterval: isLive ? 5000 : 0, // Poll every 5 seconds when live
-      refetchOnMountOrArgChange: true,
-      refetchOnFocus: true,
-      refetchOnReconnect: true,
+      pollingInterval: 0, // DISABLED completely - manual refresh only to prevent interference
+      refetchOnMountOrArgChange: false, // DISABLED - prevent any automatic refetching  
+      refetchOnFocus: false, // DISABLED - was causing screen refresh on keypress
+      refetchOnReconnect: false, // DISABLED - prevents unnecessary refreshes
     }
   );
   
   // Chat state
   const [chatVisible, setChatVisible] = useState(false);
-  const [newMessage, setNewMessage] = useState('');
+  // REMOVED: input states moved to isolated component to prevent re-renders
   const [sendingMessage, setSendingMessage] = useState(false);
   
   // Comment input state
@@ -112,16 +156,16 @@ export default function SingleStreamScreen() {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   
-  // Get stream messages - enable smart polling for live chat updates
-  const { data: messages = [], refetch: refetchMessages } = useGetStreamMessagesQuery(
+  // Get stream messages - reduce polling frequency to minimize re-renders
+  const { data: messages = [], refetch: refetchMessages, isLoading: messagesLoading } = useGetStreamMessagesQuery(
     streamId || '', 
     { 
       skip: !streamId,
-      // Enable polling only when stream is live for real-time chat
-      pollingInterval: isLive ? 3000 : 0, // Poll every 3 seconds when live
-      refetchOnMountOrArgChange: true,
-      refetchOnFocus: true,
-      refetchOnReconnect: true,
+      // Reduced polling to prevent screen blinking while maintaining real-time feel
+      pollingInterval: 0, // DISABLED completely - manual refresh only to prevent interference
+      refetchOnMountOrArgChange: false, // DISABLED - prevent any automatic refetching
+      refetchOnFocus: false, // DISABLED - was causing screen refresh on keypress
+      refetchOnReconnect: false, // DISABLED - prevents unnecessary refreshes
     }
   );
   
@@ -145,9 +189,9 @@ export default function SingleStreamScreen() {
   const currentActiveSeats = activeParticipants.length;
   const availableSeats = maxSeats - currentActiveSeats;
   
-  // Initialize API base URL with IP detector
+  // Initialize API base URL with environment-aware detection
   useEffect(() => {
-    ipDetector.getAPIBaseURL().then(url => {
+    getAPIBaseURL().then(url => {
       setApiBaseUrl(url);
     });
   }, []);
@@ -160,33 +204,34 @@ export default function SingleStreamScreen() {
       ).length;
       setCurrentParticipantCount(activeCount);
       
-      console.log('📊 Stream participants updated:', {
-        streamId,
-        totalParticipants: streamDetails.participants.length,
-        activeParticipants: activeCount,
-        allParticipants: streamDetails.participants.map(p => ({
-          id: p.id,
-          userId: p.user?.id,
-          username: p.user?.username,
-          type: p.participant_type,
-          isActive: p.is_active,
-          // status: p.status
-        }))
-      });
+      // Debug logs commented out to prevent blinking
+      // console.log('📊 Stream participants updated:', {
+      //   streamId,
+      //   totalParticipants: streamDetails.participants.length,
+      //   activeParticipants: activeCount,
+      //   allParticipants: streamDetails.participants.map(p => ({
+      //     id: p.id,
+      //     userId: p.user?.id,
+      //     username: p.user?.username,
+      //     type: p.participant_type,
+      //     isActive: p.is_active,
+      //     // status: p.status
+      //   }))
+      // });
       
-      console.log('👥 GUESTS TAB - Active Guests:', activeGuests.map(g => ({
-        id: g.id,
-        username: g.user?.username,
-        type: g.participant_type,
-        isActive: g.is_active
-      })));
+      // console.log('👥 GUESTS TAB - Active Guests:', activeGuests.map(g => ({
+      //   id: g.id,
+      //   username: g.user?.username,
+      //   type: g.participant_type,
+      //   isActive: g.is_active
+      // })));
       
-      console.log('👀 AUDIENCE TAB - Active Viewers:', activeViewers.map(v => ({
-        id: v.id,
-        username: v.user?.username,
-        type: v.participant_type,
-        isActive: v.is_active
-      })));
+      // console.log('👀 AUDIENCE TAB - Active Viewers:', activeViewers.map(v => ({
+      //   id: v.id,
+      //   username: v.user?.username,
+      //   type: v.participant_type,
+      //   isActive: v.is_active
+      // })));
     }
   }, [streamDetails?.participants, streamId, activeGuests, activeViewers]);
   
@@ -236,9 +281,7 @@ export default function SingleStreamScreen() {
     if (!mediaUrl) return null;
     
     try {
-      const detectionResult = await ipDetector.detectIP();
-      const dynamicIP = detectionResult.ip;
-      const baseURL = `http://${dynamicIP}:8000`;
+      const baseURL = await getAPIBaseURL();
       
       // If URL already contains http, return as is, otherwise prepend base URL
       if (mediaUrl.startsWith('http')) {
@@ -252,14 +295,14 @@ export default function SingleStreamScreen() {
         return `${baseURL}/${mediaUrl}`;
       }
     } catch (error) {
-      console.error('Error getting dynamic IP for media URL:', error);
-      // Fallback to hardcoded IP if detection fails
+      console.error('Error getting dynamic API URL for media:', error);
+      // Fallback to production domain if detection fails
       if (mediaUrl.startsWith('http')) {
         return mediaUrl;
       } else if (mediaUrl.startsWith('/')) {
-        return `http://172.20.10.2:8000${mediaUrl}`;
+        return `https://daremelive.pythonanywhere.com${mediaUrl}`;
       } else {
-        return `http://172.20.10.2:8000/${mediaUrl}`;
+        return `https://daremelive.pythonanywhere.com/${mediaUrl}`;
       }
     }
   };
@@ -381,7 +424,7 @@ export default function SingleStreamScreen() {
   useEffect(() => {
     // If coming from title screen, auto-start stream
     if (fromTitleScreen && titleFromParams) {
-      console.log('🚀 Auto-starting stream from title screen with title:', titleFromParams);
+      // console.log('🚀 Auto-starting stream from title screen with title:', titleFromParams);
       initializeStream();
     } else {
       // Show setup modal for manual configuration
@@ -389,12 +432,12 @@ export default function SingleStreamScreen() {
     }
   }, [fromTitleScreen, titleFromParams]);
 
-  // Debug current user data
-  useEffect(() => {
-    console.log('🔍 Current User Data:', JSON.stringify(currentUser, null, 2));
-    console.log('🖼️ Profile Picture URL:', currentUser?.profile_picture_url);
-    console.log('🖼️ Profile Picture:', currentUser?.profile_picture);
-  }, [currentUser]);
+  // Debug current user data - commented out to prevent blinking
+  // useEffect(() => {
+  //   console.log('🔍 Current User Data:', JSON.stringify(currentUser, null, 2));
+  //   console.log('🖼️ Profile Picture URL:', currentUser?.profile_picture_url);
+  //   console.log('🖼️ Profile Picture:', currentUser?.profile_picture);
+  // }, [currentUser]);
 
   // IP detection runs silently without logging
 
@@ -437,25 +480,31 @@ export default function SingleStreamScreen() {
   // Handle modal transition after purchase
   useEffect(() => {
     if (shouldOpenGiftModalAfterPurchase && !coinPurchaseModalVisible) {
-      console.log('Opening gift modal after purchase completion');
+      // console.log('Opening gift modal after purchase completion');
       setGiftModalVisible(true);
       setShouldOpenGiftModalAfterPurchase(false);
     }
   }, [shouldOpenGiftModalAfterPurchase, coinPurchaseModalVisible]);
 
   // Auto-scroll chat to bottom when new messages arrive (like Instagram Live)
+  // Auto-scroll chat when new messages arrive - optimized to reduce re-renders
+  const messagesLength = messages.length;
   useEffect(() => {
-    if (messages.length > 0 && chatFlatListRef.current) {
-      // Delay scroll to ensure content is rendered
+    if (messagesLength > 0 && chatFlatListRef.current) {
+      // Only scroll if messages actually increased (new message added)
       setTimeout(() => {
         chatFlatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages]);
+  }, [messagesLength]); // Use length instead of full messages array
 
-  // Watch for new gift messages and trigger animations for ALL participants
+  // Watch for new gift messages and trigger animations for ALL participants - OPTIMIZED
+  const lastMessageId = useMemo(() => {
+    return messages.length > 0 ? messages[messages.length - 1].id : 0;
+  }, [messages.length]); // Only update when messages count changes, not content
+  
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && lastMessageId > 0) {
       const latestMessage = messages[messages.length - 1] as any; // Type casting for extended message properties
       
       // Only trigger animation for gift messages from OTHER users (not the sender)
@@ -483,12 +532,12 @@ export default function SingleStreamScreen() {
         setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
       }
     }
-  }, [messages, currentUser?.id]);
+  }, [lastMessageId, currentUser?.id]); // Only trigger when a new message ID appears
 
   const initializeStream = async () => {
     // Check if user is loaded
     if (!currentUser?.id) {
-      console.log('User not loaded yet, waiting...');
+      // console.log('User not loaded yet, waiting...');
       setTimeout(initializeStream, 1000); // Retry after 1 second
       return;
     }
@@ -544,7 +593,7 @@ export default function SingleStreamScreen() {
       const callId = `stream_${streamResponse.id}`;
       const call = streamClient.call('default', callId);
       
-      console.log('🔄 Creating and joining call...');
+      // console.log('🔄 Creating and joining call...');
       
       // Do call setup and stream start in parallel
       const [, ] = await Promise.all([
@@ -562,12 +611,12 @@ export default function SingleStreamScreen() {
           
           // Configure media immediately after join
           try {
-            console.log('🔄 Enabling camera and microphone...');
+            // console.log('🔄 Enabling camera and microphone...');
             await Promise.all([
               call.camera.enable(),
               call.microphone.enable()
             ]);
-            console.log('✅ Camera and microphone enabled');
+            // console.log('✅ Camera and microphone enabled');
           } catch (error) {
             console.error('❌ Failed to enable camera/microphone:', error);
             // Don't fail the stream, continue with basic setup
@@ -581,7 +630,7 @@ export default function SingleStreamScreen() {
               streamId: streamResponse.id,
               action: { action: 'start' }
             }).unwrap();
-            console.log('✅ Stream started in database');
+            // console.log('✅ Stream started in database');
           } catch (startError) {
             console.error('❌ Failed to start stream in database:', startError);
             // Don't fail the stream, UI is already shown
@@ -592,7 +641,7 @@ export default function SingleStreamScreen() {
       // Set call after everything is ready
       setCall(call);
       
-      console.log('✅ Stream setup complete - host automatically joined as participant');
+      // console.log('✅ Stream setup complete - host automatically joined as participant');
 
     } catch (error: any) {
       console.error('Stream initialization error:', error);
@@ -691,27 +740,29 @@ export default function SingleStreamScreen() {
     }
   };
 
-  const handleSendMessage = async () => {
-    if (!newMessage.trim() || !streamId || sendingMessage) {
-      return;
-    }
+  // REMOVED: Debounced input logic moved to isolated component
+
+  // OPTIMIZED: Simple message handler for isolated component
+  const handleSendMessageFromInput = useCallback(async (message: string) => {
+    if (!streamId || sendingMessage) return;
 
     setSendingMessage(true);
     try {
       await sendMessage({
         streamId,
-        data: { message: newMessage.trim() }
+        data: { message }
       }).unwrap();
       
-      setNewMessage('');
       refetchMessages(); // Immediately refresh messages
     } catch (error: any) {
-      console.error('Send message error:', error);
+      // console.error('Send message error:', error);
       Alert.alert('Error', 'Failed to send message');
     } finally {
       setSendingMessage(false);
     }
-  };
+  }, [streamId, sendingMessage, sendMessage, refetchMessages]);
+
+  // REMOVED: Old input state management and button optimization
 
   const handleSendComment = async () => {
     if (!comment.trim() || !streamId) {
@@ -738,14 +789,14 @@ export default function SingleStreamScreen() {
   };
 
   const handleGiftPress = () => {
-    console.log('🎁 Gift modal opening...', { giftsCount: safeGifts.length, walletBalance: walletSummary?.coins || 0 });
+    // console.log('🎁 Gift modal opening...', { giftsCount: safeGifts.length, walletBalance: walletSummary?.coins || 0 });
     setGiftModalVisible(true);
     // Refresh gifts when modal opens to get latest gifts from admin
     refetchGifts();
   };
 
   const handleSendGift = async (gift: any) => {
-    console.log('🎁 Gift sending initiated:', { giftId: gift.id, giftName: gift.name, giftCost: gift.cost, streamId });
+    // console.log('🎁 Gift sending initiated:', { giftId: gift.id, giftName: gift.name, giftCost: gift.cost, streamId });
     
     if (!streamId) {
       console.error('❌ No streamId available for gift sending');
@@ -762,7 +813,7 @@ export default function SingleStreamScreen() {
     const currentBalance = walletSummary?.coins || 0;
     const giftCost = gift.cost || 0;
     
-    console.log('💰 Balance check:', { currentBalance, giftCost, hasEnoughBalance: currentBalance >= giftCost });
+    // console.log('💰 Balance check:', { currentBalance, giftCost, hasEnoughBalance: currentBalance >= giftCost });
     
     if (currentBalance < giftCost) {
       Alert.alert(
@@ -914,15 +965,13 @@ export default function SingleStreamScreen() {
     setSearchLoading(true);
     
     try {
-      const detectionResult = await ipDetector.detectIP();
-      const baseURL = `http://${detectionResult.ip}:8000`;
+      const baseURL = await getAPIBaseURL();
       const searchURL = `${baseURL}/api/users/search/?search=${encodeURIComponent(searchTerm)}`;
       
       console.log('🔍 Searching users:', {
         searchTerm,
         searchURL,
         hasToken: !!accessToken,
-        detectedIP: detectionResult.ip,
         streamId,
         streamDetailsAvailable: !!streamDetails,
         participantsCount: streamDetails?.participants?.length || 0
@@ -943,19 +992,19 @@ export default function SingleStreamScreen() {
         // Get existing participants from THIS specific stream only
         const currentStreamParticipantIds = streamDetails?.participants?.map(p => p.user?.id).filter(Boolean) || [];
         
-        console.log('📊 Stream participants analysis:', {
-          streamId,
-          streamDetails: !!streamDetails,
-          rawParticipants: streamDetails?.participants || [],
-          participantIds: currentStreamParticipantIds,
-          searchTermLower: searchTerm.toLowerCase(),
-          allResultsFromAPI: data.results?.map((u: any) => ({ 
-            id: u.id, 
-            username: u.username, 
-            isCurrentUser: u.id === currentUser?.id,
-            isParticipant: currentStreamParticipantIds.includes(u.id)
-          })) || []
-        });
+        // console.log('📊 Stream participants analysis:', {
+        //   streamId,
+        //   streamDetails: !!streamDetails,
+        //   rawParticipants: streamDetails?.participants || [],
+        //   participantIds: currentStreamParticipantIds,
+        //   searchTermLower: searchTerm.toLowerCase(),
+        //   allResultsFromAPI: data.results?.map((u: any) => ({ 
+        //     id: u.id, 
+        //     username: u.username, 
+        //     isCurrentUser: u.id === currentUser?.id,
+        //     isParticipant: currentStreamParticipantIds.includes(u.id)
+        //   })) || []
+        // });
         
         // Smart filtering based on selected tab and user context
         const filteredUsers = data.results?.filter((user: any) => {
@@ -1047,15 +1096,14 @@ export default function SingleStreamScreen() {
     setInviteLoading(true);
     
     try {
-      const detectionResult = await ipDetector.detectIP();
-      const baseURL = `http://${detectionResult.ip}:8000`;
+      const baseURL = await getAPIBaseURL();
       
       console.log('🚀 Sending invitation to:', {
         userId: selectedUser.id,
         username: selectedUser.username,
         streamId,
         hasToken: !!accessToken,
-        detectedIP: detectionResult.ip
+        baseURL
       });
       
       const response = await fetch(`${baseURL}/api/streams/${streamId}/invite-users/`, {
@@ -1137,16 +1185,8 @@ export default function SingleStreamScreen() {
               try {
                 console.log('🔄 Starting participant removal process...');
                 
-                const detectionResult = await ipDetector.detectIP();
-                const dynamicIP = detectionResult.ip;
-                const baseURL = `http://${dynamicIP}:8000`;
+                const baseURL = await getAPIBaseURL();
                 const removeURL = `${baseURL}/api/streams/${streamId}/remove-participant/`;
-                
-                console.log('🌐 IP Detection Result:', {
-                  ip: dynamicIP,
-                  method: detectionResult.method,
-                  confidence: detectionResult.confidence
-                });
                 
                 console.log('📡 Remove Participant Request:', {
                   url: removeURL,
@@ -1232,9 +1272,7 @@ export default function SingleStreamScreen() {
     setInvitingUserId(user.id);
     
     try {
-      const detectionResult = await ipDetector.detectIP();
-      const dynamicIP = detectionResult.ip;
-      const baseURL = `http://${dynamicIP}:8000`;
+      const baseURL = await getAPIBaseURL();
       const inviteURL = `${baseURL}/api/streams/${streamId}/invite-users/`;
       
       // Check if user is already a viewer in this stream
@@ -1299,32 +1337,46 @@ export default function SingleStreamScreen() {
     }
   };
 
-  const CustomStreamContent = () => {
+  const CustomStreamContent = React.memo(() => {
     const { useParticipants } = useCallStateHooks();
     const participants = useParticipants();
-    const localParticipant = participants.find(p => p.isLocalParticipant);
-    const remoteParticipants = participants.filter(p => !p.isLocalParticipant);
-    const allActiveParticipants = participants.filter(p => p.videoStream);
+    
+    // CRITICAL: Memoize participant calculations to reduce re-renders
+    const participantData = useMemo(() => {
+      const localParticipant = participants.find(p => p.isLocalParticipant);
+      const remoteParticipants = participants.filter(p => !p.isLocalParticipant);
+      const allActiveParticipants = participants.filter(p => p.videoStream);
+      
+      return {
+        localParticipant,
+        remoteParticipants,
+        allActiveParticipants,
+        participantCount: participants.length
+      };
+    }, [participants.length]); // OPTIMIZED: Only re-calculate when count changes
 
-    console.log('🎥 Stream participants (HOST VIEW):', {
-      total: participants.length,
-      local: localParticipant ? 1 : 0,
-      remote: remoteParticipants.length,
-      activeVideo: allActiveParticipants.length,
-      participantDetails: participants.map(p => ({
-        id: p.userId,
-        name: p.name,
-        isLocal: p.isLocalParticipant,
-        hasVideo: !!p.videoStream,
-        hasAudio: !!p.audioStream,
-      })),
-      remoteDetails: remoteParticipants.map(p => ({
-        id: p.userId,
-        name: p.name,
-        hasVideo: !!p.videoStream,
-        hasAudio: !!p.audioStream,
-      }))
-    });
+    const { localParticipant, remoteParticipants, allActiveParticipants } = participantData;
+
+    // COMPLETELY DISABLE all logging to prevent Fast Refresh triggers
+    // console.log('🎥 Stream participants (HOST VIEW):', {
+    //   total: participants.length,
+    //   local: localParticipant ? 1 : 0,
+    //   remote: remoteParticipants.length,
+    //   activeVideo: allActiveParticipants.length,
+    //   participantDetails: participants.map(p => ({
+    //     id: p.userId,
+    //     name: p.name,
+    //     isLocal: p.isLocalParticipant,
+    //     hasVideo: !!p.videoStream,
+    //     hasAudio: !!p.audioStream,
+    //   })),
+    //   remoteDetails: remoteParticipants.map(p => ({
+    //     id: p.userId,
+    //     name: p.name,
+    //     hasVideo: !!p.videoStream,
+    //     hasAudio: !!p.audioStream,
+    //   }))
+    // });
 
     // Show loading if no participant found
     if (!localParticipant) {
@@ -1490,7 +1542,7 @@ export default function SingleStreamScreen() {
         />
       </View>
     );
-  };
+  });
 
   const renderStreamContent = () => {
     // Show loading immediately when live is set, even before stream client is ready
@@ -1635,6 +1687,17 @@ export default function SingleStreamScreen() {
               ref={chatFlatListRef}
               data={messages.slice(-6)} // Show only last 6 messages in overlay
               keyExtractor={(item) => item.id.toString()}
+              refreshControl={
+                <RefreshControl
+                  refreshing={messagesLoading}
+                  onRefresh={() => {
+                    refetchMessages();
+                    refetchStreamDetails();
+                  }}
+                  tintColor="#ffffff"
+                  colors={['#ffffff']}
+                />
+              }
               renderItem={({ item, index }) => {
                 // Calculate opacity based on position (fade effect like Instagram Live)
                 const fadeOpacity = index < 2 ? 0.2 + (index * 0.4) : 1;
@@ -2403,39 +2466,11 @@ export default function SingleStreamScreen() {
               />
             </View>
             
-            {/* Message Input */}
-            <View className="flex-row items-center gap-3 p-4 border-t border-gray-700">
-              <View className="flex-1 bg-[#2A2A2A] rounded-xl px-4 py-3">
-                <TextInput
-                  placeholder="Type a message..."
-                  placeholderTextColor="#666"
-                  value={newMessage}
-                  onChangeText={setNewMessage}
-                  className="text-white text-base"
-                  autoCapitalize="sentences"
-                  multiline
-                  maxLength={500}
-                  onSubmitEditing={handleSendMessage}
-                  returnKeyType="send"
-                  blurOnSubmit={false}
-                />
-              </View>
-              
-              <TouchableOpacity
-                onPress={handleSendMessage}
-                disabled={sendingMessage || !newMessage.trim()}
-                className="w-12 h-12 rounded-xl items-center justify-center"
-              >
-                <LinearGradient
-                  colors={sendingMessage || !newMessage.trim() ? ['#666', '#666'] : ['#8B5CF6', '#EC4899']}
-                  className="w-full h-full rounded-xl items-center justify-center"
-                >
-                  <Text className="text-white text-lg">
-                    {sendingMessage ? '⏳' : '📤'}
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+            {/* COMPLETELY ISOLATED Message Input - ZERO parent dependency */}
+            <IsolatedMessageInput 
+              onSendMessage={handleSendMessageFromInput}
+              sending={sendingMessage}
+            />
           </View>
         </KeyboardAvoidingView>
       </Modal>

@@ -81,12 +81,17 @@ export class WebRTCService {
   private async connectToSignalingServer(): Promise<void> {
     return new Promise(async (resolve, reject) => {
       try {
-        // Always use IP detector for WebSocket URL
-        let wsUrl = `ws://172.20.10.3:8000/ws/stream/${this.config.streamId}/signaling/`; // Default fallback
+        // Always use IP detector for WebSocket URL with production domain support
+        let wsUrl = `wss://daremelive.pythonanywhere.com/ws/stream/${this.config.streamId}/signaling/`; // Production fallback
         
         try {
           const detectionResult = await IPDetector.detectIP();
-          wsUrl = `ws://${detectionResult.ip}:8000/ws/stream/${this.config.streamId}/signaling/`;
+          // Check if it's production domain or local IP
+          if (detectionResult.ip === 'daremelive.pythonanywhere.com') {
+            wsUrl = `wss://${detectionResult.ip}/ws/stream/${this.config.streamId}/signaling/`;
+          } else {
+            wsUrl = `ws://${detectionResult.ip}:8000/ws/stream/${this.config.streamId}/signaling/`;
+          }
           console.log('🔌 [WebRTC] Using detected WebSocket URL:', wsUrl);
         } catch (error) {
           console.error('❌ [WebRTC] IP detection failed, using fallback:', error);

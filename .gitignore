@@ -10,6 +10,8 @@ web-build/
 expo-env.d.ts
 
 # Native
+android/
+ios/
 .kotlin/
 *.orig.*
 *.jks
@@ -35,5 +37,13 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# Database files (SQLite, etc.)
+*.db
+*.sqlite
+*.sqlite3
+*.db3
+db.sqlite*
+database.sqlite*
 
 app-example

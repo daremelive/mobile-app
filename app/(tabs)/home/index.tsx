@@ -329,7 +329,7 @@ export default function HomeScreen() {
         console.log('🔗 Home Base URL initialized:', url);
       } catch (error) {
         console.error('❌ Failed to detect IP in home:', error);
-        setBaseURL('http://172.20.10.2:8000'); // Fallback
+        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
       }
     };
     
