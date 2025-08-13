@@ -10,7 +10,7 @@ import { useDispatch } from 'react-redux';
 import { setCredentials } from '../../src/store/authSlice';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri, exchangeCodeAsync, TokenResponse } from 'expo-auth-session';
+import { makeRedirectUri, exchangeCodeAsync, TokenResponse, ResponseType } from 'expo-auth-session';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
@@ -56,10 +56,10 @@ export default function SigninScreen() {
     scheme: appScheme,
   });
 
-  // Debug logging
-  console.log('Google Auth Debug:', {
-    iosClientId,
-    androidClientId,
+  // Debug logging for production troubleshooting
+  console.log('Google Auth Config:', {
+    googleClientId: googleClientId ? `${googleClientId.substring(0, 10)}...` : 'undefined',
+    iosClientId: iosClientId ? `${iosClientId.substring(0, 10)}...` : 'undefined',
     nativeRedirect,
     redirectUri,
     platform: Platform.OS,
@@ -67,13 +67,16 @@ export default function SigninScreen() {
 
   // Use Authorization Code w/ PKCE (required for iOS native Google OAuth)
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: Platform.OS === 'ios' ? iosClientId : androidClientId || googleClientId,
+    clientId: Platform.OS === 'ios' ? iosClientId : Platform.OS === 'android' ? androidClientId : googleClientId,
     iosClientId,
     androidClientId,
     scopes: ['openid', 'profile', 'email'],
-    responseType: 'code',
+    responseType: ResponseType.Code,
+    usePKCE: true,
     redirectUri,
-    usePKCE: true, // Explicitly enable PKCE
+    extraParams: {
+      include_granted_scopes: 'true',
+    },
   });
 
   useEffect(() => {
