@@ -56,12 +56,13 @@ export default function SignupScreen() {
   });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: googleClientId,
+    clientId: Platform.OS === 'ios' ? iosClientId : androidClientId || googleClientId,
     iosClientId,
     androidClientId,
     scopes: ['openid', 'profile', 'email'],
     responseType: 'code',
     redirectUri,
+    usePKCE: true, // Explicitly enable PKCE
   });
 
   useEffect(() => {

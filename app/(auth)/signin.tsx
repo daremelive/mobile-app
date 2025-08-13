@@ -56,14 +56,24 @@ export default function SigninScreen() {
     scheme: appScheme,
   });
 
+  // Debug logging
+  console.log('Google Auth Debug:', {
+    iosClientId,
+    androidClientId,
+    nativeRedirect,
+    redirectUri,
+    platform: Platform.OS,
+  });
+
   // Use Authorization Code w/ PKCE (required for iOS native Google OAuth)
   const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: googleClientId,
+    clientId: Platform.OS === 'ios' ? iosClientId : androidClientId || googleClientId,
     iosClientId,
     androidClientId,
     scopes: ['openid', 'profile', 'email'],
     responseType: 'code',
     redirectUri,
+    usePKCE: true, // Explicitly enable PKCE
   });
 
   useEffect(() => {
