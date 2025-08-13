@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": [
+      "mobile",
+      "com.googleusercontent.apps.158183037990-6lh53kvkqcak52djlbgh3dis8lekjso2"
+    ],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -70,11 +73,11 @@
       "router": {},
       "eas": {
         "projectId": "58187a66-a5c4-43cc-a3d6-29402388b86c"
-  },
-  "GOOGLE_IOS_CLIENT_ID": "158183037990-6lh53kvkqcak52djlbgh3dis8lekjso2.apps.googleusercontent.com",
-  "GOOGLE_ANDROID_CLIENT_ID": "",
-  "GOOGLE_CLIENT_ID": "158183037990-2bou57ddq1nmlt8a57nsn6j5jj01qc51.apps.googleusercontent.com",
-  "GOOGLE_EXPO_CLIENT_ID": ""
+      },
+      "GOOGLE_IOS_CLIENT_ID": "158183037990-6lh53kvkqcak52djlbgh3dis8lekjso2.apps.googleusercontent.com",
+      "GOOGLE_ANDROID_CLIENT_ID": "",
+      "GOOGLE_CLIENT_ID": "158183037990-2bou57ddq1nmlt8a57nsn6j5jj01qc51.apps.googleusercontent.com",
+      "GOOGLE_EXPO_CLIENT_ID": ""
     },
     "owner": "mrted"
   }

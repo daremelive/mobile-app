@@ -39,8 +39,21 @@ export default function SigninScreen() {
   const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || undefined;
   const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || undefined;
 
+  // Build the native redirect URI required by Google on iOS/Android
+  const toNativeRedirect = (cid?: string) =>
+    cid ? `com.googleusercontent.apps.${cid.replace('.apps.googleusercontent.com', '')}:/oauthredirect` : undefined;
+  const nativeRedirect = Platform.select({
+    ios: toNativeRedirect(iosClientId),
+    android: toNativeRedirect(androidClientId),
+    default: undefined,
+  });
+  const appScheme = Array.isArray((Constants as any)?.expoConfig?.scheme)
+    ? (Constants as any)?.expoConfig?.scheme?.[0]
+    : (Constants as any)?.expoConfig?.scheme || 'mobile';
   const redirectUri = makeRedirectUri({
-    scheme: (Constants as any)?.expoConfig?.scheme || 'mobile',
+    // Use Google-required native redirect when available; fall back to app scheme
+    native: nativeRedirect,
+    scheme: appScheme,
   });
 
   // Use Authorization Code w/ PKCE (required for iOS native Google OAuth)

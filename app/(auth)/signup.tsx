@@ -39,8 +39,20 @@ export default function SignupScreen() {
   const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || undefined;
   const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || undefined;
 
+  // Build the native redirect URI required by Google on iOS/Android
+  const toNativeRedirect = (cid?: string) =>
+    cid ? `com.googleusercontent.apps.${cid.replace('.apps.googleusercontent.com', '')}:/oauthredirect` : undefined;
+  const nativeRedirect = Platform.select({
+    ios: toNativeRedirect(iosClientId),
+    android: toNativeRedirect(androidClientId),
+    default: undefined,
+  });
+  const appScheme = Array.isArray((Constants as any)?.expoConfig?.scheme)
+    ? (Constants as any)?.expoConfig?.scheme?.[0]
+    : (Constants as any)?.expoConfig?.scheme || 'mobile';
   const redirectUri = makeRedirectUri({
-    scheme: (Constants as any)?.expoConfig?.scheme || 'mobile',
+    native: nativeRedirect,
+    scheme: appScheme,
   });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
