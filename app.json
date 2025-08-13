@@ -71,14 +71,14 @@
     },
     "extra": {
       "router": {},
-      "eas": {
-        "projectId": "58187a66-a5c4-43cc-a3d6-29402388b86c"
-      },
       "GOOGLE_IOS_CLIENT_ID": "158183037990-6lh53kvkqcak52djlbgh3dis8lekjso2.apps.googleusercontent.com",
       "GOOGLE_ANDROID_CLIENT_ID": "",
       "GOOGLE_CLIENT_ID": "158183037990-2bou57ddq1nmlt8a57nsn6j5jj01qc51.apps.googleusercontent.com",
-      "GOOGLE_EXPO_CLIENT_ID": ""
+      "GOOGLE_EXPO_CLIENT_ID": "",
+      "eas": {
+        "projectId": "39ab9449-579e-436c-b19f-ed95dcc724e5"
+      }
     },
-    "owner": "mrted"
+    "owner": "doose"
   }
 }
