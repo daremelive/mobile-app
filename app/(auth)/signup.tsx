@@ -9,7 +9,8 @@ import { useDispatch } from 'react-redux';
 import { setPendingEmail, setError, setCredentials } from '../../src/store/authSlice';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
-// import { makeRedirectUri } from 'expo-auth-session';
+import { makeRedirectUri, exchangeCodeAsync, TokenResponse } from 'expo-auth-session';
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
 export default function SignupScreen() {
@@ -38,22 +39,45 @@ export default function SignupScreen() {
   const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || undefined;
   const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || undefined;
 
+  const redirectUri = makeRedirectUri({
+    scheme: (Constants as any)?.expoConfig?.scheme || 'mobile',
+  });
+
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: googleClientId,
     iosClientId,
     androidClientId,
     scopes: ['openid', 'profile', 'email'],
+    responseType: 'code',
+    redirectUri,
   });
 
   useEffect(() => {
     const handleResponse = async () => {
       if (response?.type === 'success') {
-        const idToken = (response as any)?.authentication?.idToken;
-        if (!idToken) {
-          Alert.alert('Google Sign-In', 'Failed to retrieve ID token');
-          return;
-        }
         try {
+          let idToken = (response as any)?.params?.id_token || (response as any)?.authentication?.idToken;
+          const code = (response as any)?.params?.code;
+
+          if (!idToken && code) {
+            const clientIdToUse = Platform.OS === 'ios' ? iosClientId : Platform.OS === 'android' ? androidClientId : googleClientId;
+            const tokenRes: TokenResponse = await exchangeCodeAsync(
+              {
+                clientId: clientIdToUse!,
+                code,
+                redirectUri,
+                extraParams: { code_verifier: (request as any)?.codeVerifier || '' },
+              },
+              { tokenEndpoint: 'https://oauth2.googleapis.com/token' }
+            );
+            idToken = (tokenRes as any)?.idToken || (tokenRes as any)?.id_token;
+          }
+
+          if (!idToken) {
+            Alert.alert('Google Sign-In', 'Failed to retrieve ID token');
+            return;
+          }
+
           const result = await googleAuth({ id_token: idToken } as any).unwrap();
           dispatch(setCredentials(result));
           if (!result.user.profile_completed) {
