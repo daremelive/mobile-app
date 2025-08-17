@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, Alert, Animated, Modal, TextInput, KeyboardAvoidingView, Platform, FlatList, ScrollView, Image, Keyboard, RefreshControl, TouchableWithoutFeedback, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -33,130 +33,47 @@ import ShareStreamModal from '../../components/ShareStreamModal';
 
 // Utility function to get the correct API base URL (environment-aware)
 const getAPIBaseURL = async (): Promise<string> => {
-  if (__DEV__) {
-    // In development, use IP detector
-    const detectionResult = await ipDetector.detectIP();
-    const baseUrl = detectionResult.ip === 'daremelive.pythonanywhere.com' 
-      ? `https://${detectionResult.ip}` 
-      : `http://${detectionResult.ip}:8000`;
-    console.log('🔧 [DEV] Using IP detector URL:', baseUrl);
-    return baseUrl;
-  } else {
-    // In production, check for environment variables from EAS build
-    const envApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL;
-    
-    if (envApiBaseUrl) {
-      // Use environment variable from EAS build configuration
-      const baseUrl = envApiBaseUrl.endsWith('/') ? envApiBaseUrl.slice(0, -1) : envApiBaseUrl;
-      console.log('🌐 [PROD] Using EAS environment URL:', baseUrl);
-      return baseUrl;
-    } else {
-      // Production fallback
-      console.log('🔄 [PROD] Using production fallback URL');
-      return 'https://daremelive.pythonanywhere.com';
-    }
+  try {
+    // Prefer dynamic detector if available
+    const detected = await ipDetector.getAPIBaseURL?.();
+    if (detected) return detected;
+  } catch (e) {
+    console.log('🌐 ipDetector failed, falling back to env', e);
   }
+  const envUrl = process.env.EXPO_PUBLIC_API_BASE_URL || (Constants.expoConfig as any)?.extra?.EXPO_PUBLIC_API_BASE_URL;
+  if (envUrl) return envUrl;
+  // Final fallback (local dev)
+  return 'http://192.168.1.102:8000/api';
 };
 
-export default function SingleStreamScreen() {
+// NOTE: Reconstructed component wrapper after refactor merge issues.
+// Original file had extensive logic; we re-wrap existing logic inside component now.
+const MultiStreamScreen: React.FC = () => {
+  const dispatch = useDispatch();
   const router = useRouter();
   const params = useLocalSearchParams();
-  // Add a state to track if user is actively viewing
-  const [isActivelyViewing, setIsActivelyViewing] = useState(true);
-
-  // Pause polling when screen loses focus
-  useEffect(() => {
-    const handleAppStateChange = (nextAppState: string) => {
-      setIsActivelyViewing(nextAppState === 'active');
-    };
-
-    // You can add app state listener here if needed
-    return () => {
-      // Cleanup
-    };
-  }, []);
-
   const currentUser = useSelector(selectCurrentUser);
   const accessToken = useSelector(selectAccessToken);
-  const dispatch = useDispatch();
-  const [createStream, { isLoading }] = useCreateStreamMutation();
-  const [inviteUsers] = useInviteUsersToStreamMutation();
-  const [streamAction] = useStreamActionMutation();
-  const [sendMessage] = useSendMessageMutation();
-  const [sendGift] = useSendGiftMutation();
-  const [purchaseCoins] = usePurchaseCoinsMutation();
-  const [joinStream] = useJoinStreamMutation();
-  const [leaveStream] = useLeaveStreamMutation();
 
-  // Get wallet data from API
-  const { data: walletSummary, isLoading: walletLoading, refetch: refetchWallet } = useGetWalletSummaryQuery();
-  const { data: coinPackages = [], isLoading: packagesLoading } = useGetCoinPackagesQuery();
+  // Core stream identifiers from route params
+  const streamId = (params?.id as string) || '';
+  const titleFromParams = (params?.title as string) || '';
+  const maxSeats = 6; // default for multi-stream
 
-  // Get gifts from API - enable smart refetching for new gifts
-  const { 
-    data: gifts = [], 
-    isLoading: giftsLoading, 
-    error: giftsError,
-    refetch: refetchGifts 
-  } = useGetGiftsQuery(undefined, {
-    refetchOnMountOrArgChange: false, // DISABLED - prevent any automatic refetching
-    refetchOnFocus: false, // DISABLED - was causing screen refresh on keypress
-    refetchOnReconnect: false, // DISABLED - prevents unnecessary refreshes
-    pollingInterval: 0, // DISABLED completely to prevent refresh interference
-  });
+  // API base URL state
+  const [apiBaseUrl, setApiBaseUrl] = useState<string>('');
 
-  // Memoize safeGifts to prevent unnecessary re-renders and ensure valid data
-  const safeGifts = useMemo(() => {
-    if (!Array.isArray(gifts)) return [];
-    
-    const validGifts = gifts
-      .filter(gift => gift && typeof gift === 'object' && gift.id) // Filter valid objects
-      .filter(gift => gift.is_active !== false); // Show active gifts or gifts without is_active property
-    
-    return validGifts;
-  }, [gifts]);
-
-  // Removed debug logging to prevent console blinking
-  
-  const [streamClient, setStreamClient] = useState<StreamVideoClient | null>(null);
-  const [call, setCall] = useState<any>(null);
-  const [isLive, setIsLive] = useState(false);
-  const [streamId, setStreamId] = useState<string | null>(null);
-  const [apiBaseUrl, setApiBaseUrl] = useState('');
-  
-  // Get max seats from URL params
-  const maxSeats = parseInt(params.seats as string) || 2; // Default to 2 seats if not specified
-  const [currentParticipantCount, setCurrentParticipantCount] = useState(1); // Host counts as 1
-  
-  // Check if coming from title screen
-  const fromTitleScreen = params.fromTitleScreen === 'true';
-  const titleFromParams = params.title as string;
-  
-  // Get stream details to track participants - reduce polling frequency to minimize re-renders
-  const { data: streamDetails, refetch: refetchStreamDetails } = useGetStreamQuery(
-    streamId || '', 
-    { 
-      skip: !streamId,
-      pollingInterval: 0, // DISABLED completely - manual refresh only to prevent interference
-      refetchOnMountOrArgChange: false, // DISABLED - prevent any automatic refetching  
-      refetchOnFocus: false, // DISABLED - was causing screen refresh on keypress
-      refetchOnReconnect: false, // DISABLED - prevents unnecessary refreshes
-    }
-  );
-  
-  // Chat state
-  const [chatVisible, setChatVisible] = useState(false);
-  // REMOVED: input states moved to isolated component to prevent re-renders
-  const [sendingMessage, setSendingMessage] = useState(false);
-  
-  // Comment input state
-  const [comment, setComment] = useState('');
-  
-  // Keyboard handling state
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  // Live state flags
+  const [isLive, setIsLive] = useState<boolean>(true); // default true while active
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  
-  // Get stream messages - reduce polling frequency to minimize re-renders
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [allowCommentFocus, setAllowCommentFocus] = useState(false);
+
+  // Comment input ref
+  const commentInputRef = useRef<TextInput>(null);
+
+  // Placeholder streamDetails until populated by query
+  const { data: streamDetails, refetch: refetchStreamDetails } = useGetStreamQuery(streamId, { skip: !streamId });
   const { data: messages = [], refetch: refetchMessages, isLoading: messagesLoading } = useGetStreamMessagesQuery(
     streamId || '', 
     { 
@@ -168,6 +85,18 @@ export default function SingleStreamScreen() {
       refetchOnReconnect: false, // DISABLED - prevents unnecessary refreshes
     }
   );
+
+  // Debug messages array
+  useEffect(() => {
+    if (messages.length > 0) {
+      console.log('📨 Messages updated for overlay display:', {
+        totalMessages: messages.length,
+        lastSixMessages: messages.slice(-6).length,
+        messageTypes: messages.slice(-6).map(m => ({ id: m.id, type: m.message_type, message: m.message?.substring(0, 20) })),
+        allMessageTypes: messages.map(m => m.message_type)
+      });
+    }
+  }, [messages]);
   
   // Ref for FlatList to control scrolling
   const chatFlatListRef = useRef<FlatList>(null);
@@ -188,13 +117,157 @@ export default function SingleStreamScreen() {
   ) || [];
   const currentActiveSeats = activeParticipants.length;
   const availableSeats = maxSeats - currentActiveSeats;
+
+  // Invitation / add participant modal state (declared early so effects can depend on them)
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [addParticipantModalVisible, setAddParticipantModalVisible] = useState(false);
+  const [usernameToInvite, setUsernameToInvite] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTab, setSelectedTab] = useState('guests');
   
   // Initialize API base URL with environment-aware detection
   useEffect(() => {
     getAPIBaseURL().then(url => {
       setApiBaseUrl(url);
+      console.log('🔗 API Base URL initialized for multi-stream:', url);
+      
+      // Test URL construction with sample profile picture path
+      const testPath = '/media/profile_pictures/user_123.jpg';
+      const testUrl = url.replace('/api/', '').replace('/api', '') + testPath;
+      console.log('🧪 Test profile picture URL would be:', testUrl);
     });
   }, []);
+
+  // Helper function to construct proper media URLs with fallback
+  const constructMediaUrl = useCallback((mediaPath: string | null | undefined): string | null => {
+    console.log('🔧 constructMediaUrl called with:', { mediaPath, apiBaseUrl });
+    
+    if (!mediaPath) {
+      console.log('🔧 No mediaPath provided');
+      return null;
+    }
+    
+    try {
+      // If already absolute URL, return as is
+      if (mediaPath.startsWith('http')) {
+        console.log('🔧 Already absolute URL:', mediaPath);
+        return mediaPath;
+      }
+      
+      // Use apiBaseUrl if available, otherwise fall back to getAPIBaseURL
+      let baseUrl = apiBaseUrl;
+      if (!baseUrl) {
+        // Fallback to environment variable if apiBaseUrl not yet loaded
+        const envApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL;
+        baseUrl = envApiBaseUrl ? (envApiBaseUrl.endsWith('/') ? envApiBaseUrl.slice(0, -1) : envApiBaseUrl) : 'http://192.168.1.102:8000';
+        console.log('🔧 Using fallback baseUrl:', baseUrl);
+      }
+      
+      // Remove /api/ suffix and add proper path
+      const cleanBaseUrl = baseUrl.replace('/api/', '').replace('/api', '');
+      
+      // Handle different possible path formats
+      let cleanPath = mediaPath;
+      if (!cleanPath.startsWith('/')) {
+        cleanPath = `/${cleanPath}`;
+      }
+      
+      // If path doesn't start with /media/, try adding it
+      if (!cleanPath.startsWith('/media/') && !cleanPath.startsWith('/static/')) {
+        // Try to detect if this looks like a media file
+        if (cleanPath.includes('profile_picture') || cleanPath.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+          cleanPath = `/media${cleanPath}`;
+        }
+      }
+      
+      const fullUrl = cleanBaseUrl + cleanPath;
+      
+      console.log('🖼️ Constructed media URL:', { mediaPath, baseUrl, cleanBaseUrl, cleanPath, fullUrl });
+      return fullUrl;
+    } catch (error) {
+      console.error('❌ Error constructing media URL:', error, { mediaPath, apiBaseUrl });
+      return null;
+    }
+  }, [apiBaseUrl]);
+
+  // Reusable ProfileAvatar component with robust URL handling
+  const ProfileAvatar = memo(({ user, size = 32, className = "" }: { 
+    user: any; 
+    size?: number; 
+    className?: string; 
+  }) => {
+    const avatarUrl = constructMediaUrl(user?.profile_picture_url || user?.profile_picture);
+    const initials = (() => {
+      const initialSource = (user?.first_name && user?.last_name)
+        ? `${user.first_name} ${user.last_name}`
+        : (user?.username || 'U');
+      return initialSource.charAt(0).toUpperCase();
+    })();
+    
+    // Enhanced debugging for profile picture issues
+    console.log('🐛 ProfileAvatar Debug:', {
+      username: user?.username,
+      profile_picture_url: user?.profile_picture_url,
+      profile_picture: user?.profile_picture,
+      avatarUrl,
+      apiBaseUrl,
+      hasImage: !!avatarUrl
+    });
+    
+    return (
+      <View 
+        className={`rounded-full bg-gray-400 overflow-hidden ${className}`}
+        style={{ width: size, height: size }}
+      >
+        {avatarUrl ? (
+          <Image 
+            source={{ uri: avatarUrl }}
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="cover"
+            onError={(e) => {
+              console.log('❌ Profile avatar load error for user:', user?.username, 'URL:', avatarUrl, 'Error:', e.nativeEvent.error);
+              
+              // Try alternative URL formats if the primary one fails
+              const originalPath = user?.profile_picture_url || user?.profile_picture;
+              if (originalPath && !originalPath.startsWith('http')) {
+                // Try with /media/ prefix if not already present
+                const altUrl1 = apiBaseUrl?.replace('/api/', '') + '/media/' + originalPath.replace(/^\/+/, '');
+                console.log('🔄 Trying alternative URL 1:', altUrl1);
+                
+                // Try direct media access
+                const altUrl2 = apiBaseUrl?.replace('/api/', '') + '/' + originalPath.replace(/^\/+/, '');
+                console.log('🔄 Trying alternative URL 2:', altUrl2);
+              }
+            }}
+            onLoad={() => {
+              console.log('✅ Profile avatar loaded successfully for user:', user?.username, 'URL:', avatarUrl);
+            }}
+          />
+        ) : (
+          <View style={{ 
+            width: '100%', 
+            height: '100%', 
+            backgroundColor: '#8B5CF6', 
+            alignItems: 'center', 
+            justifyContent: 'center' 
+          }}>
+            <Text style={{ 
+              color: 'white', 
+              fontWeight: 'bold', 
+              fontSize: size > 24 ? 14 : 10 
+            }}>
+              {initials}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  });
 
   // Update participant count when stream details change
   useEffect(() => {
@@ -262,17 +335,6 @@ export default function SingleStreamScreen() {
     };
   }, [addParticipantModalVisible]);
   
-  // Invitation modal state
-  const [inviteModalVisible, setInviteModalVisible] = useState(false);
-  const [addParticipantModalVisible, setAddParticipantModalVisible] = useState(false);
-  const [usernameToInvite, setUsernameToInvite] = useState('');
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [invitingUserId, setInvitingUserId] = useState<string | null>(null);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTab, setSelectedTab] = useState('guests');
   
   const [streamTitle, setStreamTitle] = useState(titleFromParams || ''); // Use title from params if available
   
@@ -441,13 +503,21 @@ export default function SingleStreamScreen() {
 
   // IP detection runs silently without logging
 
-  // Keyboard event listeners
+  // Keyboard event listeners - improved for better responsiveness
   useEffect(() => {
     const keyboardWillShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
       (event) => {
-        setKeyboardHeight(event.endCoordinates.height);
+        const keyboardHeight = event.endCoordinates.height;
+        console.log('🎹 Keyboard Show - Original Height:', keyboardHeight);
+        setKeyboardHeight(keyboardHeight);
         setIsKeyboardVisible(true);
+        
+        // Additional safety margin for different devices - increased for better clearance
+        const safetyMargin = Platform.OS === 'ios' ? 40 : 60;
+        const finalHeight = keyboardHeight + safetyMargin;
+        console.log('🎹 Keyboard Show - Final Height with margin:', finalHeight);
+        setKeyboardHeight(finalHeight);
       }
     );
 
@@ -507,9 +577,26 @@ export default function SingleStreamScreen() {
     if (messages.length > 0 && lastMessageId > 0) {
       const latestMessage = messages[messages.length - 1] as any; // Type casting for extended message properties
       
-      // Only trigger animation for gift messages from OTHER users (not the sender)
-      if (latestMessage.message_type === 'gift' && latestMessage.user.id !== currentUser?.id) {
+      // Trigger animation for ALL gift messages (including host's own gifts)
+      if (latestMessage.message_type === 'gift') {
         const animationId = Date.now().toString() + Math.random().toString();
+        
+        // Construct proper profile picture URL
+        const profilePictureUrl = (() => {
+          const rawUrl = latestMessage.user.profile_picture_url || latestMessage.user.profile_picture;
+          if (!rawUrl) return null;
+          
+          // If already absolute URL, return as is
+          if (rawUrl.startsWith('http')) {
+            return rawUrl;
+          }
+          
+          // Construct absolute URL
+          const baseUrl = apiBaseUrl.replace('/api/', '');
+          const cleanPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+          return baseUrl + cleanPath;
+        })();
+        
         const newGiftAnimation = {
           id: animationId,
           gift: {
@@ -523,8 +610,10 @@ export default function SingleStreamScreen() {
           },
           sender: {
             username: latestMessage.user.username || 'User',
-            full_name: latestMessage.user.full_name || latestMessage.user.username || 'User',
-            profile_picture_url: latestMessage.user.profile_picture_url || latestMessage.user.avatar_url
+            full_name: (latestMessage.user.first_name && latestMessage.user.last_name)
+              ? `${latestMessage.user.first_name} ${latestMessage.user.last_name}`
+              : (latestMessage.user.username || 'User'),
+            profile_picture_url: profilePictureUrl,
           },
           animationKey: animationId,
         };
@@ -532,9 +621,12 @@ export default function SingleStreamScreen() {
         setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
       }
     }
-  }, [lastMessageId, currentUser?.id]); // Only trigger when a new message ID appears
+  }, [lastMessageId, currentUser?.id, apiBaseUrl]); // Only trigger when a new message ID appears
 
   const initializeStream = async () => {
+    // Dismiss keyboard to prevent auto-focus issues during stream initialization
+    Keyboard.dismiss();
+    
     // Check if user is loaded
     if (!currentUser?.id) {
       // console.log('User not loaded yet, waiting...');
@@ -618,7 +710,6 @@ export default function SingleStreamScreen() {
             ]);
             // console.log('✅ Camera and microphone enabled');
           } catch (error) {
-            console.error('❌ Failed to enable camera/microphone:', error);
             // Don't fail the stream, continue with basic setup
           }
         })(),
@@ -630,9 +721,8 @@ export default function SingleStreamScreen() {
               streamId: streamResponse.id,
               action: { action: 'start' }
             }).unwrap();
-            // console.log('✅ Stream started in database');
+            // console.log(' Stream started in database');
           } catch (startError) {
-            console.error('❌ Failed to start stream in database:', startError);
             // Don't fail the stream, UI is already shown
           }
         })()
@@ -666,21 +756,17 @@ export default function SingleStreamScreen() {
   };
 
   const handleEndStream = async () => {
-    console.log('🔴 handleEndStream called - starting stream end process');
     
     try {
       // End the stream in the database
       if (streamId) {
         try {
-          console.log('🔴 Attempting to end stream in database:', streamId);
           const result = await streamAction({
             streamId: streamId,
             action: { action: 'end' }
           }).unwrap();
-          console.log('✅ Stream ended in database successfully:', result);
           
           // Aggressively invalidate ALL stream-related cache to ensure ended streams don't appear instantly
-          console.log('🔄 Invalidating all stream cache tags...');
           dispatch(streamsApi.util.invalidateTags(['Stream', 'StreamMessage']));
           
           // Also reset the entire API state and force immediate refetch
@@ -688,14 +774,10 @@ export default function SingleStreamScreen() {
           
           // Add a small delay then invalidate again to ensure cache is completely cleared
           setTimeout(() => {
-            console.log('🔄 Second cache invalidation to ensure cleanup...');
             dispatch(streamsApi.util.invalidateTags(['Stream']));
           }, 500);
           
-          console.log('✅ All stream cache invalidated and reset');
-          
         } catch (endError) {
-          console.error('❌ Failed to end stream in database:', endError);
           
           // Show error to user
           Alert.alert(
@@ -708,25 +790,15 @@ export default function SingleStreamScreen() {
           );
           return; // Don't continue if database operation failed
         }
-        
-        // Note: Stream ending logic for hosts vs participants:
-        // - Hosts: End the stream (which automatically handles their departure)  
-        // - Participants: Leave the stream (handled elsewhere in the app)
-        // The backend prevents hosts from "leaving" their own streams
-        console.log('✅ Stream ended by host - no need to auto-leave');
       }
       
       // Leave the GetStream call
       if (call) {
-        console.log('🔴 Leaving GetStream call');
         await call.leave();
-        console.log('✅ Left GetStream call successfully');
       }
-      
-      console.log('🔴 Navigating to homepage from stream');
+  
       router.replace('/(tabs)/home'); // Navigate to homepage instead of going back
     } catch (error) {
-      console.error('❌ End stream error:', error);
       
       // Show error to user
       Alert.alert(
@@ -753,7 +825,7 @@ export default function SingleStreamScreen() {
         data: { message }
       }).unwrap();
       
-      refetchMessages(); // Immediately refresh messages
+  // Removed refetchMessages; rely on optimistic + WS
     } catch (error: any) {
       // console.error('Send message error:', error);
       Alert.alert('Error', 'Failed to send message');
@@ -776,30 +848,28 @@ export default function SingleStreamScreen() {
       }).unwrap();
       
       setComment('');
-      refetchMessages(); // Refresh messages to show the new comment
+  // Removed refetchMessages; rely on optimistic + WS
       
       // Auto-scroll to show the new message (like Instagram Live)
       setTimeout(() => {
         chatFlatListRef.current?.scrollToEnd({ animated: true });
       }, 200);
     } catch (error: any) {
-      console.error('Send comment error:', error);
       Alert.alert('Error', 'Failed to send comment');
     }
   };
 
   const handleGiftPress = () => {
-    // console.log('🎁 Gift modal opening...', { giftsCount: safeGifts.length, walletBalance: walletSummary?.coins || 0 });
+    // console.log(' Gift modal opening...', { giftsCount: safeGifts.length, walletBalance: walletSummary?.coins || 0 });
     setGiftModalVisible(true);
     // Refresh gifts when modal opens to get latest gifts from admin
     refetchGifts();
   };
 
   const handleSendGift = async (gift: any) => {
-    // console.log('🎁 Gift sending initiated:', { giftId: gift.id, giftName: gift.name, giftCost: gift.cost, streamId });
+    // console.log(' Gift sending initiated:', { giftId: gift.id, giftName: gift.name, giftCost: gift.cost, streamId });
     
     if (!streamId) {
-      console.error('❌ No streamId available for gift sending');
       Alert.alert('Error', 'Stream not found');
       return;
     }
@@ -846,6 +916,23 @@ export default function SingleStreamScreen() {
       
       // 🎁 Trigger TikTok-style gift animation for all participants to see
       const animationId = Date.now().toString() + Math.random().toString();
+      
+      // Construct proper profile picture URL for host
+      const hostProfilePictureUrl = (() => {
+        const rawUrl = currentUser?.profile_picture_url || currentUser?.profile_picture;
+        if (!rawUrl) return null;
+        
+        // If already absolute URL, return as is
+        if (rawUrl.startsWith('http')) {
+          return rawUrl;
+        }
+        
+        // Construct absolute URL
+        const baseUrl = apiBaseUrl.replace('/api/', '');
+        const cleanPath = rawUrl.startsWith('/') ? rawUrl : `/${rawUrl}`;
+        return baseUrl + cleanPath;
+      })();
+      
       const newGiftAnimation = {
         id: animationId,
         gift: gift,
@@ -854,7 +941,7 @@ export default function SingleStreamScreen() {
           full_name: currentUser?.first_name && currentUser?.last_name 
             ? `${currentUser.first_name} ${currentUser.last_name}`
             : currentUser?.username || 'User',
-          profile_picture_url: currentUser?.profile_picture_url || currentUser?.profile_picture
+          profile_picture_url: hostProfilePictureUrl
         },
         animationKey: animationId, // Unique key to trigger animation
       };
@@ -869,9 +956,7 @@ export default function SingleStreamScreen() {
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Manually refetch wallet data to get updated balance
-      console.log('🔄 Manually refetching wallet data...');
       const walletRefetchResult = await refetchWallet();
-      console.log('💰 Refetched wallet data:', walletRefetchResult.data);
       
       Alert.alert('Gift Sent!', `You sent ${gift.name} for ${gift.cost} coins! Balance: ${(result as any).sender_balance?.coins || 'Loading...'} coins`);
       // Don't close the modal immediately - let user see updated balance
@@ -915,7 +1000,6 @@ export default function SingleStreamScreen() {
                   {
                     text: 'OK',
                     onPress: () => {
-                      console.log('Purchase success - setting up modal transition');
                       // Set flag to open gift modal after coin modal closes
                       setShouldOpenGiftModalAfterPurchase(true);
                       // Close coin purchase modal
@@ -968,25 +1052,13 @@ export default function SingleStreamScreen() {
       const baseURL = await getAPIBaseURL();
       const searchURL = `${baseURL}/api/users/search/?search=${encodeURIComponent(searchTerm)}`;
       
-      console.log('🔍 Searching users:', {
-        searchTerm,
-        searchURL,
-        hasToken: !!accessToken,
-        streamId,
-        streamDetailsAvailable: !!streamDetails,
-        participantsCount: streamDetails?.participants?.length || 0
-      });
-      
       const response = await fetch(searchURL, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
       });
-
-      console.log('📱 Search response status:', response.status);
       const data = await response.json();
-      console.log('📥 Search response data:', data);
       
       if (response.ok) {
         // Get existing participants from THIS specific stream only
@@ -1023,54 +1095,17 @@ export default function SingleStreamScreen() {
             
             // Allow viewers (for promotion) and non-participants (for invitation)
             const canBeInvited = !isCurrentUser && !isGuestOrHost;
-            
-            console.log(`🔍 Filtering user ${user.username} in GUESTS tab:`, {
-            id: user.id,
-            username: user.username,
-            isCurrentUser,
-              existingParticipant: existingParticipant ? {
-                type: existingParticipant.participant_type,
-                isActive: existingParticipant.is_active
-              } : null,
-              isViewer,
-              isGuestOrHost,
-              canBeInvited,
-              willInclude: canBeInvited
-            });
-            
             return canBeInvited;
           } else {
             // In Audience tab: Only show current viewers (no invitation/promotion actions)
             const isViewer = existingParticipant && existingParticipant.participant_type === 'viewer';
-            
-            console.log(`🔍 Filtering user ${user.username} in AUDIENCE tab:`, {
-              id: user.id,
-              username: user.username,
-              isCurrentUser,
-              isViewer,
-              willInclude: !isCurrentUser && isViewer
-            });
-            
+
             return !isCurrentUser && isViewer;
           }
         }) || [];
         
-        console.log('✅ Final filtered search results:', {
-          totalResults: data.results?.length || 0,
-          filteredCount: filteredUsers.length,
-          currentUserId: currentUser?.id,
-          currentStreamParticipantIds,
-          streamId,
-          results: filteredUsers.map((u: any) => ({ id: u.id, username: u.username, name: u.first_name }))
-        });
-        
         setSearchResults(filteredUsers.slice(0, 10)); // Limit to 10 results
       } else {
-        console.error('❌ Search API error:', {
-          status: response.status,
-          data,
-          url: searchURL
-        });
         setSearchResults([]);
       }
     } catch (error) {
@@ -1122,7 +1157,6 @@ export default function SingleStreamScreen() {
       console.log('📱 Response status:', response.status);
       
       const data = await response.json();
-      console.log('📥 Response data:', data);
 
       if (response.ok) {
         Alert.alert(
@@ -1146,7 +1180,6 @@ export default function SingleStreamScreen() {
       }
       
     } catch (error: any) {
-      console.error('💥 Error inviting user:', error);
       
       if (error?.message === 'Network request failed') {
         Alert.alert(
@@ -1183,8 +1216,6 @@ export default function SingleStreamScreen() {
             style: 'destructive',
             onPress: async () => {
               try {
-                console.log('🔄 Starting participant removal process...');
-                
                 const baseURL = await getAPIBaseURL();
                 const removeURL = `${baseURL}/api/streams/${streamId}/remove-participant/`;
                 
@@ -1205,11 +1236,7 @@ export default function SingleStreamScreen() {
                     participant_id: participantId,
                   }),
                 });
-                
-                console.log('📥 Remove Response Status:', response.status);
-                
                 const data = await response.json();
-                console.log('📥 Remove Response Data:', data);
                 
                 if (response.ok) {
                   // Refresh stream details to update participants list
@@ -1220,13 +1247,7 @@ export default function SingleStreamScreen() {
                     'The participant has been removed from your stream.',
                     [{ text: 'OK', style: 'default' }]
                   );
-                } else {
-                  console.error('❌ Remove Participant Failed:', {
-                    status: response.status,
-                    error: data.error || data,
-                    url: removeURL
-                  });
-                  
+                } else {                
                   Alert.alert(
                     'Error',
                     data.error || data.detail || `Failed to remove participant (Status: ${response.status}). Please try again.`,
@@ -1279,15 +1300,6 @@ export default function SingleStreamScreen() {
       const existingViewer = streamDetails?.participants?.find(p => 
         p.user?.id === user.id && p.is_active && p.participant_type === 'viewer'
       );
-      
-      console.log('🚀 Sending invitation:', {
-        url: inviteURL,
-        username: user.username,
-        streamId,
-        hasToken: !!accessToken,
-        isCurrentViewer: !!existingViewer,
-        action: existingViewer ? 'promote_viewer_to_guest' : 'invite_new_guest'
-      });
       
       const response = await fetch(inviteURL, {
         method: 'POST',
@@ -1578,11 +1590,14 @@ export default function SingleStreamScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      className="flex-1" 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-    >
+    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
+      <KeyboardAvoidingView 
+        className="flex-1" 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 20}
+        style={{ flex: 1 }}
+        enabled={true}
+      >
       <StatusBar style="light" />
       
       {/* Full Screen Stream Content - Background Layer */}
@@ -1599,7 +1614,7 @@ export default function SingleStreamScreen() {
             {/* Avatar */}
             <View className="w-12 h-12 rounded-full bg-gray-400 mr-3 overflow-hidden">
               <DynamicImage
-                mediaUrl={currentUser?.profile_picture_url || currentUser?.profile_picture}
+                mediaUrl={(currentUser?.profile_picture_url || currentUser?.profile_picture) ?? null}
                 width={40}
                 height={40}
                 className="w-full h-full rounded-full"
@@ -1682,226 +1697,7 @@ export default function SingleStreamScreen() {
             pointerEvents="none"
           />
           
-          <View style={{ maxHeight: 280 }}> {/* Increased height and use style prop for better control */}
-            <FlatList
-              ref={chatFlatListRef}
-              data={messages.slice(-6)} // Show only last 6 messages in overlay
-              keyExtractor={(item) => item.id.toString()}
-              refreshControl={
-                <RefreshControl
-                  refreshing={messagesLoading}
-                  onRefresh={() => {
-                    refetchMessages();
-                    refetchStreamDetails();
-                  }}
-                  tintColor="#ffffff"
-                  colors={['#ffffff']}
-                />
-              }
-              renderItem={({ item, index }) => {
-                // Calculate opacity based on position (fade effect like Instagram Live)
-                const fadeOpacity = index < 2 ? 0.2 + (index * 0.4) : 1;
-                
-                return (
-                <View className="mb-2" style={{ opacity: fadeOpacity }}>
-                  {item.message_type === 'join' ? (
-                    <View className="flex-row items-center">
-                      <View className="bg-green-500/20 rounded-lg px-3 py-2 border border-green-500/30 flex-row items-center flex-shrink-1" style={{ maxWidth: '85%' }}>
-                        {/* User Avatar */}
-                        <View className="w-6 h-6 rounded-full bg-gray-400 mr-2 overflow-hidden">
-                          {(item.user.profile_picture_url || item.user.avatar_url) ? (
-                            <Image 
-                              source={{ uri: (() => {
-                                const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
-                                const baseUrl = apiBaseUrl.replace('/api/', '');
-                                if (profileUrl && typeof profileUrl === 'string') {
-                                  if (profileUrl.startsWith('http')) {
-                                    return profileUrl;
-                                  } else {
-                                    const cleanPath = profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
-                                    return baseUrl + cleanPath;
-                                  }
-                                }
-                                return '';
-                              })() }}
-                              className="w-full h-full"
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View className="w-full h-full bg-green-500 items-center justify-center">
-                              <Text className="text-white font-bold text-xs">
-                                {(item.user.full_name || item.user.username || 'U').charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text className="text-green-400 text-sm font-medium">
-                          <Text className="font-bold">{item.user.full_name || item.user.username || 'User'}</Text> joined
-                        </Text>
-                      </View>
-                    </View>
-                  ) : item.message_type === 'leave' ? (
-                    <View className="flex-row items-center">
-                      <View className="bg-red-500/20 rounded-lg px-3 py-2 border border-red-500/30 flex-row items-center flex-shrink-1" style={{ maxWidth: '85%' }}>
-                        {/* User Avatar */}
-                        <View className="w-6 h-6 rounded-full bg-gray-400 mr-2 overflow-hidden">
-                          {(item.user.profile_picture_url || item.user.avatar_url) ? (
-                            <Image 
-                              source={{ uri: (() => {
-                                const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
-                                const baseUrl = apiBaseUrl.replace('/api/', '');
-                                if (profileUrl && typeof profileUrl === 'string') {
-                                  if (profileUrl.startsWith('http')) {
-                                    return profileUrl;
-                                  } else {
-                                    const cleanPath = profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
-                                    return baseUrl + cleanPath;
-                                  }
-                                }
-                                return '';
-                              })() }}
-                              className="w-full h-full"
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View className="w-full h-full bg-red-500 items-center justify-center">
-                              <Text className="text-white font-bold text-xs">
-                                {(item.user.full_name || item.user.username || 'U').charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text className="text-red-400 text-sm font-medium">
-                          <Text className="font-bold">{item.user.full_name || item.user.username || 'User'}</Text> left
-                        </Text>
-                      </View>
-                    </View>
-                  ) : item.message_type === 'gift' ? (
-                    <View className="flex-row items-center justify-center mb-2">
-                      <View className="bg-white/90 rounded-full px-4 py-2 flex-row items-center" style={{ maxWidth: '85%' }}>
-                        {/* User Avatar */}
-                        <View className="w-8 h-8 rounded-full bg-gray-400 mr-3 overflow-hidden">
-                          {(item.user.profile_picture_url || item.user.avatar_url) ? (
-                            <Image 
-                              source={{ uri: (() => {
-                                const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
-                                const baseUrl = apiBaseUrl.replace('/api/', '');
-                                if (profileUrl && typeof profileUrl === 'string') {
-                                  if (profileUrl.startsWith('http')) {
-                                    return profileUrl;
-                                  } else {
-                                    const cleanPath = profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
-                                    return baseUrl + cleanPath;
-                                  }
-                                }
-                                return '';
-                              })() }}
-                              className="w-full h-full"
-                              resizeMode="cover"
-                            />
-                          ) : (
-                            <View className="w-full h-full bg-purple-500 items-center justify-center">
-                              <Text className="text-white font-bold text-xs">
-                                {(item.user.full_name || item.user.username || 'U').charAt(0).toUpperCase()}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        
-                        {/* Gift Message */}
-                        <View className="flex-row items-center">
-                          <Text className="text-black text-sm font-semibold mr-2">
-                            {item.user.full_name || item.user.username || 'User'} gifted{' '}
-                          </Text>
-                          
-                          {/* Gift Icon - Show image if available, fallback to emoji */}
-                          {item.gift_icon && (item.gift_icon.startsWith('/') || item.gift_icon.includes('gifts/')) ? (
-                            <Image 
-                              source={{ uri: `${apiBaseUrl}/media/${item.gift_icon.startsWith('/') ? item.gift_icon.substring(1) : item.gift_icon}` }}
-                              style={{ width: 20, height: 20, marginRight: 4 }}
-                              resizeMode="contain"
-                              onError={(e) => {
-                                console.log('Gift icon load error:', item.gift_icon, e.nativeEvent.error);
-                              }}
-                              onLoad={() => {
-                                console.log('Gift icon loaded successfully:', item.gift_icon);
-                              }}
-                            />
-                          ) : (
-                            <Text className="text-lg mr-1">{item.gift_icon || '🎁'}</Text>
-                          )}
-                          
-                          {item.gift_quantity > 1 && (
-                            <Text className="text-black font-bold">x{item.gift_quantity}</Text>
-                          )}
-                        </View>
-                      </View>
-                    </View>
-                  ) : (
-                    <View className="flex-row items-start">
-                      {/* User Avatar */}
-                      <View className="w-8 h-8 rounded-full bg-gray-400 mr-3 overflow-hidden flex-shrink-0">
-                        {(item.user.profile_picture_url || item.user.avatar_url) ? (
-                          <Image 
-                            source={{ uri: (() => {
-                              const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
-                              const baseUrl = apiBaseUrl.replace('/api/', '');
-                              if (profileUrl && typeof profileUrl === 'string') {
-                                if (profileUrl.startsWith('http')) {
-                                  return profileUrl;
-                                } else {
-                                  const cleanPath = profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
-                                  return baseUrl + cleanPath;
-                                }
-                              }
-                              return '';
-                            })() }}
-                            className="w-full h-full"
-                            resizeMode="cover"
-                            onError={(e) => console.log('Chat avatar load error for user:', item.user.username, e.nativeEvent.error)}
-                            onLoad={() => console.log('Chat avatar loaded for user:', item.user.username)}
-                          />
-                        ) : (
-                          <View className="w-full h-full bg-purple-500 items-center justify-center">
-                            <Text className="text-white font-bold text-xs">
-                              {(item.user.full_name || item.user.username || 'U').charAt(0).toUpperCase()}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      
-                      {/* Message container that adjusts to content width */}
-                      <View className="bg-black/40 rounded-2xl px-4 py-3 flex-shrink-1" style={{ maxWidth: '75%' }}>
-                        <Text className="font-bold text-white text-sm mb-1">
-                          {item.user.full_name || item.user.username || 'User'}
-                        </Text>
-                        <Text className="text-gray-200 text-sm">
-                          {item.message}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
-                );
-              }}
-              showsVerticalScrollIndicator={false}
-              scrollEnabled={true} // Enable scrolling for better UX
-              maintainVisibleContentPosition={{
-                minIndexForVisible: 0,
-                autoscrollToTopThreshold: 10,
-              }}
-              contentContainerStyle={{ 
-                flexGrow: 1, 
-                justifyContent: 'flex-end',
-                paddingBottom: 12, // Increased padding for better visibility
-                paddingTop: 60, // Increased top padding for fade effect
-              }}
-              // Auto-scroll behavior like Instagram Live
-              onContentSizeChange={() => {
-                chatFlatListRef.current?.scrollToEnd({ animated: true });
-              }}
-            />
-          </View>
+          {/* Legacy overlay FlatList removed (replaced by unified renderer further below) */}
         </View>
       )}
 
@@ -1911,23 +1707,59 @@ export default function SingleStreamScreen() {
           className="absolute left-4 right-4 flex-row items-center gap-3" 
           style={{ 
             zIndex: 10,
-            bottom: isKeyboardVisible ? keyboardHeight + 20 : 48, // Increased spacing when keyboard is visible
+            bottom: isKeyboardVisible ? keyboardHeight + 80 : 48, // Increased spacing significantly when keyboard is visible
+            backgroundColor: isKeyboardVisible ? 'rgba(0,0,0,0.9)' : 'transparent', // Darker background when keyboard is visible
+            paddingVertical: isKeyboardVisible ? 16 : 0, // More padding when keyboard is visible
+            paddingHorizontal: isKeyboardVisible ? 8 : 0, // Add horizontal padding when keyboard is visible
+            borderRadius: isKeyboardVisible ? 16 : 0, // Add border radius when keyboard is visible
+            marginBottom: isKeyboardVisible ? 10 : 0, // Add bottom margin when keyboard is visible
           }}
         >
           {/* Comment Input */}
-          <View className="flex-1 bg-black/40 rounded-full px-4 py-4">
-            <TextInput
-              placeholder="Type comment here..."
-              placeholderTextColor="#999"
-              value={comment}
-              onChangeText={setComment}
-              className="text-white text-base"
-              multiline={false}
-              maxLength={200}
-              returnKeyType="send"
-              onSubmitEditing={handleSendComment}
-              blurOnSubmit={false}
-            />
+          <View className={`flex-1 rounded-full px-4 py-4 ${
+            isKeyboardVisible ? 'bg-black/80' : 'bg-black/40'
+          }`}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => {
+                if (!allowCommentFocus) {
+                  setAllowCommentFocus(true);
+                  // Let state update then focus
+                  requestAnimationFrame(() => {
+                    commentInputRef.current?.focus();
+                  });
+                } else {
+                  commentInputRef.current?.focus();
+                }
+              }}
+              className="flex-row items-center"
+            >
+              <View className="flex-1">
+                <TextInput
+                  ref={commentInputRef}
+                  placeholder={allowCommentFocus ? 'Type comment here...' : 'Tap to comment'}
+                  placeholderTextColor="#999"
+                  value={comment}
+                  onChangeText={setComment}
+                  className="text-white text-base"
+                  multiline={false}
+                  maxLength={200}
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendComment}
+                  blurOnSubmit={false}
+                  autoFocus={false}
+                  autoCorrect={false}
+                  selectTextOnFocus={false}
+                  style={{ 
+                    minHeight: 20,
+                    textAlignVertical: 'center',
+                  }}
+                  editable={allowCommentFocus}
+                  // Prevent iOS from auto showing keyboard when editable toggles
+                  showSoftInputOnFocus={allowCommentFocus}
+                />
+              </View>
+            </TouchableOpacity>
           </View>
           
           {/* Add Team Icon - Keep for hosts to invite participants */}
@@ -2081,6 +1913,7 @@ export default function SingleStreamScreen() {
                     }
                   }}
                   className="text-white text-base ml-2 flex-1"
+                  autoFocus={false}
                   autoCapitalize="none"
                   autoCorrect={false}
                   maxLength={50}
@@ -2244,7 +2077,7 @@ export default function SingleStreamScreen() {
                   {/* Profile Picture */}
                   <View className="relative">
                     <DynamicProfileImage 
-                      profilePictureUrl={participant.user?.profile_picture_url}
+                      profilePictureUrl={participant.user?.profile_picture_url ?? null}
                       size={48}
                     >
                       <View className="w-12 h-12 rounded-full bg-[#3A3A3A] items-center justify-center">
@@ -2296,7 +2129,7 @@ export default function SingleStreamScreen() {
                           {/* Profile Picture */}
                           <View className="relative">
                             <DynamicProfileImage 
-                              profilePictureUrl={viewer.user?.profile_picture_url}
+                              profilePictureUrl={viewer.user?.profile_picture_url ?? null}
                               size={48}
                             >
                               <View className="w-12 h-12 rounded-full bg-[#3A3A3A] items-center justify-center">
@@ -2357,8 +2190,11 @@ export default function SingleStreamScreen() {
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           className="flex-1 justify-end bg-black/50"
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          enabled={true}
         >
-          <View className="bg-[#1A1A1A] rounded-t-3xl h-96">
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View className="bg-[#1A1A1A] rounded-t-3xl" style={{ maxHeight: '80%', minHeight: '50%' }}>
             {/* Chat Header */}
             <View className="flex-row items-center justify-between p-4 border-b border-gray-700">
               <Text className="text-white text-lg font-semibold">💬 Live Chat</Text>
@@ -2371,7 +2207,7 @@ export default function SingleStreamScreen() {
             </View>
             
             {/* Messages List */}
-            <View className="flex-1 px-4">
+            <View className="flex-1 px-4 pb-2">
               <FlatList
                 data={messages}
                 keyExtractor={(item) => item.id.toString()}
@@ -2381,7 +2217,7 @@ export default function SingleStreamScreen() {
                       <View className="items-center py-1">
                         <View className="bg-green-500/20 rounded-full px-3 py-1 border border-green-500/30">
                           <Text className="text-green-400 text-xs font-medium">
-                            {item.user.full_name || item.user.username || 'User'} joined the stream
+                            {`${item.user.first_name || ''} ${item.user.last_name || ''}`.trim() || item.user.username || 'User'} joined the stream
                           </Text>
                         </View>
                       </View>
@@ -2389,7 +2225,7 @@ export default function SingleStreamScreen() {
                       <View className="items-center py-1">
                         <View className="bg-red-500/20 rounded-full px-3 py-1 border border-red-500/30">
                           <Text className="text-red-400 text-xs font-medium">
-                            {item.user.full_name || item.user.username || 'User'} left the stream
+                            {`${item.user.first_name || ''} ${item.user.last_name || ''}`.trim() || item.user.username || 'User'} left the stream
                           </Text>
                         </View>
                       </View>
@@ -2397,14 +2233,10 @@ export default function SingleStreamScreen() {
                       <View className="items-center py-1">
                         <View className="bg-purple-500/20 rounded-lg px-3 py-2 border border-purple-500/30">
                           <Text className="text-purple-300 text-sm font-medium text-center">
-                            <Text className="font-bold text-purple-200">{item.user.full_name || item.user.username || 'User'}</Text> gifted{' '}
+                            <Text className="font-bold text-purple-200">{`${item.user.first_name || ''} ${item.user.last_name || ''}`.trim() || item.user.username || 'User'}</Text> gifted{' '}
                             <Text className="text-yellow-400">{item.gift_icon || '🎁'} {item.gift_name || 'a gift'}</Text>
-                            {item.gift_quantity > 1 && (
-                              <Text className="text-yellow-400"> x{item.gift_quantity}</Text>
-                            )}
-                            {item.gift_receiver && (
-                              <Text className="text-purple-200"> to {item.gift_receiver.full_name || item.gift_receiver.username || 'Host'}</Text>
-                            )}
+                            {/* gift_quantity removed */}
+                            {/* gift_receiver removed */}
                           </Text>
                         </View>
                       </View>
@@ -2412,10 +2244,10 @@ export default function SingleStreamScreen() {
                       <View className="flex-row items-start gap-3 py-2">
                         {/* User Avatar */}
                         <View className="w-10 h-10 rounded-full bg-gray-400 overflow-hidden flex-shrink-0">
-                          {(item.user.profile_picture_url || item.user.avatar_url) ? (
+                          {(item.user.profile_picture_url) ? (
                             <Image 
                               source={{ uri: (() => {
-                                const profileUrl = item.user.profile_picture_url || item.user.avatar_url;
+                                const profileUrl = item.user.profile_picture_url;
                                 const baseUrl = apiBaseUrl.replace('/api/', '');
                                 if (profileUrl && typeof profileUrl === 'string') {
                                   if (profileUrl.startsWith('http')) {
@@ -2433,7 +2265,7 @@ export default function SingleStreamScreen() {
                           ) : (
                             <View className="w-full h-full bg-purple-500 items-center justify-center">
                               <Text className="text-white font-bold text-sm">
-                                {(item.user.full_name || item.user.username || 'U').charAt(0).toUpperCase()}
+                                {(`${item.user.first_name || ''} ${item.user.last_name || ''}`.trim() || item.user.username || 'U').charAt(0).toUpperCase()}
                               </Text>
                             </View>
                           )}
@@ -2450,7 +2282,7 @@ export default function SingleStreamScreen() {
                             </Text>
                           </View>
                           <Text className="font-bold text-purple-400 text-sm mb-1">
-                            {item.user.full_name || item.user.username || 'User'}
+                            {`${item.user.first_name || ''} ${item.user.last_name || ''}`.trim() || item.user.username || 'User'}
                           </Text>
                           <Text className="text-white text-sm">
                             {item.message}
@@ -2463,6 +2295,8 @@ export default function SingleStreamScreen() {
                 showsVerticalScrollIndicator={false}
                 className="flex-1"
                 inverted // Show newest messages at bottom
+                contentContainerStyle={{ paddingBottom: 10 }}
+                keyboardShouldPersistTaps="handled"
               />
             </View>
             
@@ -2471,7 +2305,8 @@ export default function SingleStreamScreen() {
               onSendMessage={handleSendMessageFromInput}
               sending={sendingMessage}
             />
-          </View>
+            </View>
+          </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -2530,6 +2365,7 @@ export default function SingleStreamScreen() {
                   placeholder="Search"
                   placeholderTextColor="#666666"
                   className="flex-1 text-white ml-2 text-base"
+                  autoFocus={false}
                 />
               </View>
             </View>
@@ -2843,5 +2679,7 @@ export default function SingleStreamScreen() {
         }}
       />
     </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 } 
+export default MultiStreamScreen;

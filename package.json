@@ -53,6 +53,7 @@
     "nativewind": "^4.1.23",
     "react": "19.0.0",
     "react-async-hook": "^4.0.0",
+    "react-devtools": "^6.1.5",
     "react-dom": "19.0.0",
     "react-native": "0.79.5",
     "react-native-chart-kit": "^6.12.0",

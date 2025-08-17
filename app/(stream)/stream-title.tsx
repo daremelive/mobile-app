@@ -68,13 +68,13 @@ export default function StreamTitleScreen() {
           }
         });
       } else {
-        // Navigate to multi.tsx with stream parameters
+        // Navigate to host-multi.tsx with stream parameters
         router.push({
-          pathname: '/stream/multi',
+          pathname: '/stream/host-multi',
           params: {
             mode: streamMode,
             channel: streamChannel,
-            seats: maxSeats.toString(),
+            maxSeats: maxSeats.toString(),
             title: title.trim(),
             // Add a flag to indicate this came from the title screen
             fromTitleScreen: 'true'

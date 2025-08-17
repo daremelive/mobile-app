@@ -45,10 +45,12 @@ const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
 // Types for Stream functionality
 export interface StreamHost {
   id: number;
-  username: string | null;
+  username: string;
   first_name: string;
   last_name: string;
+  full_name: string;
   vip_level: 'basic' | 'premium' | 'vip' | 'vvip';
+  profile_picture_url?: string | null;
 }
 
 export interface StreamParticipant {
@@ -65,7 +67,11 @@ export interface StreamMessage {
   id: number;
   user: StreamHost;
   message: string;
+  message_type: string;
   created_at: string;
+  gift: any | null;
+  gift_quantity: number;
+  gift_receiver: StreamHost | null;
 }
 
 export interface Gift {
@@ -159,7 +165,7 @@ export interface CreateStreamRequest {
 }
 
 export interface JoinStreamRequest {
-  participant_type: 'guest' | 'viewer';
+  participant_type: 'host' | 'guest' | 'viewer';
   seat_number?: number;
 }
 

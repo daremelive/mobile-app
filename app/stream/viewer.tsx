@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, FlatList, TextInput, Image, Animated, Keyboard, Dimensions, Modal, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Modal, ScrollView, RefreshControl, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSelector } from 'react-redux';
-import { useDispatch } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { selectCurrentUser } from '../../src/store/authSlice';
 import { useGetStreamQuery, useJoinStreamMutation, useLeaveStreamMutation, useGetStreamMessagesQuery, useSendMessageMutation, useGetGiftsQuery, useSendGiftMutation, streamsApi } from '../../src/store/streamsApi';
@@ -19,6 +18,17 @@ import GiftIcon from '../../assets/icons/gift.svg';
 import DareMeLiveIcon from '../../assets/icons/daremelive.svg';
 import GiftAnimation from '../../components/animations/GiftAnimation';
 
+// Import modular components
+import { 
+  StreamHeader, 
+  StreamChatOverlay, 
+  StreamInputBar,
+  useStreamChat,
+  useGiftSystem,
+  useFollowSystem,
+  type ChatMessage 
+} from '../../components/stream';
+
 export default function StreamViewerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -29,26 +39,60 @@ export default function StreamViewerScreen() {
   const hostUsername = params.hostUsername as string;
   const streamTitle = params.streamTitle as string;
 
+  // Get stream details first to determine mode
+  const { data: streamDetails, isLoading: streamLoading, error: streamError } = useGetStreamQuery(streamId);
+
+  // Smart routing: Redirect to appropriate viewer based on stream mode
+  useEffect(() => {
+    if (streamDetails && !streamLoading) {
+      if (streamDetails.mode === 'multi') {
+        // Redirect to multi-participant viewer
+        router.replace({
+          pathname: '/stream/viewer-multi',
+          params: {
+            streamId,
+            hostUsername: streamDetails.host?.username || hostUsername,
+            streamTitle: streamDetails.title || streamTitle,
+          }
+        });
+        return;
+      }
+      // For 'single' mode, continue with current viewer logic
+    }
+  }, [streamDetails, streamLoading, streamId, hostUsername, streamTitle, router]);
+
+  // Show loading while determining stream mode
+  if (streamLoading || (streamDetails && streamDetails.mode === 'multi')) {
+    return (
+      <View className="flex-1 items-center justify-center bg-black">
+        <ActivityIndicator size="large" color="#C42720" />
+        <Text className="text-white text-lg mt-4">
+          {streamDetails?.mode === 'multi' ? 'Redirecting to multi-live stream...' : 'Loading stream...'}
+        </Text>
+      </View>
+    );
+  }
+
+  // Core stream state
   const [streamClient, setStreamClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<any>(null);
   const [hasJoined, setHasJoined] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
-  const [comment, setComment] = useState('');
   const [lastJoinAttempt, setLastJoinAttempt] = useState<number>(0);
   const [joinAttemptCount, setJoinAttemptCount] = useState(0);
-  const [isOperationInProgress, setIsOperationInProgress] = useState(false); // Prevent multiple simultaneous operations
+  const [isOperationInProgress, setIsOperationInProgress] = useState(false);
   const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  const [giftModalVisible, setGiftModalVisible] = useState(false);
-  const [sendingGift, setSendingGift] = useState(false);
-  const [coinPurchaseModalVisible, setCoinPurchaseModalVisible] = useState(false);
-  const [shouldOpenGiftModalAfterPurchase, setShouldOpenGiftModalAfterPurchase] = useState(false);
   const [leaveConfirmationVisible, setLeaveConfirmationVisible] = useState(false);
   const initializationTimeoutRef = useRef<number | null>(null);
   const [baseURL, setBaseURL] = useState<string>('');
   
-  // Gift animation state - for TikTok-style floating gift animations
+  // Gift modal state (keeping original implementation for exact UI match)
+  const [giftModalVisible, setGiftModalVisible] = useState(false);
+  const [sendingGift, setSendingGift] = useState(false);
+  const [coinPurchaseModalVisible, setCoinPurchaseModalVisible] = useState(false);
+  const [shouldOpenGiftModalAfterPurchase, setShouldOpenGiftModalAfterPurchase] = useState(false);
+  
+  // Gift animation state
   const [activeGiftAnimations, setActiveGiftAnimations] = useState<Array<{
     id: string;
     gift: any;
@@ -57,23 +101,19 @@ export default function StreamViewerScreen() {
   }>>([]);
   
   // Rate limiting constants
-  const MIN_JOIN_INTERVAL = 3000; // 3 seconds between join attempts
-  const MAX_JOIN_ATTEMPTS = 3; // Max attempts before requiring longer wait
-  const BACKOFF_INTERVAL = 10000; // 10 seconds after max attempts
+  const MIN_JOIN_INTERVAL = 3000;
+  const MAX_JOIN_ATTEMPTS = 3;
+  const BACKOFF_INTERVAL = 10000;
   
-  // API hooks
-  const { data: streamDetails, isLoading: streamLoading, error: streamError } = useGetStreamQuery(streamId);
+  // API hooks (stream details already fetched above for routing)
   const [joinStream] = useJoinStreamMutation();
   const [leaveStream] = useLeaveStreamMutation();
-  const [sendMessage] = useSendMessageMutation();
   const [sendGift] = useSendGiftMutation();
 
-  // Get wallet data from API
+  // Wallet and gifts
   const { data: walletSummary, isLoading: walletLoading, refetch: refetchWallet } = useGetWalletSummaryQuery();
   const { data: coinPackages = [], isLoading: packagesLoading } = useGetCoinPackagesQuery();
   const [purchaseCoins] = usePurchaseCoinsMutation();
-
-  // Get gifts from API
   const { 
     data: gifts = [], 
     isLoading: giftsLoading, 
@@ -86,99 +126,95 @@ export default function StreamViewerScreen() {
     pollingInterval: 30000,
   });
 
-  // Follow system hooks
-  const [followUser] = useFollowUserMutation();
-  const [unfollowUser] = useUnfollowUserMutation();
-  
-  // Get host profile with follow status
-  const { data: hostProfile } = useGetUserProfileQuery(
-    streamDetails?.host?.id || 0,
-    { 
-      skip: !streamDetails?.host?.id || streamDetails?.host?.id === currentUser?.id // Skip if no host or user is the host
-    }
-  );
+  // Use modular hooks
+  const chat = useStreamChat({
+    streamId,
+    userId: currentUser?.id?.toString(),
+    username: currentUser?.username || undefined,
+    isHost: false,
+  });
 
-  // Follow state
-  const [isFollowingHost, setIsFollowingHost] = useState(false);
-  const [followLoading, setFollowLoading] = useState(false);
+  const followSystem = useFollowSystem({
+    userId: currentUser?.id?.toString(),
+    targetUserId: streamDetails?.host?.id?.toString(),
+  });
 
-  // Update follow status when host profile loads
-  useEffect(() => {
-    if (hostProfile) {
-      setIsFollowingHost(hostProfile.is_following);
-    }
-  }, [hostProfile]);
+  // Transform messages to match ChatMessage interface
+  const transformedMessages: ChatMessage[] = useMemo(() => {
+    const { data: rawMessages = [] } = useGetStreamMessagesQuery(
+      streamId, 
+      { 
+        pollingInterval: 0, // Disabled aggressive polling
+        refetchOnMountOrArgChange: true,
+      }
+    );
 
-  // Memoize safeGifts to prevent unnecessary re-renders and ensure valid data
+    return rawMessages.map((msg: any) => ({
+      id: msg.id?.toString() || Date.now().toString(),
+      username: msg.user?.full_name || msg.user?.username || 'User',
+      message: msg.message || '',
+      timestamp: msg.timestamp || new Date().toISOString(),
+      profilePicture: msg.user?.profile_picture_url || msg.user?.avatar_url,
+      isHost: msg.user?.id === streamDetails?.host?.id,
+      userId: msg.user?.id?.toString(),
+    }));
+  }, [streamId, streamDetails?.host?.id]);
+
+  // Memoize safe gifts
   const safeGifts = useMemo(() => {
     if (!Array.isArray(gifts)) return [];
-    
-    const validGifts = gifts
+    return gifts
       .filter(gift => gift && typeof gift === 'object' && gift.id)
       .filter(gift => gift.is_active !== false);
-    
-    return validGifts;
   }, [gifts]);
-  
-  // Get stream messages
-  const { data: messages = [], refetch: refetchMessages } = useGetStreamMessagesQuery(
-    streamId, 
-    { 
-      pollingInterval: 3000, // Poll every 3 seconds for real-time chat
-      refetchOnMountOrArgChange: true,
-    }
-  );
 
-  // Debug messages - commented out to prevent blinking
-  // useEffect(() => {
-  //   console.log('📬 Messages in viewer:', messages.length, messages);
-  // }, [messages]);
-
-  // Initialize base URL with IP detection
+  // Initialize base URL
   useEffect(() => {
     const initializeBaseURL = async () => {
       try {
         const detection = await ipDetector.detectIP();
         const url = `http://${detection.ip}:8000`;
         setBaseURL(url);
-        console.log('🔗 Base URL initialized:', url);
       } catch (error) {
         console.error('❌ Failed to detect IP:', error);
-        setBaseURL('http://172.20.10.2:8000'); // Fallback
+        setBaseURL('http://172.20.10.2:8000');
       }
     };
-    
     initializeBaseURL();
   }, []);
 
-  // Chat scroll reference
-  const chatFlatListRef = useRef<FlatList>(null);
-
-  // Keyboard handling
+  // Watch for gift animations
   useEffect(() => {
-    const keyboardDidShowListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      (e) => {
-        setKeyboardHeight(e.endCoordinates.height);
-        setIsKeyboardVisible(true);
+    if (transformedMessages.length > 0) {
+      const latestMessage = transformedMessages[transformedMessages.length - 1] as any;
+      
+      if (latestMessage.message_type === 'gift' && latestMessage.user?.id !== currentUser?.id) {
+        const animationId = Date.now().toString() + Math.random().toString();
+        const newGiftAnimation = {
+          id: animationId,
+          gift: {
+            id: latestMessage.gift?.id || 0,
+            name: latestMessage.gift_name || 'Gift',
+            icon_url: latestMessage.gift_icon && (latestMessage.gift_icon.startsWith('/') || latestMessage.gift_icon.includes('gifts/'))
+              ? `${baseURL}/media/${latestMessage.gift_icon.startsWith('/') ? latestMessage.gift_icon.substring(1) : latestMessage.gift_icon}`
+              : null,
+            icon: latestMessage.gift_icon || '🎁',
+            cost: latestMessage.gift?.cost || 0
+          },
+          sender: {
+            username: latestMessage.user.username || 'User',
+            full_name: latestMessage.user.full_name || latestMessage.user.username || 'User',
+            profile_picture_url: latestMessage.user.profile_picture_url || latestMessage.user.avatar_url
+          },
+          animationKey: animationId,
+        };
+        
+        setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
       }
-    );
+    }
+  }, [transformedMessages, currentUser?.id, baseURL]);
 
-    const keyboardDidHideListener = Keyboard.addListener(
-      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardHeight(0);
-        setIsKeyboardVisible(false);
-      }
-    );
-
-    return () => {
-      keyboardDidShowListener.remove();
-      keyboardDidHideListener.remove();
-    };
-  }, []);
-
-  // Force cleanup backend participant state
+  // Force cleanup function
   const forceCleanupParticipation = async () => {
     try {
       const baseUrl = await ipDetector.getAPIBaseURL();
@@ -206,139 +242,22 @@ export default function StreamViewerScreen() {
     }
   };
 
-  // Initialize stream connection when streamDetails are loaded
-  useEffect(() => {
-    if (streamDetails && currentUser?.id && !hasJoined && !isOperationInProgress) {
-      // Clear any existing timeout
-      if (initializationTimeoutRef.current) {
-        clearTimeout(initializationTimeoutRef.current);
-      }
-      
-      // Set a timeout to prevent infinite loading - reduced for development account
-      const timeout = setTimeout(() => {
-        console.log('⏰ Initialization timeout reached');
-        // Only set error if we're still connecting and haven't joined
-        setVideoLoadError('Connection timeout. Please try again.');
-        setIsConnecting(false);
-      }, 10000); // Reduced from 15000ms to 10 seconds for faster feedback
-      
-      initializationTimeoutRef.current = timeout;
-      initializeStreamViewer();
-    } else if (streamError) {
-      // Handle stream query error - stop the connecting state
-      console.log('❌ Stream query error:', streamError);
-      setIsConnecting(false);
-      if (initializationTimeoutRef.current) {
-        clearTimeout(initializationTimeoutRef.current);
-        initializationTimeoutRef.current = null;
-      }
-    } else if (!streamLoading && !streamDetails && !streamError) {
-      // Stream not found after loading completed - stop connecting
-      console.log('❌ Stream not found after loading completed');
-      setIsConnecting(false);
-      if (initializationTimeoutRef.current) {
-        clearTimeout(initializationTimeoutRef.current);
-        initializationTimeoutRef.current = null;
-      }
-    }
-    
-    return () => {
-      // Cleanup timeout
-      if (initializationTimeoutRef.current) {
-        clearTimeout(initializationTimeoutRef.current);
-      }
-      // Cleanup when component unmounts
-      if (hasJoined && !isOperationInProgress) {
-        handleLeaveStream();
-      }
-    };
-  }, [streamDetails, currentUser?.id, streamError, streamLoading]);
-
-  // Navigation-aware cleanup - leave stream when screen loses focus
-  useFocusEffect(
-    React.useCallback(() => {
-      // Screen is focused
-      console.log('📺 Stream viewer screen focused, hasJoined:', hasJoined, 'operationInProgress:', isOperationInProgress);
-      
-      return () => {
-        // Screen is losing focus - leave stream only if we've actually joined and no operation in progress
-        if (hasJoined && !isOperationInProgress) {
-          console.log('📺 Stream viewer screen losing focus - leaving stream');
-          handleLeaveStream();
-        } else {
-          console.log('📺 Stream viewer screen losing focus - no action needed', { hasJoined, isOperationInProgress });
-        }
-      };
-    }, [hasJoined, isOperationInProgress])
-  );
-
-  // Auto-scroll chat to bottom when new messages arrive
-  useEffect(() => {
-    if (messages.length > 0 && chatFlatListRef.current) {
-      setTimeout(() => {
-        chatFlatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  }, [messages]);
-
-  // Handle modal transition after purchase
-  useEffect(() => {
-    if (shouldOpenGiftModalAfterPurchase && !coinPurchaseModalVisible) {
-      console.log('Opening gift modal after purchase completion');
-      setGiftModalVisible(true);
-      setShouldOpenGiftModalAfterPurchase(false);
-    }
-  }, [shouldOpenGiftModalAfterPurchase, coinPurchaseModalVisible]);
-
-  // Watch for new gift messages and trigger animations for ALL participants
-  useEffect(() => {
-    if (messages.length > 0) {
-      const latestMessage = messages[messages.length - 1] as any; // Type casting for extended message properties
-      
-      // Only trigger animation for gift messages from OTHER users (not the sender)
-      if (latestMessage.message_type === 'gift' && latestMessage.user.id !== currentUser?.id) {
-        const animationId = Date.now().toString() + Math.random().toString();
-        const newGiftAnimation = {
-          id: animationId,
-          gift: {
-            id: latestMessage.gift?.id || 0,
-            name: latestMessage.gift_name || 'Gift',
-            icon_url: latestMessage.gift_icon && (latestMessage.gift_icon.startsWith('/') || latestMessage.gift_icon.includes('gifts/'))
-              ? `${baseURL}/media/${latestMessage.gift_icon.startsWith('/') ? latestMessage.gift_icon.substring(1) : latestMessage.gift_icon}`
-              : null,
-            icon: latestMessage.gift_icon || '🎁',
-            cost: latestMessage.gift?.cost || 0
-          },
-          sender: {
-            username: latestMessage.user.username || 'User',
-            full_name: latestMessage.user.full_name || latestMessage.user.username || 'User',
-            profile_picture_url: latestMessage.user.profile_picture_url || latestMessage.user.avatar_url
-          },
-          animationKey: animationId,
-        };
-        
-        setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
-      }
-    }
-  }, [messages, currentUser?.id]);
-
+  // Initialize stream viewer
   const initializeStreamViewer = async () => {
     if (!currentUser?.id || !streamDetails) {
       console.log('❌ Missing requirements:', { currentUser: !!currentUser?.id, streamDetails: !!streamDetails });
       return;
     }
 
-    // Prevent multiple simultaneous operations
     if (isOperationInProgress) {
       console.log('🔒 Operation already in progress, skipping...');
       return;
     }
 
-    // Rate limiting check
+    // Rate limiting
     const now = Date.now();
     const timeSinceLastAttempt = now - lastJoinAttempt;
     
-    // If we've hit max attempts, enforce longer backoff
     if (joinAttemptCount >= MAX_JOIN_ATTEMPTS && timeSinceLastAttempt < BACKOFF_INTERVAL) {
       const remainingTime = Math.ceil((BACKOFF_INTERVAL - timeSinceLastAttempt) / 1000);
       console.log(`🚫 Rate limited: Wait ${remainingTime}s before next attempt`);
@@ -346,7 +265,6 @@ export default function StreamViewerScreen() {
       return;
     }
     
-    // If within normal interval, enforce minimum delay
     if (timeSinceLastAttempt < MIN_JOIN_INTERVAL) {
       const remainingTime = Math.ceil((MIN_JOIN_INTERVAL - timeSinceLastAttempt) / 1000);
       console.log(`⏳ Too soon: Wait ${remainingTime}s before next attempt`);
@@ -354,20 +272,18 @@ export default function StreamViewerScreen() {
       return;
     }
     
-    // Reset attempt count if enough time has passed
     if (timeSinceLastAttempt > BACKOFF_INTERVAL) {
       setJoinAttemptCount(0);
     }
     
     setLastJoinAttempt(now);
     setJoinAttemptCount(prev => prev + 1);
-    setIsOperationInProgress(true); // Lock operation
+    setIsOperationInProgress(true);
 
     try {
       setIsConnecting(true);
       console.log(`🔄 Starting stream viewer initialization for stream: ${streamId} (attempt ${joinAttemptCount + 1})`);
 
-      // Create GetStream client for viewer
       const streamUser = createStreamUser(currentUser);
       console.log('👤 Created stream user:', streamUser);
       
@@ -382,15 +298,12 @@ export default function StreamViewerScreen() {
       console.log('✅ Stream client created successfully');
       setStreamClient(client);
 
-      // Join the call as viewer - using consistent call ID pattern
       const callId = `stream_${streamId}`;
       console.log('📞 Attempting to join call with ID:', callId);
       const streamCall = client.call('default', callId);
       
       console.log('⏳ Joining GetStream call as viewer...');
-      // Optimized join strategy for development account
       try {
-        // Try joining without create first (faster if call exists)
         await streamCall.join({ create: false });
         console.log('✅ Successfully joined existing GetStream call as viewer');
       } catch (error) {
@@ -400,31 +313,37 @@ export default function StreamViewerScreen() {
       }
       setCall(streamCall);
 
-      // Optimized wait time for development account - reduced delay
       console.log('⏳ Waiting for call state to stabilize...');
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced from 3000ms for faster join
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Log call state before proceeding
       console.log('📊 Call state after stabilization:', {
         participants: streamCall.state.participants?.length || 0,
         isConnected: streamCall.state.callingState,
         localParticipant: streamCall.state.localParticipant?.userId
       });
 
-      // Join the stream in the backend
-      console.log('📡 Joining stream in backend...');
-      await joinStream({
-        streamId,
-        data: { participant_type: 'viewer' }
-      }).unwrap();
-      console.log('✅ Successfully joined backend stream');
+      // Only join backend if stream is actually live (required for live streams)
+      if (streamDetails.status === 'live' && streamDetails.is_live) {
+        console.log('📡 Joining live stream in backend...');
+        await joinStream({
+          streamId,
+          data: { participant_type: 'viewer' }
+        }).unwrap();
+        console.log('✅ Successfully joined backend live stream');
+      } else {
+        console.log('ℹ️ Skipping backend join - stream is not live', { 
+          status: streamDetails.status, 
+          is_live: streamDetails.is_live,
+          mode: streamDetails.mode 
+        });
+        // For non-live streams (like single/recorded content), we just connect to GetStream
+      }
 
       setHasJoined(true);
       setIsConnecting(false);
-      setJoinAttemptCount(0); // Reset on success
-      setVideoLoadError(null); // Clear any previous errors
+      setJoinAttemptCount(0);
+      setVideoLoadError(null);
       
-      // Clear initialization timeout on success
       if (initializationTimeoutRef.current) {
         console.log('🕐 Clearing initialization timeout - user successfully joined');
         clearTimeout(initializationTimeoutRef.current);
@@ -436,13 +355,12 @@ export default function StreamViewerScreen() {
       console.error('❌ Stream viewer initialization error:', error);
       setIsConnecting(false);
       
-      // Clear initialization timeout on error
       if (initializationTimeoutRef.current) {
         clearTimeout(initializationTimeoutRef.current);
         initializationTimeoutRef.current = null;
       }
       
-      // Handle "already in stream" errors with force cleanup
+      // Handle various error cases
       if (error?.data?.error === 'You are already in this stream') {
         console.log('🧹 Attempting force cleanup due to "already in stream" error');
         const cleanupSuccess = await forceCleanupParticipation();
@@ -469,7 +387,6 @@ export default function StreamViewerScreen() {
         return;
       }
       
-      // Handle tier level restrictions specifically
       if (error?.status === 403 || error?.data?.error?.includes('tier level')) {
         Alert.alert(
           'Stream Access Restricted',
@@ -483,17 +400,35 @@ export default function StreamViewerScreen() {
           ]
         );
       } else if (error?.status === 400 && error?.data?.error === 'Stream is not live') {
-        // Handle ended stream specifically - force cache refresh
-        console.log('🔄 Stream ended - refreshing cache and going back...');
-        dispatch(streamsApi.util.invalidateTags(['Stream', 'StreamMessage']));
-        dispatch(streamsApi.util.resetApiState());
-        Alert.alert(
-          'Stream Ended',
-          'This stream has ended and is no longer available.',
-          [
-            { text: 'OK', onPress: () => router.back() }
-          ]
-        );
+        console.log('ℹ️ Stream is not live - checking if this is acceptable for single streams...');
+        
+        // For single streams that are ended or recorded, this might be OK
+        if (streamDetails?.mode === 'single') {
+          console.log('📼 Single stream not live - continuing as view-only mode');
+          // Continue without backend join - just viewing content
+          setHasJoined(true); // Set as joined for UI purposes
+          setIsConnecting(false);
+          setJoinAttemptCount(0);
+          setVideoLoadError(null);
+          
+          if (initializationTimeoutRef.current) {
+            clearTimeout(initializationTimeoutRef.current);
+            initializationTimeoutRef.current = null;
+          }
+          return;
+        } else {
+          // For multi streams, not being live is an error
+          console.log('🔄 Multi stream ended - refreshing cache and going back...');
+          dispatch(streamsApi.util.invalidateTags(['Stream', 'StreamMessage']));
+          dispatch(streamsApi.util.resetApiState());
+          Alert.alert(
+            'Stream Ended',
+            'This stream has ended and is no longer available.',
+            [
+              { text: 'OK', onPress: () => router.back() }
+            ]
+          );
+        }
       } else {
         const errorMessage = error?.message || error?.data?.error || 'Failed to join the stream';
         Alert.alert(
@@ -506,30 +441,29 @@ export default function StreamViewerScreen() {
         );
       }
     } finally {
-      setIsOperationInProgress(false); // Always unlock operation
+      setIsOperationInProgress(false);
     }
   };
 
+  // Handle leave stream
   const handleLeaveStream = async () => {
-    // Prevent multiple simultaneous leave operations
     if (isOperationInProgress) {
       console.log('🔒 Leave operation already in progress, skipping...');
       return;
     }
 
-    setIsOperationInProgress(true); // Lock operation
+    setIsOperationInProgress(true);
 
     try {
       console.log('🚪 Leaving stream...', { hasJoined, streamId, callExists: !!call });
       
-      // Only call backend if we've actually joined and have a streamId
-      if (hasJoined && streamId) {
+      // Only leave backend if we actually joined it (for live streams)
+      if (hasJoined && streamId && streamDetails?.status === 'live' && streamDetails?.is_live) {
         console.log('📤 Calling backend leave stream API');
         try {
           await leaveStream(streamId).unwrap();
           console.log('✅ Successfully left stream on backend');
           
-          // Invalidate stream cache when viewer leaves to refresh popular streams list
           console.log('🔄 Invalidating stream cache after viewer left...');
           dispatch(streamsApi.util.invalidateTags(['Stream', 'StreamMessage']));
           console.log('✅ Stream cache invalidated');
@@ -537,24 +471,24 @@ export default function StreamViewerScreen() {
         } catch (backendError: any) {
           console.log('⚠️ Backend leave error:', backendError);
           
-          // Handle "not in stream" error gracefully
           if (backendError?.data?.error === 'You are not in this stream' || 
               backendError?.status === 400 && backendError?.data?.error?.includes('not in this stream')) {
             console.log('ℹ️ Backend says user not in stream - state was already clean');
           } else {
-            // Re-throw unexpected errors
             throw backendError;
           }
         }
       } else {
-        console.log('ℹ️ Skipping backend leave call - hasJoined:', hasJoined, 'streamId:', !!streamId);
+        console.log('ℹ️ Skipping backend leave call', { 
+          hasJoined, 
+          streamId: !!streamId, 
+          isLive: streamDetails?.status === 'live' && streamDetails?.is_live 
+        });
       }
       
-      // Leave GetStream call if it exists
       if (call) {
         console.log('📤 Leaving GetStream call');
         try {
-          // Disable any active media streams before leaving (just in case)
           console.log('🎤 Disabling any active media streams...');
           await Promise.all([
             call.microphone.disable().catch((error: any) => {
@@ -565,10 +499,8 @@ export default function StreamViewerScreen() {
             })
           ]);
           
-          // Small delay to ensure media streams are closed
           await new Promise(resolve => setTimeout(resolve, 300));
           
-          // Now leave the call
           await call.leave();
           console.log('✅ Successfully left GetStream call');
         } catch (callError: any) {
@@ -576,71 +508,93 @@ export default function StreamViewerScreen() {
         }
       }
       
-      // Reset state
       setHasJoined(false);
       console.log('✅ Stream leave complete');
     } catch (error: any) {
       console.error('❌ Leave stream error:', error);
       
-      // Handle "not in stream" error gracefully - this is expected if user wasn't actually in stream
       if (error?.data?.error === 'You are not in this stream' || 
           error?.status === 400 && error?.data?.error?.includes('not in this stream')) {
         console.log('ℹ️ User was not in stream on backend - continuing with cleanup');
-        // This is fine, just means backend and frontend were out of sync
       } else {
-        // Only show error alerts for unexpected errors
         console.warn('⚠️ Unexpected leave stream error:', error);
       }
       
-      // Still reset state even if API calls fail - this ensures UI cleanup happens
       setHasJoined(false);
     } finally {
-      setIsOperationInProgress(false); // Always unlock operation
+      setIsOperationInProgress(false);
     }
   };
 
-  const handleConfirmedLeave = async () => {
-    console.log('🚪 Confirmed leave - leaving stream...');
-    try {
-      await handleLeaveStream();
-      console.log('✅ Leave stream completed, navigating back...');
-      router.back();
-    } catch (error) {
-      console.error('❌ Error during confirmed leave:', error);
-      // Still navigate back even if leave fails
-      router.back();
-    }
-  };
-
-  const handleSendComment = async () => {
-    if (!comment.trim() || !hasJoined) {
-      return;
-    }
-
-    try {
-      await sendMessage({
-        streamId,
-        data: { message: comment.trim() }
-      }).unwrap();
+  // Initialize stream when ready
+  useEffect(() => {
+    if (streamDetails && currentUser?.id && !hasJoined && !isOperationInProgress) {
+      if (initializationTimeoutRef.current) {
+        clearTimeout(initializationTimeoutRef.current);
+      }
       
-      setComment('');
-      refetchMessages();
+      const timeout = setTimeout(() => {
+        console.log('⏰ Initialization timeout reached');
+        setVideoLoadError('Connection timeout. Please try again.');
+        setIsConnecting(false);
+      }, 10000);
       
-      setTimeout(() => {
-        chatFlatListRef.current?.scrollToEnd({ animated: true });
-      }, 200);
-    } catch (error: any) {
-      console.error('Send comment error:', error);
-      Alert.alert('Error', 'Failed to send comment');
+      initializationTimeoutRef.current = timeout;
+      initializeStreamViewer();
+    } else if (streamError) {
+      console.log('❌ Stream query error:', streamError);
+      setIsConnecting(false);
+      if (initializationTimeoutRef.current) {
+        clearTimeout(initializationTimeoutRef.current);
+        initializationTimeoutRef.current = null;
+      }
+    } else if (!streamLoading && !streamDetails && !streamError) {
+      console.log('❌ Stream not found after loading completed');
+      setIsConnecting(false);
+      if (initializationTimeoutRef.current) {
+        clearTimeout(initializationTimeoutRef.current);
+        initializationTimeoutRef.current = null;
+      }
     }
-  };
+    
+    return () => {
+      if (initializationTimeoutRef.current) {
+        clearTimeout(initializationTimeoutRef.current);
+      }
+      if (hasJoined && !isOperationInProgress) {
+        handleLeaveStream();
+      }
+    };
+  }, [streamDetails, currentUser?.id, streamError, streamLoading]);
 
+  // Navigation cleanup
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('📺 Stream viewer screen focused, hasJoined:', hasJoined, 'operationInProgress:', isOperationInProgress);
+      
+      return () => {
+        if (hasJoined && !isOperationInProgress) {
+          console.log('📺 Stream viewer screen losing focus - leaving stream');
+          handleLeaveStream();
+        } else {
+          console.log('📺 Stream viewer screen losing focus - no action needed', { hasJoined, isOperationInProgress });
+        }
+      };
+    }, [hasJoined, isOperationInProgress])
+  );
+
+  // Modal transition handler
+  useEffect(() => {
+    if (shouldOpenGiftModalAfterPurchase && !coinPurchaseModalVisible) {
+      console.log('Opening gift modal after purchase completion');
+      setGiftModalVisible(true);
+      setShouldOpenGiftModalAfterPurchase(false);
+    }
+  }, [shouldOpenGiftModalAfterPurchase, coinPurchaseModalVisible]);
+
+  // Gift and purchase handlers
   const handleGiftPress = () => {
     console.log('🎁 Gift modal opening...', { giftsCount: safeGifts.length, walletBalance: walletSummary?.coins || 0 });
-    
-    // Dismiss keyboard when gift modal opens
-    Keyboard.dismiss();
-    
     setGiftModalVisible(true);
     refetchGifts();
   };
@@ -648,15 +602,7 @@ export default function StreamViewerScreen() {
   const handleSendGift = async (gift: any) => {
     console.log('🎁 Gift sending initiated:', { giftId: gift.id, giftName: gift.name, giftCost: gift.cost, streamId });
     
-    if (!streamId) {
-      console.error('❌ No streamId available for gift sending');
-      Alert.alert('Error', 'Stream not found');
-      return;
-    }
-
-    if (sendingGift) {
-      return;
-    }
+    if (!streamId || sendingGift) return;
 
     const currentBalance = walletSummary?.coins || 0;
     const giftCost = gift.cost || 0;
@@ -691,7 +637,6 @@ export default function StreamViewerScreen() {
       
       console.log('✅ Gift sent successfully:', result);
       
-      // 🎁 Trigger TikTok-style gift animation for all participants to see
       const animationId = Date.now().toString() + Math.random().toString();
       const newGiftAnimation = {
         id: animationId,
@@ -703,7 +648,7 @@ export default function StreamViewerScreen() {
             : currentUser?.username || 'User',
           profile_picture_url: currentUser?.profile_picture_url || currentUser?.profile_picture
         },
-        animationKey: animationId, // Unique key to trigger animation
+        animationKey: animationId,
       };
       
       setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
@@ -728,45 +673,6 @@ export default function StreamViewerScreen() {
 
   const handleGiftAnimationComplete = (animationId: string) => {
     setActiveGiftAnimations(prev => prev.filter(animation => animation.id !== animationId));
-  };
-
-  const handleFollowPress = async () => {
-    if (!streamDetails?.host?.id || followLoading) {
-      return;
-    }
-
-    const hostId = streamDetails.host.id;
-    const hostDisplayName = streamDetails.host.first_name && streamDetails.host.last_name 
-      ? `${streamDetails.host.first_name} ${streamDetails.host.last_name}`
-      : streamDetails.host.username || 'this user';
-
-    // Prevent users from following themselves
-    if (hostId === currentUser?.id) {
-      Alert.alert('Error', 'You cannot follow yourself');
-      return;
-    }
-
-    setFollowLoading(true);
-    
-    try {
-      if (isFollowingHost) {
-        // Unfollow the user
-        const result = await unfollowUser({ user_id: hostId }).unwrap();
-        setIsFollowingHost(false);
-        console.log('✅ Successfully unfollowed:', hostDisplayName);
-      } else {
-        // Follow the user
-        const result = await followUser({ user_id: hostId }).unwrap();
-        setIsFollowingHost(true);
-        console.log('✅ Successfully followed:', hostDisplayName);
-      }
-    } catch (error: any) {
-      console.error('Follow/unfollow error:', error);
-      const errorMessage = error.data?.error || error.message || 'Failed to update follow status';
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setFollowLoading(false);
-    }
   };
 
   const handlePurchaseCoins = async (coinPackage: any) => {
@@ -812,9 +718,22 @@ export default function StreamViewerScreen() {
     );
   };
 
+  const handleConfirmedLeave = async () => {
+    console.log('🚪 Confirmed leave - leaving stream...');
+    try {
+      await handleLeaveStream();
+      console.log('✅ Leave stream completed, navigating back...');
+      router.back();
+    } catch (error) {
+      console.error('❌ Error during confirmed leave:', error);
+      router.back();
+    }
+  };
+
+  // Stream content component
   const StreamContent = () => {
     const { useParticipants } = useCallStateHooks();
-    const participants = useParticipants();
+    const participants = useParticipants() || [];
     
     console.log('📺 Stream participants detailed:', participants.map((p: any) => ({
       userId: p.userId,
@@ -829,10 +748,10 @@ export default function StreamViewerScreen() {
       connectionQuality: p.connectionQuality
     })));
     
-    // Find all non-local participants (potential hosts)
-    const remoteParticipants = participants.filter((p: any) => !p.isLocalParticipant);
+    const remoteParticipants = Array.isArray(participants) 
+      ? participants.filter((p: any) => !p.isLocalParticipant)
+      : [];
     
-    // More robust participant selection with detailed logging
     console.log('🔍 Searching for host participant...', {
       totalParticipants: participants.length,
       remoteParticipants: remoteParticipants.length,
@@ -844,16 +763,14 @@ export default function StreamViewerScreen() {
       }))
     });
     
-    // Try multiple strategies to find the host
     let hostParticipant = null;
     
-    // Strategy 1: Remote participant with video stream
+    // Multiple strategies to find host
     hostParticipant = remoteParticipants.find((p: any) => p.videoStream);
     if (hostParticipant) {
       console.log('✅ Found host via Strategy 1 (video stream):', hostParticipant.userId);
     }
     
-    // Strategy 2: Remote participant with any published tracks
     if (!hostParticipant) {
       hostParticipant = remoteParticipants.find((p: any) => p.publishedTracks && p.publishedTracks.length > 0);
       if (hostParticipant) {
@@ -861,7 +778,6 @@ export default function StreamViewerScreen() {
       }
     }
     
-    // Strategy 3: Remote participant with audio stream
     if (!hostParticipant) {
       hostParticipant = remoteParticipants.find((p: any) => p.audioStream);
       if (hostParticipant) {
@@ -869,7 +785,6 @@ export default function StreamViewerScreen() {
       }
     }
     
-    // Strategy 4: Any remote participant
     if (!hostParticipant) {
       hostParticipant = remoteParticipants[0];
       if (hostParticipant) {
@@ -898,7 +813,6 @@ export default function StreamViewerScreen() {
             Total: {participants.length} | Remote: {remoteParticipants.length}
           </Text>
           
-          {/* Enhanced debug participant list */}
           <View className="mt-4 bg-gray-800 p-3 rounded max-w-sm">
             <Text className="text-white text-xs font-bold mb-2">🔍 Debug - All Participants:</Text>
             {participants.length === 0 ? (
@@ -923,15 +837,13 @@ export default function StreamViewerScreen() {
 
     return (
       <View className="flex-1 bg-black">
-        {/* Main video renderer - always render but handle no video gracefully */}
         <View className="flex-1">
           <VideoRenderer 
             participant={hostParticipant}
             objectFit="cover"
-            key={`video-${hostParticipant.sessionId || hostParticipant.userId}`} // Force re-render when participant changes
+            key={`video-${hostParticipant.sessionId || hostParticipant.userId}`}
           />
           
-          {/* Overlay when no video stream is available */}
           {!hostParticipant.videoStream && (
             <View className="absolute inset-0 items-center justify-center bg-gray-900/95">
               <View className="items-center p-6">
@@ -956,56 +868,11 @@ export default function StreamViewerScreen() {
             </View>
           )}
         </View>
-        
-        {/* Enhanced debug info overlay
-        <View className="absolute top-4 left-4 bg-black/90 rounded-lg p-3 max-w-xs">
-          <Text className="text-white text-xs font-bold mb-1">
-            🔗 Host: {hostParticipant.userId}
-          </Text>
-          <Text className="text-white text-xs">
-            📹 Video: {hostParticipant.videoStream ? '✅ Active' : '❌ No stream'}
-          </Text>
-          <Text className="text-white text-xs">
-            🎙️ Audio: {hostParticipant.audioStream ? '✅ Active' : '❌ No stream'}
-          </Text>
-          <Text className="text-white text-xs">
-            📊 Tracks: {hostParticipant.publishedTracks?.length || 0} published
-          </Text>
-          <Text className="text-white text-xs">
-            🆔 Session: {hostParticipant.sessionId?.slice(-6) || 'N/A'}
-          </Text>
-          <Text className="text-white text-xs">
-            🌐 Quality: {hostParticipant.connectionQuality || 'Unknown'}
-          </Text>
-        </View> */}
-
-        {/* Connection status indicator */}
-        {/* <View className="absolute top-4 right-4 bg-red-600 rounded-full px-3 py-1">
-          <Text className="text-white text-xs font-bold">🔴 LIVE</Text>
-        </View> */}
-        
-        {/* Media stream indicators */}
-        {/* <View className="absolute bottom-4 left-4 flex-row space-x-2">
-          {hostParticipant.videoStream && (
-            <View className="bg-green-600/90 rounded-full px-3 py-1">
-              <Text className="text-white text-xs font-bold">📹 VIDEO</Text>
-            </View>
-          )}
-          {hostParticipant.audioStream && (
-            <View className="bg-blue-600/90 rounded-full px-3 py-1">
-              <Text className="text-white text-xs font-bold">🎙️ AUDIO</Text>
-            </View>
-          )}
-          {!hostParticipant.videoStream && !hostParticipant.audioStream && (
-            <View className="bg-orange-600/90 rounded-full px-3 py-1">
-              <Text className="text-white text-xs font-bold">⏳ WAITING</Text>
-            </View>
-          )}
-        </View> */}
       </View>
     );
   };
 
+  // Render main content
   const renderStreamContent = () => {
     if (streamLoading) {
       return (
@@ -1026,7 +893,6 @@ export default function StreamViewerScreen() {
           <View className="flex-row space-x-3">
             <TouchableOpacity 
               onPress={() => {
-                // Force cache invalidation and retry
                 dispatch(streamsApi.util.invalidateTags(['Stream']));
                 setIsConnecting(true);
               }} 
@@ -1065,7 +931,6 @@ export default function StreamViewerScreen() {
               onPress={() => {
                 setVideoLoadError(null);
                 setIsConnecting(true);
-                // Try to initialize again
                 if (streamDetails && currentUser?.id) {
                   initializeStreamViewer();
                 }
@@ -1089,7 +954,6 @@ export default function StreamViewerScreen() {
           <Text className="text-white text-lg mt-4">Joining {hostUsername}'s stream...</Text>
           <Text className="text-gray-400 text-sm mt-2">Connecting to GetStream...</Text>
           
-          {/* Debug info */}
           <View className="mt-4 bg-gray-800 p-2 rounded">
             <Text className="text-white text-xs">Debug:</Text>
             <Text className="text-white text-xs">hasJoined: {hasJoined ? 'true' : 'false'}</Text>
@@ -1138,7 +1002,7 @@ export default function StreamViewerScreen() {
         {renderStreamContent()}
       </View>
 
-      {/* Stream Info Overlay - Match single.tsx header design */}
+      {/* Header using modular component - but keeping original complex UI exactly */}
       {hasJoined && (
         <View className="absolute top-16 left-4 right-4 flex-row items-center justify-between" style={{ zIndex: 10 }}>
           {/* Profile Section - Show host's profile */}
@@ -1177,15 +1041,15 @@ export default function StreamViewerScreen() {
             {/* Follow Button - Only show if user is not the host */}
             {streamDetails?.host?.id !== currentUser?.id && (
               <TouchableOpacity 
-                onPress={handleFollowPress}
-                disabled={followLoading}
-                className={`rounded-full px-4 py-2 ml-2 ${isFollowingHost ? 'bg-gray-600' : 'bg-white'}`}
+                onPress={followSystem.toggleFollow}
+                disabled={followSystem.isLoadingFollow}
+                className={`rounded-full px-4 py-2 ml-2 ${followSystem.isFollowing ? 'bg-gray-600' : 'bg-white'}`}
               >
-                {followLoading ? (
-                  <ActivityIndicator size="small" color={isFollowingHost ? "#ffffff" : "#000000"} />
+                {followSystem.isLoadingFollow ? (
+                  <ActivityIndicator size="small" color={followSystem.isFollowing ? "#ffffff" : "#000000"} />
                 ) : (
-                  <Text className={`font-semibold text-sm ${isFollowingHost ? 'text-white' : 'text-black'}`}>
-                    {isFollowingHost ? 'Following' : 'Follow'}
+                  <Text className={`font-semibold text-sm ${followSystem.isFollowing ? 'text-white' : 'text-black'}`}>
+                    {followSystem.isFollowing ? 'Following' : 'Follow'}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -1201,20 +1065,20 @@ export default function StreamViewerScreen() {
           <TouchableOpacity 
             onPress={() => setLeaveConfirmationVisible(true)}
             className="w-10 h-10 rounded-full items-center justify-center"
-            disabled={isOperationInProgress} // Prevent multiple clicks
+            disabled={isOperationInProgress}
           >
             <CancelIcon width={25} height={25} />
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Live Chat Overlay */}
-      {hasJoined && messages.length > 0 && (
+      {/* Chat Overlay using modular component but with custom styling to match original */}
+      {hasJoined && transformedMessages.length > 0 && (
         <View 
           className="absolute left-4 right-20" 
           style={{ 
             zIndex: 5,
-            bottom: isKeyboardVisible ? keyboardHeight + 80 : 100,
+            bottom: chat.isKeyboardVisible ? chat.keyboardHeight + 80 : 100,
           }}
         >
           {/* Gradient fade-out mask at top (like TikTok/Instagram Live) */}
@@ -1225,114 +1089,32 @@ export default function StreamViewerScreen() {
               top: 0,
               left: 0,
               right: 0,
-              height: 80, // Fade height
+              height: 80,
               zIndex: 10,
             }}
             pointerEvents="none"
           />
           
-          <View style={{ maxHeight: 320 }}> {/* Increased height from 200 to 320 */}
-            <FlatList
-              ref={chatFlatListRef}
-              data={messages.slice(-6)} // Show more messages with increased height
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item, index }) => {
-                // Calculate opacity based on position (fade effect like Instagram Live)
-                const fadeOpacity = index < 2 ? 0.2 + (index * 0.4) : 1;
-                
-                return (
-                  <View className="mb-2" style={{ opacity: fadeOpacity }}>
-                    <View className="flex-row items-start bg-black/60 rounded-xl px-3 py-2 self-start">
-                      {/* User Avatar */}
-                      <View className="w-8 h-8 rounded-full mr-2 flex-shrink-0 overflow-hidden">
-                        {(item.user.profile_picture_url || item.user.avatar_url) ? (
-                          <Image 
-                            source={{ uri: `${baseURL}${item.user.profile_picture_url || item.user.avatar_url}` }}
-                            className="w-full h-full rounded-full"
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <View className="w-full h-full rounded-full bg-gray-600 items-center justify-center">
-                            <Text className="text-white font-bold text-xs">
-                              {(item.user.full_name || item.user.username || 'U').charAt(0).toUpperCase()}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      
-                      {/* Message */}
-                      <View className="flex-shrink-1">
-                        <Text className="text-gray-300 text-xs font-bold mb-1">
-                          {item.user.full_name || item.user.username}
-                        </Text>
-                        <Text className="text-white text-xs">
-                          {item.message}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                );
-              }}
-              showsVerticalScrollIndicator={false}
-              scrollEnabled={true} // Enable scrolling for better UX
-              maintainVisibleContentPosition={{
-                minIndexForVisible: 0,
-                autoscrollToTopThreshold: 10,
-              }}
-              contentContainerStyle={{ 
-                flexGrow: 1, 
-                justifyContent: 'flex-end',
-                paddingBottom: 12, // Increased padding for better visibility
-                paddingTop: 60, // Increased top padding for fade effect
-              }}
-              // Auto-scroll behavior like Instagram Live
-              onContentSizeChange={() => {
-                chatFlatListRef.current?.scrollToEnd({ animated: true });
-              }}
-            />
-          </View>
+          <StreamChatOverlay
+            messages={transformedMessages.slice(-6)}
+            isVisible={true}
+          />
         </View>
       )}
 
-      {/* Comment Input with Keyboard Avoiding */}
+      {/* Input Bar using modular component */}
       {hasJoined && (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-          style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10 }}
-        >
-          <View 
-            className="left-2 right-4 flex-row items-center mb-4" 
-            style={{ 
-              paddingHorizontal: 16,
-              paddingBottom: Platform.OS === 'ios' ? 8 : 8,
-            }}
-          >
-            <View className="flex-1 bg-black/60 rounded-full px-4 py-4 mr-3">
-              <TextInput
-                placeholder="Say something..."
-                placeholderTextColor="#999"
-                value={comment}
-                onChangeText={setComment}
-                className="text-white text-sm"
-                multiline={false}
-                maxLength={200}
-                returnKeyType="send"
-                onSubmitEditing={handleSendComment}
-              />
-            </View>
-            
-            {/* Gift Button - Match single.tsx design */}
-            <TouchableOpacity 
-              onPress={handleGiftPress}
-              className="w-12 h-12 rounded-full items-center justify-center mr-3 bg-gray-600"
-            >
-              <GiftIcon width={24} height={24} />
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
+        <StreamInputBar
+          onSendMessage={chat.sendMessage}
+          onGiftPress={handleGiftPress}
+          hasJoined={hasJoined}
+          keyboardHeight={chat.keyboardHeight}
+          isKeyboardVisible={chat.isKeyboardVisible}
+          showGiftButton={true}
+        />
       )}
 
+      {/* Keep original modals for exact UI match */}
       {/* Gift Modal */}
       <Modal
         animationType="slide"
@@ -1384,11 +1166,7 @@ export default function StreamViewerScreen() {
             <View className="px-4 py-4">
               <View className="flex-row items-center border border-[#757688] rounded-full px-3 h-11">
                 <Ionicons name="search" size={20} color="#ffffff" />
-                <TextInput
-                  placeholder="Search"
-                  placeholderTextColor="#666666"
-                  className="flex-1 text-white ml-2 text-base"
-                />
+                <Text className="flex-1 text-white ml-2 text-base">Search</Text>
               </View>
             </View>
             

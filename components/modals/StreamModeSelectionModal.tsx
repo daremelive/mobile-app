@@ -77,8 +77,9 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
 
     if (selectedMode === 'single' && selectedChannel) {
       onClose();
+      // Navigate to stream title screen for single streams (same as multi)
       router.push({
-        pathname: '/stream/single',
+        pathname: '/(stream)/stream-title',
         params: { 
           mode: selectedMode,
           channel: selectedChannel

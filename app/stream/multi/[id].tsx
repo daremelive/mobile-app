@@ -24,6 +24,8 @@ export default function MultiParticipantJoinScreen() {
   const currentUser = useSelector(selectCurrentUser);
 
   const streamId = (params.id as string) || '';
+  const isHost = params.isHost === 'true';
+  const mode = params.mode as string;
 
   const [acceptInvite] = useAcceptInviteMutation();
   const [joinStream] = useJoinStreamMutation();
@@ -79,15 +81,18 @@ export default function MultiParticipantJoinScreen() {
       setStreamClient(client);
 
       // 2) Accept invite if applicable (ignore errors if already accepted)
-      try {
-        await acceptInvite(streamId).unwrap();
-      } catch (e) {
-        // Non-blocking
+      if (!isHost) {
+        try {
+          await acceptInvite(streamId).unwrap();
+        } catch (e) {
+          // Non-blocking
+        }
       }
 
-      // 3) Join backend as guest (publishing participant)
+      // 3) Join backend as host or guest based on role
+      const participantType = isHost ? 'host' : 'guest';
       try {
-        await joinStream({ streamId, data: { participant_type: 'guest' } }).unwrap();
+        await joinStream({ streamId, data: { participant_type: participantType } }).unwrap();
       } catch (err: any) {
         if (err?.data?.error && !String(err.data.error).includes('already in')) {
           throw err;
@@ -311,10 +316,13 @@ export default function MultiParticipantJoinScreen() {
 
   const renderBody = () => {
     if (isConnecting) {
+      const connectingMessage = isHost
+        ? (mode === 'single' ? 'Starting your stream…' : 'Preparing host session…')
+        : 'Joining as participant…';
       return (
         <View className="flex-1 items-center justify-center bg-black">
           <ActivityIndicator size="large" color="#C42720" />
-          <Text className="text-white text-lg mt-4">Joining as participant…</Text>
+          <Text className="text-white text-lg mt-4">{connectingMessage}</Text>
         </View>
       );
     }

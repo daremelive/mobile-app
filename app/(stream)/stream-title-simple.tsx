@@ -79,7 +79,7 @@ export default function StreamTitleScreen() {
     ]).start(() => {
       // Navigate to multi.tsx with stream parameters
       router.push({
-        pathname: '/stream/multi',
+        pathname: '/stream/host-multi',
         params: {
           mode: streamMode,
           channel: streamChannel,
