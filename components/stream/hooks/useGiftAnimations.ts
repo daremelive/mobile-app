@@ -27,23 +27,48 @@ interface UseGiftAnimationsProps {
 export const useGiftAnimations = ({ messages, baseURL }: UseGiftAnimationsProps) => {
   const currentUser = useSelector(selectCurrentUser);
   const [activeGiftAnimations, setActiveGiftAnimations] = useState<GiftAnimationData[]>([]);
+  const [processedMessageIds, setProcessedMessageIds] = useState<Set<string>>(new Set());
 
   // Watch for new gift messages and trigger animations
   useEffect(() => {
     if (messages.length > 0) {
       const latestMessage = messages[messages.length - 1] as any;
       
-      // Show gift animations for all gift messages
-      if (latestMessage.message_type === 'gift') {
+      // Only process gift messages that haven't been processed yet
+      if (latestMessage.message_type === 'gift' && !processedMessageIds.has(latestMessage.id)) {
+        console.log('🎁 New gift message detected:', {
+          id: latestMessage.id,
+          gift: latestMessage.gift,
+          gift_name: latestMessage.gift_name,
+          gift_icon: latestMessage.gift_icon,
+          baseURL: baseURL
+        });
+        
+        // Mark this message as processed
+        setProcessedMessageIds(prev => new Set([...prev, latestMessage.id]));
+        
         const animationId = Date.now().toString() + Math.random().toString();
+        
+        // Construct proper icon URL
+        let iconUrl = null;
+        if (latestMessage.gift?.icon_url) {
+          // Use the full icon_url from gift object if available
+          iconUrl = latestMessage.gift.icon_url;
+        } else if (latestMessage.gift_icon) {
+          // Fallback to constructing URL from gift_icon path - use web URL not API URL
+          const cleanPath = latestMessage.gift_icon.startsWith('/') ? latestMessage.gift_icon.substring(1) : latestMessage.gift_icon;
+          const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
+          iconUrl = `${webURL}/media/${cleanPath}`;
+        }
+        
+        console.log('🖼️ Constructed icon URL:', iconUrl);
+        
         const newGiftAnimation: GiftAnimationData = {
           id: animationId,
           gift: {
             id: latestMessage.gift?.id || 0,
             name: latestMessage.gift_name || 'Gift',
-            icon_url: latestMessage.gift_icon && (latestMessage.gift_icon.startsWith('/') || latestMessage.gift_icon.includes('gifts/'))
-              ? `${baseURL}/media/${latestMessage.gift_icon.startsWith('/') ? latestMessage.gift_icon.substring(1) : latestMessage.gift_icon}`
-              : null,
+            icon_url: iconUrl,
             icon: latestMessage.gift_icon || '🎁',
             cost: latestMessage.gift?.cost || 0
           },
@@ -55,10 +80,11 @@ export const useGiftAnimations = ({ messages, baseURL }: UseGiftAnimationsProps)
           animationKey: animationId,
         };
         
+        console.log('🎬 Creating gift animation:', newGiftAnimation);
         setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
       }
     }
-  }, [messages.length, baseURL]);
+  }, [messages.length, baseURL, processedMessageIds]);
 
   // Handle animation completion
   const handleGiftAnimationComplete = useCallback((animationId: string) => {

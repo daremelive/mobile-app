@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableOpacity } from 'react-native';
+import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableOpacity, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../../src/store/authSlice';
-import { StreamHeader, StreamChatOverlay, MultiParticipantInputBar, useStreamState, useStreamChat, useGiftAnimations, useEndStream, EndStreamModal } from '../../components/stream';
+import { StreamHeader, StreamChatOverlay, StreamInputBar, MultiParticipantInputBar, StreamControls, useStreamState, useStreamChat, useGiftAnimations, useEndStream, EndStreamModal, MembersListModal } from '../../components/stream';
 import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer } from '@stream-io/video-react-native-sdk';
 import ipDetector from '../../src/utils/ipDetector';
 import { useGetProfileQuery } from '../../src/store/authApi';
@@ -11,7 +11,7 @@ import { useCreateStreamMutation } from '../../src/store/streamsApi';
 import AddTeamIcon from '../../assets/icons/add-team.svg';
 import GiftAnimation from '../../components/animations/GiftAnimation';
 
-export default function HostMultiStreamScreen() {
+export default function UnifiedHostStreamScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const currentUser = useSelector(selectCurrentUser) as any;
@@ -22,6 +22,12 @@ export default function HostMultiStreamScreen() {
   const maxSeats = parseInt((params.maxSeats as string) || '6');
   const fromTitleScreen = params.fromTitleScreen === 'true';
   
+  // Determine mode from params or existing streamId
+  const modeFromParams = (params.mode as string) || '';
+  const [streamMode, setStreamMode] = useState<'single' | 'multi'>(
+    modeFromParams === 'multi' ? 'multi' : 'single'
+  );
+  
   const [streamId, setStreamId] = useState(streamIdFromParams);
   const [title, setTitle] = useState(titleFromParams);
   const [isCreatingStream, setIsCreatingStream] = useState(false);
@@ -30,8 +36,8 @@ export default function HostMultiStreamScreen() {
   const userData = freshUserData || currentUser;
 
   const [createStream] = useCreateStreamMutation();
-
   const [profilePictureUrl, setProfilePictureUrl] = useState<string>('');
+  const [membersModalVisible, setMembersModalVisible] = useState(false);
 
   const { state, actions, streamDetails, messages: streamMessages } = useStreamState({ 
     streamId: streamId, 
@@ -43,6 +49,7 @@ export default function HostMultiStreamScreen() {
     userId: userData?.id?.toString(),
     username: userData?.username,
     isHost: true,
+    profilePicture: profilePictureUrl,
   });
 
   const giftAnimations = useGiftAnimations({
@@ -56,10 +63,19 @@ export default function HostMultiStreamScreen() {
       if (state.call) {
         state.call.leave().catch(console.error);
       }
+      actions.handleLeaveStream();
     },
   });
 
   const messages = streamMessages || [];
+
+  // Auto-detect mode from existing stream details if not set
+  useEffect(() => {
+    if (streamDetails && !modeFromParams) {
+      const detectedMode = streamDetails.mode || (streamDetails.max_seats && streamDetails.max_seats > 1 ? 'multi' : 'single');
+      setStreamMode(detectedMode);
+    }
+  }, [streamDetails, modeFromParams]);
 
   useEffect(() => {
     const createStreamFromTitleScreen = async () => {
@@ -68,10 +84,10 @@ export default function HostMultiStreamScreen() {
         
         try {
           const streamData = {
-            title: titleFromParams.trim() || `${userData.username || 'User'}'s Multi Live Stream`,
-            mode: 'multi' as const,
+            title: titleFromParams.trim() || `${userData.username || 'User'}'s ${streamMode === 'multi' ? 'Multi ' : ''}Live Stream`,
+            mode: streamMode,
             channel: channel as 'video' | 'game' | 'truth-or-dare' | 'banter',
-            max_seats: maxSeats,
+            max_seats: streamMode === 'multi' ? maxSeats : 1,
           };
 
           const newStream = await createStream(streamData).unwrap();
@@ -95,7 +111,7 @@ export default function HostMultiStreamScreen() {
     };
 
     createStreamFromTitleScreen();
-  }, [fromTitleScreen, streamId, userData?.id, isCreatingStream, titleFromParams, channel, maxSeats, createStream, router]);
+  }, [fromTitleScreen, streamId, userData?.id, isCreatingStream, titleFromParams, channel, maxSeats, streamMode, createStream, router]);
 
   const handleShare = async () => {
     try {
@@ -103,10 +119,13 @@ export default function HostMultiStreamScreen() {
       const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
       const shareUrl = `${webURL}/stream/${streamId}?utm_source=mobile_share&utm_medium=social&host=${userData?.username}`;
       
+      const modeText = streamMode === 'multi' ? 'multi-live stream' : 'live stream';
+      const channelText = streamMode === 'multi' ? `\n\nChannel: ${channel}` : '';
+      
       await Share.share({
-        message: `Join my multi-live stream on DareMe! 🔴\n\n"${title || 'Multi Live Stream'}"\n\nChannel: ${channel}\n\n${shareUrl}`,
+        message: `Join my ${modeText} on DareMe! 🔴\n\n"${title || `${streamMode === 'multi' ? 'Multi ' : ''}Live Stream`}"${channelText}\n\n${shareUrl}`,
         url: shareUrl,
-        title: `${userData?.first_name || userData?.username}'s Multi Live Stream`
+        title: `${userData?.first_name || userData?.username}'s ${streamMode === 'multi' ? 'Multi ' : ''}Live Stream`
       });
     } catch (error) {
       Alert.alert('Error', 'Failed to share stream');
@@ -152,21 +171,29 @@ export default function HostMultiStreamScreen() {
   };
 
   const handleAddParticipant = () => {
-    Alert.alert(
-      'Add Participant',
-      `You can invite up to ${maxSeats} participants to join your multi-live stream.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Invite Users', 
-          onPress: () => {
-            Alert.alert('Feature Coming Soon', 'Participant invitation system will be available soon!');
-          }
-        }
-      ]
+    setMembersModalVisible(true);
+  };
+
+  // Single participant video component
+  const SingleParticipantVideo = () => {
+    if (!state.call || !state.streamClient) return null;
+    const { useParticipants } = useCallStateHooks();
+    const participants = useParticipants();
+    const local = participants.find((p: any) => p.isLocalParticipant);
+    return (
+      <View className="flex-1 bg-black">
+        {local ? (
+          <VideoRenderer participant={local} objectFit="cover" />
+        ) : (
+          <View className="flex-1 items-center justify-center">
+            <Text className="text-white/60 text-sm">Initializing camera…</Text>
+          </View>
+        )}
+      </View>
     );
   };
 
+  // Multi-participant video grid component
   const MultiParticipantVideoGrid = () => {
     const { useParticipants } = useCallStateHooks();
     const participants = useParticipants();
@@ -214,10 +241,16 @@ export default function HostMultiStreamScreen() {
     );
   };
 
-  useEffect(() => {
-    if (streamId && userData?.id) {
+  // Dynamic video component based on mode
+  const VideoLayer = () => {
+    if (!state.call || !state.streamClient) return null;
+    
+    if (streamMode === 'multi') {
+      return <MultiParticipantVideoGrid />;
+    } else {
+      return <SingleParticipantVideo />;
     }
-  }, [streamId, userData?.id]);
+  };
 
   if (!userData?.id) {
     return (
@@ -232,9 +265,13 @@ export default function HostMultiStreamScreen() {
     return (
       <SafeAreaView className="flex-1 bg-black items-center justify-center">
         <ActivityIndicator size="large" color="#fff" />
-        <Text className="text-white mt-4">Creating multi-live stream...</Text>
-        <Text className="text-gray-400 mt-2">Channel: {channel.replace('-', ' ')}</Text>
-        <Text className="text-gray-400">Max Participants: {maxSeats}</Text>
+        <Text className="text-white mt-4">Creating {streamMode === 'multi' ? 'multi-' : ''}live stream...</Text>
+        {streamMode === 'multi' && (
+          <>
+            <Text className="text-gray-400 mt-2">Channel: {channel.replace('-', ' ')}</Text>
+            <Text className="text-gray-400">Max Participants: {maxSeats}</Text>
+          </>
+        )}
       </SafeAreaView>
     );
   }
@@ -254,68 +291,113 @@ export default function HostMultiStreamScreen() {
   }
 
   return (
-    <View className="flex-1 bg-black">
-      {/* Stream Video Container */}
-      {state.isConnecting || !state.hasJoined ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#fff" />
-          <Text className="text-white mt-4">Starting multi-live stream...</Text>
-        </View>
-      ) : (
-        state.streamClient && state.call && (
-          <StreamVideo client={state.streamClient}>
-            <StreamCall call={state.call}>
-              <MultiParticipantVideoGrid />
-            </StreamCall>
-          </StreamVideo>
-        )
-      )}
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View className="flex-1 bg-black">
+        {/* Stream Video Container */}
+        {state.isConnecting || !state.hasJoined ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator size="large" color="#C42720" />
+            <Text className="text-white mt-4">Starting your {streamMode === 'multi' ? 'multi-' : ''}stream…</Text>
+          </View>
+        ) : (
+          state.streamClient && state.call && (
+            <StreamVideo client={state.streamClient}>
+              <StreamCall call={state.call}>
+                <VideoLayer />
+              </StreamCall>
+            </StreamVideo>
+          )
+        )}
 
-      <StreamHeader
-        streamTitle={title || 'Multi Live Stream'}
-        hostFirstName={userData?.first_name}
-        hostLastName={userData?.last_name}
-        hostUsername={userData?.username}
-        hostProfilePicture={profilePictureUrl || undefined}
-        viewerCount={0}
-        onToggleFollow={() => {}}
-        onShare={handleShare}
-        disableFollow={true}
-        onClose={endStreamSystem.showEndStreamModal}
-      />
-
-      <StreamChatOverlay 
-        messages={messages}
-        keyboardHeight={chat.keyboardHeight}
-        isKeyboardVisible={chat.isKeyboardVisible}
-        inputBarHeight={72}
-        baseURL={state.baseURL}
-      />
-
-      <MultiParticipantInputBar
-        onSendMessage={handleSendMessage}
-        onAddParticipant={handleAddParticipant}
-        hasJoined={state.hasJoined}
-        keyboardHeight={chat.keyboardHeight}
-        isKeyboardVisible={chat.isKeyboardVisible}
-      />
-
-      {giftAnimations.activeGiftAnimations.map((animation) => (
-        <GiftAnimation
-          key={animation.id}
-          gift={animation.gift}
-          sender={animation.sender}
-          animationKey={animation.animationKey}
-          onAnimationComplete={() => giftAnimations.handleGiftAnimationComplete(animation.id)}
+        <StreamHeader
+          streamTitle={title || streamDetails?.title || `${streamMode === 'multi' ? 'Multi ' : ''}Live Stream`}
+          hostFirstName={userData?.first_name}
+          hostLastName={userData?.last_name}
+          hostUsername={userData?.username}
+          hostProfilePicture={profilePictureUrl || undefined}
+          viewerCount={streamDetails?.viewer_count || 0}
+          onToggleFollow={() => {
+            // For host view, this could be disabled or show different behavior
+          }}
+          onShare={handleShare}
+          disableFollow={true} // Disable follow button for host's own stream
+          onClose={endStreamSystem.showEndStreamModal}
         />
-      ))}
 
-      <EndStreamModal
-        visible={endStreamSystem.isEndStreamModalVisible}
-        onCancel={endStreamSystem.hideEndStreamModal}
-        onEndStream={endStreamSystem.handleEndStream}
-        isLoading={endStreamSystem.isEndingStream}
-      />
-    </View>
+        <StreamChatOverlay 
+          messages={messages}
+          keyboardHeight={chat.keyboardHeight}
+          isKeyboardVisible={chat.isKeyboardVisible}
+          inputBarHeight={72}
+          baseURL={state.baseURL}
+          hostId={userData?.id}
+        />
+
+        {/* Dynamic Input Bar based on mode */}
+        {streamMode === 'multi' ? (
+          <MultiParticipantInputBar
+            onSendMessage={handleSendMessage}
+            onAddParticipant={handleAddParticipant}
+            hasJoined={state.hasJoined}
+            keyboardHeight={chat.keyboardHeight}
+            isKeyboardVisible={chat.isKeyboardVisible}
+          />
+        ) : (
+          <StreamInputBar
+            onSendMessage={chat.sendMessage}
+            onGiftPress={() => {}}
+            hasJoined={state.hasJoined}
+            keyboardHeight={chat.keyboardHeight}
+            isKeyboardVisible={chat.isKeyboardVisible}
+            showGiftButton={false}
+          />
+        )}
+
+        {/* Stream Controls for single mode only */}
+        {streamMode === 'single' && <StreamControls isHost />}
+
+        {/* Gift Animations */}
+        {giftAnimations.activeGiftAnimations.map((animation) => (
+          <GiftAnimation
+            key={animation.id}
+            gift={animation.gift}
+            sender={animation.sender}
+            animationKey={animation.animationKey}
+            onAnimationComplete={() => giftAnimations.handleGiftAnimationComplete(animation.id)}
+          />
+        ))}
+
+        <EndStreamModal
+          visible={endStreamSystem.isEndStreamModalVisible}
+          onCancel={endStreamSystem.hideEndStreamModal}
+          onEndStream={endStreamSystem.handleEndStream}
+          isLoading={endStreamSystem.isEndingStream}
+        />
+
+        <MembersListModal
+          visible={membersModalVisible}
+          onClose={() => setMembersModalVisible(false)}
+          streamId={streamId}
+          participants={streamDetails?.participants?.map(p => ({
+            id: p.user.id,
+            username: p.user.username,
+            first_name: p.user.first_name,
+            last_name: p.user.last_name,
+            full_name: p.user.full_name,
+            followers_count: undefined, // Not available in StreamHost
+            profile_picture_url: p.user.profile_picture_url || undefined,
+            is_online: undefined, // Not available in StreamHost
+            participant_type: p.participant_type,
+            is_streaming: p.is_active
+          })) || []}
+          viewers={[]} // For now, viewers might be a separate API call
+          currentUserRole="host"
+          onRefresh={() => {
+            // Trigger refresh of stream data
+            console.log('Refreshing stream data...');
+          }}
+        />
+      </View>
+    </TouchableWithoutFeedback>
   );
 }

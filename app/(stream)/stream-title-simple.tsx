@@ -77,9 +77,9 @@ export default function StreamTitleScreen() {
         useNativeDriver: true,
       })
     ]).start(() => {
-      // Navigate to multi.tsx with stream parameters
+      // Navigate to unified host screen with stream parameters
       router.push({
-        pathname: '/stream/host-multi',
+        pathname: '/stream/host',
         params: {
           mode: streamMode,
           channel: streamChannel,

@@ -8,6 +8,10 @@ export { StreamHeader } from './StreamHeader';
 export { StreamChatOverlay } from './StreamChatOverlay';
 export { ParticipantList } from './ParticipantList';
 export { EndStreamModal } from './EndStreamModal';
+export { GiftModal } from './GiftModal';
+export { CoinPurchaseModal } from './CoinPurchaseModal';
+export { LeaveConfirmationModal } from './LeaveConfirmationModal';
+export { MembersListModal } from './MembersListModal';
 
 // Types
 export type { ChatMessage } from './StreamChatOverlay';

@@ -8,6 +8,7 @@ interface UseStreamChatProps {
   userId?: string;
   username?: string;
   isHost?: boolean;
+  profilePicture?: string;
 }
 
 interface UseStreamChatReturn {
@@ -25,6 +26,7 @@ export const useStreamChat = ({
   userId,
   username,
   isHost = false,
+  profilePicture,
 }: UseStreamChatProps): UseStreamChatReturn => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
@@ -73,6 +75,7 @@ export const useStreamChat = ({
       timestamp: new Date().toISOString(),
       isHost,
       userId,
+      profilePicture,
     };
 
     // Optimistically add message

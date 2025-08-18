@@ -58,7 +58,7 @@ export const ViewerInputBar = ({
               className="items-center mb-2"
               disabled={isLiked}
             >
-              <View className="w-10 h-10 rounded-full bg-black/70 items-center justify-center">
+              <View className="w-12 h-12 rounded-full bg-black/70 items-center justify-center">
                 <Ionicons 
                   name={isLiked ? "heart" : "heart-outline"} 
                   size={22} 
@@ -78,7 +78,7 @@ export const ViewerInputBar = ({
               onPress={onGiftPress}
               className="items-center"
             >
-              <View className="w-10 h-10 rounded-full bg-black/70 items-center justify-center">
+              <View className="w-12 h-12 rounded-full bg-black/70 items-center justify-center">
                 <GiftIcon width={20} height={20} />
               </View>
             </TouchableOpacity>

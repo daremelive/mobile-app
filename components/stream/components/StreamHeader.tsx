@@ -48,6 +48,17 @@ export const StreamHeader = ({
     (hostFirstName && hostLastName ? `${hostFirstName} ${hostLastName}` : 
      hostFirstName || hostLastName || hostUsername || 'Host');
 
+  // Debug logging for profile picture
+  if (__DEV__) {
+    console.log('🎭 StreamHeader Profile Picture Debug:', {
+      hostProfilePicture,
+      hasProfilePicture: !!hostProfilePicture,
+      profilePictureLength: hostProfilePicture?.length,
+      displayName,
+      hostUsername
+    });
+  }
+
   return (
     <View className="absolute left-0 right-0 z-10" style={{ top: 0 }}>
       <View className="px-3" style={{ paddingTop: topPad }}>
@@ -77,7 +88,7 @@ export const StreamHeader = ({
               {onToggleFollow && !disableFollow && (
                 <TouchableOpacity
                   onPress={onToggleFollow}
-                  className={`px-4 h-9 rounded-full items-center justify-center mr-2 ${isFollowing ? 'bg-white/90' : 'bg-white'}`}
+                  className={`px-6 h-12 rounded-full items-center justify-center mr-2 ${isFollowing ? 'bg-white/90' : 'bg-white'}`}
                   disabled={disableFollow}
                 >
                   <Text className={`text-xs font-semibold ${isFollowing ? 'text-black/50' : 'text-black'}`}>{isFollowing ? 'Following' : 'Follow'}</Text>
@@ -85,7 +96,7 @@ export const StreamHeader = ({
               )}
               {/* Share */}
               {onShare && (
-                <TouchableOpacity onPress={onShare} className="w-9 h-9 rounded-full bg-white items-center justify-center">
+                <TouchableOpacity onPress={onShare} className="w-12 h-12 rounded-full bg-white items-center justify-center">
                   <Ionicons 
                     name={Platform.OS === 'ios' ? 'share-outline' : 'share-social'} 
                     size={18} 
@@ -94,7 +105,12 @@ export const StreamHeader = ({
                 </TouchableOpacity>
               )}
             </View>
-            {/* Close button outside the pill */}
+            {/* Back/Close button outside the pill */}
+            {showBackButton && onBack && (
+              <TouchableOpacity onPress={onBack} className="w-12 h-12 items-center justify-center ml-2" hitSlop={{top:4,bottom:4,left:4,right:4}}>
+                <Ionicons name="arrow-back" size={26} color="white" />
+              </TouchableOpacity>
+            )}
             {showCloseButton && onClose && (
               <TouchableOpacity onPress={onClose} className="w-12 h-12 items-center justify-center ml-2" hitSlop={{top:4,bottom:4,left:4,right:4}}>
                 <Ionicons name="close" size={26} color="white" />

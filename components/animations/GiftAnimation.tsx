@@ -18,8 +18,8 @@ interface GiftAnimationProps {
   gift: {
     id: number;
     name: string;
-    icon_url?: string;
-    icon?: string;
+    icon_url?: string | null;
+    icon?: string | null;
     cost: number;
   };
   sender: {
@@ -154,9 +154,13 @@ export const GiftAnimation: React.FC<GiftAnimationProps> = ({
                 source={{ uri: gift.icon_url }}
                 style={{ width: 40, height: 40 }}
                 resizeMode="contain"
+                onLoad={() => console.log('🖼️ Gift icon loaded successfully:', gift.icon_url)}
+                onError={(error) => console.log('❌ Gift icon failed to load:', gift.icon_url, error.nativeEvent)}
               />
             ) : (
-              <Text style={{ fontSize: 32 }}>{gift.icon || '🎁'}</Text>
+              <Text style={{ fontSize: 32 }}>
+                {gift.icon || '🎁'}
+              </Text>
             )}
           </View>
         </View>
