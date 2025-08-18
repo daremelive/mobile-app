@@ -129,21 +129,10 @@ export const GiftModal = ({
                         style={{ width: 30, height: 30 }}
                         resizeMode="contain"
                         onError={(error) => {
-                          if (__DEV__) {
-                            console.log('🚨 Gift Image load ERROR:', {
-                              url: gift.icon_url,
-                              giftName: gift.name,
-                              error: error.nativeEvent?.error
-                            });
-                          }
+                          // Gift image failed to load - error handling without debug logs
                         }}
                         onLoad={() => {
-                          if (__DEV__) {
-                            console.log('✅ Gift Image loaded successfully:', {
-                              url: gift.icon_url,
-                              giftName: gift.name
-                            });
-                          }
+                          // Gift image loaded successfully
                         }}
                       />
                     </View>

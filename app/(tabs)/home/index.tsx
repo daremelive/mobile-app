@@ -361,7 +361,7 @@ export default function HomeScreen() {
     status: 'live',
     channel: selectedCategory === 'All' ? undefined : selectedCategory.toLowerCase().replace('truth/dare', 'truth-or-dare')
   }, {
-    pollingInterval: 30000, // Poll every 30 seconds to ensure live streams are current
+    pollingInterval: 0, // Disabled to prevent screen blinking
     refetchOnMountOrArgChange: true,
     refetchOnFocus: true,
     refetchOnReconnect: true,

@@ -74,7 +74,7 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
   const { data: messages = [], refetch: refetchMessages } = useGetStreamMessagesQuery(
     streamId, 
     { 
-      pollingInterval: 3000, // Poll every 3 seconds for real-time messages
+      // pollingInterval: 3000, // Disabled to prevent screen blinking
       refetchOnMountOrArgChange: true,
     }
   );

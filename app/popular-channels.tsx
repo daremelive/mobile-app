@@ -36,7 +36,7 @@ export default function PopularChannelsScreen() {
   }, []);
 
   const { data: popularStreams = [], isLoading, refetch } = useGetPopularStreamsQuery(undefined, {
-    pollingInterval: 30000, // Poll every 30 seconds to ensure live streams are current
+    pollingInterval: 0, // Disabled to prevent screen blinking
     refetchOnMountOrArgChange: true,
     refetchOnFocus: true,
     refetchOnReconnect: true,

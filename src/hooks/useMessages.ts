@@ -155,10 +155,10 @@ export const useUserStatus = (userId: number) => {
 
     fetchUserStatus();
     
-    // Poll for status updates every 30 seconds
-    const interval = setInterval(fetchUserStatus, 30000);
+    // Poll for status updates every 30 seconds - DISABLED to prevent screen blinking
+    // const interval = setInterval(fetchUserStatus, 30000);
     
-    return () => clearInterval(interval);
+    // return () => clearInterval(interval);
   }, [userId]);
 
   return { isOnline, lastSeen };

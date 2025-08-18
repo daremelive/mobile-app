@@ -37,8 +37,8 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
 
   // Fallback polling for notification stats when WebSocket isn't available
   const { data: pollingStats } = useGetNotificationStatsQuery(undefined, {
-    pollingInterval: usingPollingFallback ? 5000 : 0, // Poll every 5 seconds when WebSocket unavailable
-    skip: !usingPollingFallback
+    pollingInterval: 0, // Disabled to prevent screen blinking
+    skip: true // Completely disabled for now
   });
 
   const {
@@ -91,7 +91,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       }
     },
     
-    autoConnect: true
+    autoConnect: false // Disabled to prevent screen blinking
   });
 
   // Use WebSocket stats if connected, otherwise use polling stats

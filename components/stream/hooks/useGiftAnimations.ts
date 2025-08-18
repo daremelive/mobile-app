@@ -36,14 +36,6 @@ export const useGiftAnimations = ({ messages, baseURL }: UseGiftAnimationsProps)
       
       // Only process gift messages that haven't been processed yet
       if (latestMessage.message_type === 'gift' && !processedMessageIds.has(latestMessage.id)) {
-        console.log('🎁 New gift message detected:', {
-          id: latestMessage.id,
-          gift: latestMessage.gift,
-          gift_name: latestMessage.gift_name,
-          gift_icon: latestMessage.gift_icon,
-          baseURL: baseURL
-        });
-        
         // Mark this message as processed
         setProcessedMessageIds(prev => new Set([...prev, latestMessage.id]));
         

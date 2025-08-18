@@ -89,18 +89,7 @@ export const StreamChatOverlay = ({
         return undefined;
       })();
       
-      // Debug profile picture construction
-      if (__DEV__ && (streamMsg.user.profile_picture_url || (streamMsg.user as any).profile_picture)) {
-        console.log('🖼️ Chat Profile Picture Debug:', {
-          rawProfileUrl: streamMsg.user.profile_picture_url,
-          rawProfilePicture: (streamMsg.user as any).profile_picture,
-          baseURL: baseURL,
-          webURL: baseURL?.replace('/api/', ''),
-          constructedURL: profileUrl,
-          userId: streamMsg.user.id,
-          username: fullName
-        });
-      }
+      // Removed profile picture debug logging to reduce console output
       
       return {
         id: streamMsg.id.toString(),
@@ -116,26 +105,7 @@ export const StreamChatOverlay = ({
     return msg as ChatMessage;
   };
 
-  // Debug logging for all messages
-  if (__DEV__ && messages.length > 0) {
-    console.log('💬 Chat Messages Debug:', {
-      totalMessages: messages.length,
-      recentMessages: recentMessages.length,
-      baseURL,
-      hostId,
-      messagesSample: recentMessages.map(msg => {
-        const normalized = getNormalizedMessage(msg);
-        return {
-          id: normalized.id,
-          username: normalized.username,
-          hasProfilePicture: !!normalized.profilePicture,
-          profilePictureUrl: normalized.profilePicture,
-          messageType: (msg as any).message_type || 'unknown',
-          rawUser: 'user' in msg ? (msg as any).user : 'no user field'
-        };
-      })
-    });
-  }
+  // Removed debug logging to reduce console output
 
   return (
     <View
@@ -181,30 +151,13 @@ export const StreamChatOverlay = ({
                         source={{ uri: msg.profilePicture.trim() }}
                         style={{ width: 32, height: 32 }}
                         onError={(error) => {
-                          if (__DEV__) {
-                            console.log('🚨 Chat Image load ERROR:', {
-                              url: msg.profilePicture,
-                              error: error.nativeEvent?.error,
-                              username: msg.username,
-                              fullError: error
-                            });
-                          }
+                          // Image failed to load - error handling without debug logs
                         }}
                         onLoad={() => {
-                          if (__DEV__) {
-                            console.log('✅ Chat Image loaded successfully:', {
-                              url: msg.profilePicture,
-                              username: msg.username
-                            });
-                          }
+                          // Image loaded successfully
                         }}
                         onLoadStart={() => {
-                          if (__DEV__) {
-                            console.log('🔄 Chat Image loading started:', {
-                              url: msg.profilePicture,
-                              username: msg.username
-                            });
-                          }
+                          // Image loading started
                         }}
                       />
                     ) : (
