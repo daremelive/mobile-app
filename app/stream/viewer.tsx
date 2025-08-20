@@ -655,7 +655,6 @@ export default function UnifiedViewerStreamScreen() {
       // Just disconnect the client to stop watching
       if (streamClient) {
         await streamClient.disconnectUser();
-        console.log('✅ Disconnected viewer from GetStream');
       }
       
       router.back();
