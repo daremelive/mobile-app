@@ -174,7 +174,6 @@ export default function SignupScreen() {
       // Navigate to verification screen
       router.push('/verify');
     } catch (error: any) {
-      console.error('Signup error:', error);
       if (error.data?.email?.[0]) {
         setEmailError(error.data.email[0]);
       } else if (error.data?.password?.[0]) {

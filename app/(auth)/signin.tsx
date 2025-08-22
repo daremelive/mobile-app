@@ -164,7 +164,6 @@ export default function SigninScreen() {
         router.replace('/(tabs)/home');
       }
     } catch (error: any) {
-      console.error('Signin error:', error);
       if (error.data?.email?.[0]) {
         setEmailError(error.data.email[0]);
       } else if (error.data?.password?.[0]) {

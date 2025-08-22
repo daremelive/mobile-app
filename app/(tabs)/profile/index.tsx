@@ -4,18 +4,17 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 
-// Safely import ImagePicker with fallback
 let ImagePicker: any = null;
 try {
   ImagePicker = require('expo-image-picker');
 } catch (error) {
-  console.warn('expo-image-picker not available:', error);
+  // ImagePicker not available
 }
 
 // Import SVG assets
 import ArrowLeftIcon from '../../../assets/icons/arrow-left.svg';
-import EditIcon from '../../../assets/icons/edit-icon.svg'; // Assuming edit-icon.svg exists
-import ChevronRightIcon from '../../../assets/icons/chevron-down.svg'; // Assuming chevron-right.svg exists and needs transform
+import EditIcon from '../../../assets/icons/edit-icon.svg';
+import ChevronRightIcon from '../../../assets/icons/chevron-down.svg';
 import ShareIcon from '../../../assets/icons/ShareIcon.svg';
 import AccountIcon from '../../../assets/icons/user.svg';
 import LanguageIcon from '../../../assets/icons/language-circle.svg';
@@ -53,25 +52,21 @@ const ProfileScreen = () => {
   const { data: profileData, isLoading: isLoadingProfile, refetch: refetchProfile } = useGetProfileQuery();
   const [uploadProfilePicture, { isLoading: isUploadingPicture }] = useUploadProfilePictureMutation();
 
-  // Check if image picker is available
   const isImagePickerAvailable = ImagePicker && ImagePicker.requestMediaLibraryPermissionsAsync;
 
-  // Pull-to-refresh function
   const onRefresh = async () => {
     setRefreshing(true);
     try {
       await refetchProfile();
     } catch (error) {
-      console.error('❌ Profile refresh failed:', error);
+      // Handle refresh error silently
     } finally {
       setRefreshing(false);
     }
   };
 
-  // Handle profile picture upload
   const handleProfilePictureUpload = async () => {
     try {
-      // Check if ImagePicker is available
       if (!isImagePickerAvailable) {
         Alert.alert(
           'Development Build Required', 
@@ -83,7 +78,6 @@ const ProfileScreen = () => {
         return;
       }
 
-      // Request permission to access media library
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permissionResult.granted === false) {
@@ -91,7 +85,6 @@ const ProfileScreen = () => {
         return;
       }
 
-      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -102,7 +95,6 @@ const ProfileScreen = () => {
       if (!result.canceled && result.assets[0]) {
         const image = result.assets[0];
         
-        // Create FormData for file upload
         const formData = new FormData();
         formData.append('profile_picture', {
           uri: image.uri,
@@ -110,16 +102,13 @@ const ProfileScreen = () => {
           name: 'profile.jpg',
         } as any);
 
-        // Upload the image
         await uploadProfilePicture(formData).unwrap();
         
-        // Refresh profile data to show new image
         refetchProfile();
         
         Alert.alert('Success', 'Profile picture updated successfully!');
       }
     } catch (error: any) {
-      console.error('❌ Profile picture upload failed:', error);
       Alert.alert(
         'Upload Failed', 
         error?.data?.error || 'Failed to upload profile picture. Please try again.'
@@ -133,7 +122,6 @@ const ProfileScreen = () => {
         await logoutMutation({ refresh: refreshToken }).unwrap();
       }
     } catch (error) {
-      console.error('Logout error:', error);
       // Continue with logout even if server call fails
     } finally {
       dispatch(logout());
@@ -186,14 +174,33 @@ const ProfileScreen = () => {
       >
         <View className="items-center px-4">
           <View className="relative">
-            <Image
-              source={{ 
-                uri: profileData?.profile_picture_url || 
-                     currentUser?.profile_picture_url || 
-                     'https://randomuser.me/api/portraits/men/32.jpg' 
-              }}
-              className="w-28 h-28 rounded-full border-2 border-[#C42720]"
-            />
+            {(profileData?.profile_picture_url || currentUser?.profile_picture_url) ? (
+              <Image
+                source={{ 
+                  uri: profileData?.profile_picture_url || currentUser?.profile_picture_url || ''
+                }}
+                className="w-28 h-28 rounded-full border-2 border-[#C42720]"
+              />
+            ) : (
+              <View className="w-28 h-28 rounded-full border-2 border-[#C42720] bg-[#2A2A2A] items-center justify-center">
+                <Text className="text-white text-3xl font-bold">
+                  {(() => {
+                    const firstName = profileData?.first_name || currentUser?.first_name || '';
+                    const lastName = profileData?.last_name || currentUser?.last_name || '';
+                    const username = profileData?.username || currentUser?.username || '';
+                    
+                    if (firstName && lastName) {
+                      return `${firstName[0]}${lastName[0]}`.toUpperCase();
+                    } else if (firstName) {
+                      return firstName[0].toUpperCase();
+                    } else if (username) {
+                      return username[0].toUpperCase();
+                    }
+                    return 'U';
+                  })()}
+                </Text>
+              </View>
+            )}
             <TouchableOpacity 
               className="absolute bottom-0 right-0"
               onPress={handleProfilePictureUpload}
@@ -281,17 +288,15 @@ const ProfileScreen = () => {
               <TouchableOpacity 
                 key={index} 
                 className="flex-row items-center p-4"
-                onPress={() => {
-                  if (item.title === 'Wallet') {
-                    // Navigate to wallet screen in app directory
-                    router.push('/wallet');
-                  } else if (item.title === 'Transactions') {
-                    // Navigate to transactions screen
-                    router.push('/transactions');
-                  } else if (item.route) {
-                    router.push(item.route as any);
-                  }
-                }}
+              onPress={() => {
+                if (item.title === 'Wallet') {
+                  router.push('/wallet');
+                } else if (item.title === 'Transactions') {
+                  router.push('/transactions');
+                } else if (item.route) {
+                  router.push(item.route as any);
+                }
+              }}
                 disabled={!item.route && item.title !== 'Wallet' && item.title !== 'Transactions'}
               >
                 <View className="w-8 h-8 p-6 rounded-full justify-center items-center mr-4 bg-[#2A2A2A]">
@@ -328,7 +333,7 @@ const ProfileScreen = () => {
           id: profileData?.id || currentUser?.id || '',
           username: profileData?.username || currentUser?.username || '',
           full_name: profileData ? `${profileData.first_name} ${profileData.last_name}` : currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : '',
-          profile_picture_url: profileData?.profile_picture_url || currentUser?.profile_picture_url
+          profile_picture_url: profileData?.profile_picture_url || currentUser?.profile_picture_url || undefined
         }}
       />
     </SafeAreaView>

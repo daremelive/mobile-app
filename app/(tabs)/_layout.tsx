@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { View, Platform, Image } from 'react-native';
+import { View, Platform, Image, Text } from 'react-native';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { AuthGuard } from '../../src/components/AuthGuard';
 import { useSelector } from 'react-redux';
@@ -98,15 +98,34 @@ export default function TabLayout() {
           tabBarIcon: ({ focused }) => (
             <View className={`w-8 h-8 rounded-full justify-center items-center bg-white border ${focused ? 'border-[#530774]' : 'border-transparent'}`}>
               <View className="w-7 h-7 rounded-full overflow-hidden">
-                <Image
-                  source={{ 
-                    uri: profileData?.profile_picture_url || 
-                         currentUser?.profile_picture_url || 
-                         'https://picsum.photos/200' 
-                  }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
+                {(profileData?.profile_picture_url || currentUser?.profile_picture_url) ? (
+                  <Image
+                    source={{ 
+                      uri: profileData?.profile_picture_url || currentUser?.profile_picture_url || ''
+                    }}
+                    className="w-full h-full"
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View className="w-full h-full bg-[#2A2A2A] items-center justify-center">
+                    <Text className="text-white text-xs font-bold">
+                      {(() => {
+                        const firstName = profileData?.first_name || currentUser?.first_name || '';
+                        const lastName = profileData?.last_name || currentUser?.last_name || '';
+                        const username = profileData?.username || currentUser?.username || '';
+                        
+                        if (firstName && lastName) {
+                          return `${firstName[0]}${lastName[0]}`.toUpperCase();
+                        } else if (firstName) {
+                          return firstName[0].toUpperCase();
+                        } else if (username) {
+                          return username[0].toUpperCase();
+                        }
+                        return 'U';
+                      })()}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           ),
