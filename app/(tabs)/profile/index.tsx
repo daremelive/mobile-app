@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image, RefreshControl, Alert } from 'react-native';
+import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Share } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,7 +31,7 @@ import { useLogoutMutation, useGetProfileQuery, useUploadProfilePictureMutation 
 import { useDispatch, useSelector } from 'react-redux';
 import { logout, selectRefreshToken, selectCurrentUser } from '../../../src/store/authSlice';
 import LogoutConfirmationModal from '../../../components/modals/LogoutConfirmationModal';
-import ShareProfileModal from '../../../components/ShareProfileModal';
+import ipDetector from '../../../src/utils/ipDetector';
 
 type MenuItem = {
   title: string;
@@ -42,7 +42,6 @@ type MenuItem = {
 const ProfileScreen = () => {
   const router = useRouter();
   const [isLogoutModalVisible, setLogoutModalVisible] = useState(false);
-  const [isShareModalVisible, setShareModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   
   const dispatch = useDispatch();
@@ -127,6 +126,30 @@ const ProfileScreen = () => {
       dispatch(logout());
       setLogoutModalVisible(false);
       router.replace('/(auth)/signin');
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      const detection = await ipDetector.detectIP();
+      let baseUrl;
+      
+      if (detection.ip === 'daremelive.pythonanywhere.com') {
+        baseUrl = `https://${detection.ip}`;
+      } else {
+        baseUrl = `http://${detection.ip}:8000`;
+      }
+      
+      const profileUrl = `${baseUrl}/profile/${profileData?.username || currentUser?.username}?utm_source=mobile_share&utm_medium=social`;
+      const userName = profileData?.full_name || currentUser?.full_name || profileData?.username || currentUser?.username;
+      
+      await Share.share({
+        message: `Check out ${userName}'s profile on DareMe! 🎬🔥\n\nFollow them for amazing live streams and content!\n\n${profileUrl}`,
+        url: profileUrl,
+      });
+    } catch (error) {
+      console.error('Failed to share profile:', error);
+      Alert.alert('Share Failed', 'Unable to share profile. Please try again.');
     }
   };
 
@@ -233,7 +256,7 @@ const ProfileScreen = () => {
            >
              <TouchableOpacity 
                className="w-full h-full items-center justify-center"
-               onPress={() => setShareModalVisible(true)}
+               onPress={handleShare}
              >
                <View className="flex-row items-center gap-3">
                  <Text className="text-white text-xl font-semibold">Share Profile Link</Text>
@@ -324,17 +347,6 @@ const ProfileScreen = () => {
         visible={isLogoutModalVisible}
         onClose={() => setLogoutModalVisible(false)}
         onConfirm={handleLogout}
-      />
-      
-      <ShareProfileModal
-        visible={isShareModalVisible}
-        onClose={() => setShareModalVisible(false)}
-        userProfile={{
-          id: profileData?.id || currentUser?.id || '',
-          username: profileData?.username || currentUser?.username || '',
-          full_name: profileData ? `${profileData.first_name} ${profileData.last_name}` : currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : '',
-          profile_picture_url: profileData?.profile_picture_url || currentUser?.profile_picture_url || undefined
-        }}
       />
     </SafeAreaView>
   );

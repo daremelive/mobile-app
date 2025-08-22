@@ -286,7 +286,7 @@ export default function ShareProfileModal({ visible, onClose, userProfile }: Sha
       id: 'whatsapp',
       name: 'WhatsApp',
       icon: (
-        <View className="items-center justify-center">
+        <View className="items-center justify-center rounded-full">
           <Ionicons name="chatbubble" size={28} color="white" />
         </View>
       ),
@@ -298,7 +298,7 @@ export default function ShareProfileModal({ visible, onClose, userProfile }: Sha
       id: 'twitter',
       name: 'Twitter',
       icon: (
-        <View className="items-center justify-center">
+        <View className="items-center justify-center rounded-full">
           <Ionicons name="logo-twitter" size={28} color="white" />
         </View>
       ),
@@ -310,7 +310,7 @@ export default function ShareProfileModal({ visible, onClose, userProfile }: Sha
       id: 'instagram',
       name: 'Instagram',
       icon: (
-        <View className="items-center justify-center">
+        <View className="items-center justify-center rounded-full">
           <Ionicons name="camera" size={28} color="white" />
         </View>
       ),
@@ -322,7 +322,7 @@ export default function ShareProfileModal({ visible, onClose, userProfile }: Sha
       id: 'facebook',
       name: 'Facebook',
       icon: (
-        <View className="items-center justify-center">
+        <View className="items-center justify-center rounded-full">
           <Ionicons name="logo-facebook" size={28} color="white" />
         </View>
       ),
@@ -334,7 +334,7 @@ export default function ShareProfileModal({ visible, onClose, userProfile }: Sha
       id: 'telegram',
       name: 'Telegram',
       icon: (
-        <View className="items-center justify-center">
+        <View className="items-center justify-center rounded-full">
           <Ionicons name="paper-plane-outline" size={26} color="white" />
         </View>
       ),
@@ -346,7 +346,7 @@ export default function ShareProfileModal({ visible, onClose, userProfile }: Sha
       id: 'copy',
       name: 'Copy Link',
       icon: (
-        <View className="items-center justify-center">
+        <View className="items-center justify-center rounded-full">
           {copied ? (
             <Ionicons name="checkmark-circle" size={28} color="white" />
           ) : (
