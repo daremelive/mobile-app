@@ -47,4 +47,8 @@ yarn-error.*
 db.sqlite*
 database.sqlite*
 
+# Documentation and PDF files
+*.md
+*.pdf
+
 app-example
