@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector } from 'react-redux';
-import { selectCurrentUser } from '../../src/store/authSlice';
+import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
 import { 
   StreamHeader, 
   StreamChatOverlay, 
@@ -21,6 +21,7 @@ import { useGetProfileQuery } from '../../src/store/authApi';
 import { useGetStreamQuery, useJoinStreamMutation, useLeaveStreamMutation, useGetGiftsQuery, useSendGiftMutation, useLikeStreamMutation } from '../../src/store/streamsApi';
 import { useGetWalletSummaryQuery, useGetCoinPackagesQuery, usePurchaseCoinsMutation } from '../../src/api/walletApi';
 import { createStreamClient, createStreamUser } from '../../src/utils/streamClient';
+import { StreamWebSocketService } from '../../src/services/StreamWebSocketService';
 import GiftAnimation from '../../components/animations/GiftAnimation';
 
 // Component that uses call state hooks - must be inside StreamCall
@@ -129,6 +130,7 @@ export default function UnifiedViewerStreamScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
   const currentUser = useSelector(selectCurrentUser) as any;
+  const accessToken = useSelector(selectAccessToken);
   
   const streamId = params.streamId as string;
   
@@ -157,6 +159,12 @@ export default function UnifiedViewerStreamScreen() {
 
   const [baseURL, setBaseURL] = useState<string>('');
   const initializationTimeoutRef = useRef<number | null>(null);
+
+  // WebSocket for real-time messaging
+  const [webSocketService, setWebSocketService] = useState<StreamWebSocketService | null>(null);
+  const [realtimeMessages, setRealtimeMessages] = useState<any[]>([]);
+  const [wsConnectionAttempts, setWsConnectionAttempts] = useState(0);
+  const maxWsAttempts = 3;
 
   // Initialize baseURL
   useEffect(() => {
@@ -222,9 +230,56 @@ export default function UnifiedViewerStreamScreen() {
     profilePicture: viewerProfilePictureUrl,
   });
 
+  // Merge WebSocket messages with existing chat messages for instant display
+  const allMessages = React.useMemo(() => {
+    const streamChatMessages = Array.isArray(chat.messages) ? chat.messages : [];
+    const safeRealtimeMessages = Array.isArray(realtimeMessages) ? realtimeMessages : [];
+    
+    // Combine and sort by timestamp
+    const combined = [...streamChatMessages, ...safeRealtimeMessages];
+    
+    // Remove duplicates based on unique ID only
+    const uniqueMessages = combined.filter((message, index, array) => {
+      if (!message || !message.message) return false;
+      // Only deduplicate if we have a proper ID to compare
+      if (!message.id) return true;
+      return index === array.findIndex(m => m?.id === message.id);
+    });
+    
+    // Sort by timestamp with safe date parsing
+    return uniqueMessages.sort((a, b) => {
+      // Safely parse timestamps with fallback for invalid dates
+      const getTimestamp = (msg: any) => {
+        if (!msg?.timestamp) return 0;
+        
+        // Handle ISO string timestamps (from local messages and new backend)
+        if (typeof msg.timestamp === 'string') {
+          const date = new Date(msg.timestamp);
+          return isNaN(date.getTime()) ? 0 : date.getTime();
+        }
+        
+        // Handle numeric timestamps (from old backend messages)
+        if (typeof msg.timestamp === 'number') {
+          // If it's a reasonable Unix timestamp (after year 2000)
+          if (msg.timestamp > 946684800) {
+            return msg.timestamp * 1000; // Convert to milliseconds
+          }
+          // If it's already in milliseconds or invalid, use as-is
+          return msg.timestamp;
+        }
+        
+        return 0;
+      };
+      
+      const timeA = getTimestamp(a);
+      const timeB = getTimestamp(b);
+      return timeA - timeB;
+    });
+  }, [chat.messages, realtimeMessages]);
+
   // Gift animations
   const giftAnimations = useGiftAnimations({ 
-    messages: streamMessages,
+    messages: allMessages, // Use combined messages for gift detection
     baseURL: baseURL
   });
 
@@ -272,9 +327,17 @@ export default function UnifiedViewerStreamScreen() {
     coin_cost: gift.cost
   })) : [];
   
-  const safeCoinPackages = Array.isArray(coinPackages) ? coinPackages.map(pkg => ({
-    ...pkg,
-    name: pkg.formatted_price || `${pkg.coins} Coins`
+  const safeCoinPackages = Array.isArray(coinPackages) ? coinPackages.map((pkg, index) => ({
+    id: pkg.id,
+    name: pkg.formatted_price || `${pkg.coins} Coins`,
+    coins: pkg.coins,
+    price: parseFloat(pkg.price) || 0,
+    currency: pkg.currency,
+    bonus_coins: pkg.bonus_coins,
+    total_coins: pkg.total_coins,
+    formatted_price: pkg.formatted_price,
+    display_order: index,
+    is_active: pkg.is_active
   })) : [];
 
   // Update stream mode when details are loaded
@@ -330,6 +393,140 @@ export default function UnifiedViewerStreamScreen() {
     }
   }, [userData, baseURL]);
 
+  // Initialize WebSocket for real-time messaging
+  useEffect(() => {
+    console.log('[ViewerScreen] 🔍 WebSocket useEffect triggered:', {
+      streamId: streamId ? 'exists' : 'missing',
+      userId: userData?.id ? 'exists' : 'missing', 
+      hasJoined,
+      token: accessToken ? 'exists' : 'missing',
+      wsConnectionAttempts,
+      maxWsAttempts
+    });
+
+    // Debug currentUser object
+    console.log('[ViewerScreen] 🔍 currentUser debug:', {
+      hasCurrentUser: !!currentUser,
+      currentUserKeys: currentUser ? Object.keys(currentUser) : 'none',
+      hasAccessToken: !!accessToken,
+      tokenLength: accessToken ? accessToken.length : 0,
+      userId: currentUser?.id || currentUser?.user_id
+    });
+
+    if (!streamId || !userData?.id || !hasJoined || !accessToken) {
+      console.log('[ViewerScreen] ❌ WebSocket initialization skipped - missing requirements');
+      return;
+    }
+    
+    // Prevent excessive connection attempts
+    if (wsConnectionAttempts >= maxWsAttempts) {
+      console.log('[ViewerScreen] Max WebSocket connection attempts reached, skipping');
+      return;
+    }
+
+    console.log('[ViewerScreen] Initializing WebSocket for real-time chat...');
+
+    const wsService = new StreamWebSocketService({
+      streamId,
+      userId: userData.id.toString(),
+      token: accessToken,
+      onGuestInvited: (guest, invitedBy) => {
+        console.log('Guest invited:', guest);
+      },
+      onGuestJoined: (participant) => {
+        console.log('Guest joined:', participant);
+      },
+      onGuestDeclined: (guest) => {
+        console.log('Guest declined:', guest);
+      },
+      onGuestRemoved: (guestId, removedBy) => {
+        console.log('Guest removed:', guestId);
+      },
+      onUserRemoved: (message, removedBy) => {
+        console.log('[ViewerScreen] 🚨 User removed from stream:', message);
+        Alert.alert(
+          'Removed from Stream',
+          'You have been removed from this stream by the host.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Navigate back to home
+                router.replace('/(tabs)/home');
+              }
+            }
+          ],
+          { cancelable: false }
+        );
+      },
+      onParticipantRemoved: (userId, message) => {
+        console.log('[ViewerScreen] 📢 Participant removed:', userId, message);
+        // This will help update the UI to remove the participant from any lists
+        // if we have participant lists in the viewer screen
+      },
+      onCameraToggled: (userId, enabled) => {
+        console.log('Camera toggled:', userId, enabled);
+      },
+      onMicrophoneToggled: (userId, enabled) => {
+        console.log('Microphone toggled:', userId, enabled);
+      },
+      onStreamMessage: (message) => {
+        console.log('[ViewerScreen] 📨 Real-time message received:', message);
+        console.log('[ViewerScreen] 🔍 Message userId:', message.user?.id, 'type:', typeof message.user?.id);
+        console.log('[ViewerScreen] 🔍 Current userId:', userData?.id?.toString(), 'type:', typeof userData?.id?.toString());
+        console.log('[ViewerScreen] 🔍 UserIds match:', message.user?.id?.toString() === userData?.id?.toString());
+        
+        // Don't add messages from the current user since they already added them locally
+        const currentUserId = userData?.id?.toString();
+        const messageUserId = message.user?.id?.toString();
+        if (messageUserId === currentUserId) {
+          console.log('[ViewerScreen] 🔄 Ignoring own message to prevent duplicate');
+          return;
+        }
+        
+        // Add to real-time messages for instant display
+        setRealtimeMessages(prev => [...prev.slice(-49), message]);
+      },
+      onStreamState: (state) => {
+        console.log('Stream state update:', state);
+      },
+      onError: (error) => {
+        console.error('[ViewerScreen] WebSocket error:', error);
+      },
+    });
+
+    // Connect to WebSocket with timeout and error handling
+    const connectTimeout = setTimeout(() => {
+      console.log('[ViewerScreen] WebSocket connection timeout, cleaning up...');
+      wsService.disconnect();
+      setWsConnectionAttempts(prev => prev + 1);
+    }, 10000); // 10 second timeout
+
+    wsService.connect().then(() => {
+      clearTimeout(connectTimeout);
+      console.log('[ViewerScreen] ✅ WebSocket connected for real-time chat');
+      setWebSocketService(wsService);
+      setWsConnectionAttempts(0); // Reset attempts on successful connection
+    }).catch((error) => {
+      clearTimeout(connectTimeout);
+      console.error('[ViewerScreen] ❌ WebSocket connection failed:', error);
+      setWsConnectionAttempts(prev => prev + 1);
+      
+      // If it's a 403 error, don't retry as it's likely an auth issue
+      if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
+        console.log('[ViewerScreen] Authentication error detected, not retrying WebSocket');
+        setWsConnectionAttempts(maxWsAttempts); // Stop further attempts
+      }
+    });
+
+    return () => {
+      clearTimeout(connectTimeout);
+      console.log('[ViewerScreen] Cleaning up WebSocket connection...');
+      wsService.gracefulDisconnect();
+      setWebSocketService(null);
+    };
+  }, [streamId, userData?.id, hasJoined]);
+
   // Debug StreamHeader props
   useEffect(() => {
     if (__DEV__ && streamDetails) {
@@ -359,6 +556,36 @@ export default function UnifiedViewerStreamScreen() {
 
   const openGiftModal = () => {
     setGiftModalVisible(true);
+  };
+
+  // Custom message handler that uses WebSocket when available
+  const handleSendMessage = async (message: string) => {
+    if (!message.trim()) return;
+
+    // Send via WebSocket for instant delivery
+    if (webSocketService) {
+      console.log('[ViewerScreen] 🚀 Sending message via WebSocket:', message);
+      webSocketService.sendChatMessage(message.trim());
+      
+      // Also add to local chat immediately for instant feedback
+      const localMessage = {
+        id: `local-${Date.now()}`,
+        username: userData?.username || 'You',
+        message: message.trim(),
+        timestamp: new Date().toISOString(),
+        isHost: false,
+        userId: userData?.id?.toString(),
+        profilePicture: viewerProfilePictureUrl
+      };
+      console.log('[ViewerScreen] 📝 Adding local message:', localMessage);
+      setRealtimeMessages(prev => [...prev.slice(-49), localMessage]);
+    } else {
+      // Fallback to regular API call if WebSocket not available
+      console.log('[ViewerScreen] WebSocket not available, using API fallback...');
+      if (chat?.sendMessage) {
+        await chat.sendMessage(message);
+      }
+    }
   };
 
   // Like handler
@@ -783,7 +1010,8 @@ export default function UnifiedViewerStreamScreen() {
           hostLastName={streamDetails?.host?.last_name}
           hostUsername={streamDetails?.host?.username}
           hostProfilePicture={hostProfilePictureUrl || undefined}
-          viewerCount={streamDetails?.viewer_count || 0}
+          viewerCount={streamDetails?.viewer_count ?? 0}
+          likesCount={streamDetails?.likes_count ?? 0}
           isFollowing={followSystem.isFollowing}
           onToggleFollow={followSystem.toggleFollow}
           disableFollow={streamDetails?.host?.id === userData?.id}
@@ -792,16 +1020,16 @@ export default function UnifiedViewerStreamScreen() {
         />
 
         <StreamChatOverlay
-          messages={messages}
-          keyboardHeight={chat.keyboardHeight}
-          isKeyboardVisible={chat.isKeyboardVisible}
+          messages={allMessages || []}
+          keyboardHeight={chat.keyboardHeight || 0}
+          isKeyboardVisible={chat.isKeyboardVisible || false}
           inputBarHeight={72}
-          baseURL={baseURL}
-          hostId={streamDetails?.host?.id}
+          baseURL={baseURL || ''}
+          hostId={streamDetails?.host?.id || null}
         />
 
         <ViewerInputBar
-          onSendMessage={chat.sendMessage}
+          onSendMessage={handleSendMessage}
           onLike={handleLike}
           onGiftPress={openGiftModal}
           isLiked={isLiked}

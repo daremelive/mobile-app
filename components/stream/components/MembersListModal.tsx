@@ -6,6 +6,7 @@ import { useSelector } from 'react-redux';
 import { 
   useInviteUsersToStreamMutation, 
   useRemoveGuestMutation,
+  useRemoveParticipantMutation,
   StreamParticipant 
 } from '../../../src/store/streamsApi';
 import { useBlockUserMutation } from '../../../src/api/blockedApi';
@@ -14,6 +15,7 @@ import { messagesApi, User as MessagesUser } from '../../../src/services/message
 
 interface User {
   id: number;
+  participant_id?: number; // StreamParticipant ID for removal
   username: string;
   first_name: string;
   last_name: string;
@@ -30,7 +32,7 @@ interface Participant extends User {
 
 interface Viewer extends User {
   joined_at?: string;
-  last_seen?: string;
+  last_seen?: string | null;
 }
 
 interface MembersListModalProps {
@@ -69,39 +71,78 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
   const canBlock = currentUserRole === 'host' && userType === 'viewer';
   const canInvite = currentUserRole === 'host' && userType === 'search';
 
+  console.log('ActionMenu conditions:', {
+    currentUserRole,
+    userType,
+    canInvite,
+    canPromote,
+    canBlock,
+    canRemove
+  });
+
+  console.log('ActionMenu visible prop:', visible);
+
+  if (!visible) {
+    console.log('ActionMenu not visible, returning null');
+    return null;
+  }
+
+  console.log('ActionMenu rendering with user:', user?.username);
+
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity 
         className="flex-1 bg-black/50" 
         activeOpacity={1} 
-        onPress={onClose}
+        onPress={() => {
+          console.log('ActionMenu background pressed - closing');
+          onClose();
+        }}
       >
         <View className="flex-1 items-center justify-center px-6">
-          <View className="bg-gray-800 rounded-2xl p-4 w-full max-w-sm">
-            <View className="flex-row items-center mb-4 pb-4 border-b border-gray-700">
-              <Image
-                source={{ uri: user.profile_picture_url || 'https://via.placeholder.com/48' }}
-                className="w-12 h-12 rounded-full mr-3"
-              />
-              <View className="flex-1">
-                <Text className="text-white font-semibold">{user.full_name}</Text>
-                <Text className="text-gray-400 text-sm">@{user.username}</Text>
+          <TouchableOpacity 
+            activeOpacity={1}
+            onPress={() => console.log('ActionMenu content pressed - preventing close')}
+          >
+            <View className="bg-gray-800 rounded-2xl p-4 w-full max-w-sm">
+              <View className="flex-row items-center mb-4 pb-4 border-b border-gray-700">
+                <Image
+                  source={{ uri: user.profile_picture_url || 'https://via.placeholder.com/48' }}
+                  className="w-12 h-12 rounded-full mr-3"
+                />
+                <View className="flex-1">
+                  <Text className="text-white font-semibold">{user.full_name}</Text>
+                  <Text className="text-gray-400 text-sm">@{user.username}</Text>
+                </View>
               </View>
-            </View>
 
-            <View className="space-y-2">
-              {canInvite && (
+              <View className="space-y-2">
+                {canInvite && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      console.log('Invite button pressed for user:', user);
+                      Alert.alert('Test', 'Invite button was pressed!');
+                      onAction('invite', user);
+                      onClose();
+                    }}
+                    className="flex-row items-center py-3 px-4 rounded-xl bg-blue-600/20"
+                  >
+                    <Ionicons name="person-add" size={20} color="#3B82F6" />
+                    <Text className="text-blue-400 font-medium ml-3">Invite as Guest</Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Add a test button to verify modal is working */}
                 <TouchableOpacity
                   onPress={() => {
-                    onAction('invite', user);
-                    onClose();
+                    console.log('Test button pressed!');
+                    Alert.alert('Test', 'Modal is working!');
                   }}
-                  className="flex-row items-center py-3 px-4 rounded-xl bg-blue-600/20"
+                  className="flex-row items-center py-3 px-4 rounded-xl bg-green-600/20"
                 >
-                  <Ionicons name="person-add" size={20} color="#3B82F6" />
-                  <Text className="text-blue-400 font-medium ml-3">Invite as Guest</Text>
+                  <Ionicons name="checkmark" size={20} color="#10B981" />
+                  <Text className="text-green-400 font-medium ml-3">Test Button</Text>
                 </TouchableOpacity>
-              )}
               
               {canPromote && (
                 <TouchableOpacity
@@ -150,8 +191,9 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
               <Text className="text-white font-medium text-center">Cancel</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
     </Modal>
   );
 };
@@ -165,11 +207,19 @@ export const MembersListModal = ({
   visible,
   onClose,
   streamId,
-  participants = [],
-  viewers = [],
+  participants,
+  viewers,
   currentUserRole,
-  onRefresh
+  onRefresh,
 }: MembersListModalProps) => {
+  console.log('MembersListModal rendered with props:', {
+    visible,
+    streamId,
+    currentUserRole,
+    participantsCount: participants?.length || 0,
+    viewersCount: viewers?.length || 0
+  });
+
   const currentUser = useSelector(selectCurrentUser);
   const [activeTab, setActiveTab] = useState<'guests' | 'audience'>('guests');
   const [searchQuery, setSearchQuery] = useState('');
@@ -181,6 +231,7 @@ export const MembersListModal = ({
 
   const [inviteUsers] = useInviteUsersToStreamMutation();
   const [removeGuest] = useRemoveGuestMutation();
+  const [removeParticipant] = useRemoveParticipantMutation();
   const [blockUser] = useBlockUserMutation();
 
   // Search users when query changes
@@ -191,18 +242,21 @@ export const MembersListModal = ({
         return;
       }
 
+      console.log('Searching for users with query:', searchQuery.trim());
       setIsSearching(true);
       try {
         const results = await messagesApi.searchUsers(searchQuery.trim());
+        console.log('Search API results:', results);
         // Filter out current user and already participating users
         const filtered = results.filter(user => 
           user.id !== currentUser?.id && 
-          !participants.some(p => p.id === user.id) &&
-          !viewers.some(v => v.id === user.id)
+          !(participants || []).some(p => p.id === user.id) &&
+          !(viewers || []).some(v => v.id === user.id)
         ).map(user => ({
           ...user,
           full_name: user.full_name || `${user.first_name} ${user.last_name}`.trim()
         }));
+        console.log('Filtered search results:', filtered);
         setSearchResults(filtered);
       } catch (error) {
         console.error('Search failed:', error);
@@ -217,31 +271,37 @@ export const MembersListModal = ({
   }, [searchQuery, currentUser?.id, participants, viewers]);
 
   // Filter participants and viewers based on search
-  const filteredParticipants = participants.filter(p => 
+  const filteredParticipants = (participants || []).filter(p => 
     p.participant_type === 'guest' && // Only show guests, not the host
     (p.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
      p.username?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const filteredViewers = viewers.filter(v =>
+  const filteredViewers = (viewers || []).filter(v =>
     v.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     v.username?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const openActionMenu = (user: User, type: 'participant' | 'viewer' | 'search') => {
+    console.log('openActionMenu called with:', user, type);
+    console.log('Setting actionMenuVisible to true');
     setSelectedUser(user);
     setUserType(type);
     setActionMenuVisible(true);
+    console.log('ActionMenu state should now be visible');
   };
 
   const handleAction = useCallback(async (action: ActionType, user: User) => {
     try {
+      console.log('handleAction called with:', action, user);
       switch (action) {
         case 'invite':
-          await inviteUsers({ 
+          console.log('Sending invitation to user:', user.id, 'for stream:', streamId);
+          const result = await inviteUsers({ 
             streamId, 
             userIds: [user.id] 
           }).unwrap();
+          console.log('Invitation result:', result);
           Alert.alert('Success', `Invitation sent to ${user.full_name}`);
           setSearchQuery('');
           break;
@@ -274,21 +334,41 @@ export const MembersListModal = ({
           break;
 
         case 'remove':
+          const isViewer = user.participant_id !== undefined;
+          const alertTitle = isViewer ? 'Remove Viewer' : 'Remove Guest';
+          const alertMessage = isViewer 
+            ? `Are you sure you want to remove ${user.full_name} from the stream? They will no longer be able to view or participate.`
+            : `Are you sure you want to remove ${user.full_name} from the stream?`;
+            
           Alert.alert(
-            'Remove Guest',
-            `Are you sure you want to remove ${user.full_name} from the stream?`,
+            alertTitle,
+            alertMessage,
             [
               { text: 'Cancel', style: 'cancel' },
               {
                 text: 'Remove',
                 style: 'destructive',
                 onPress: async () => {
-                  await removeGuest({ 
-                    streamId, 
-                    guestId: user.id.toString() 
-                  }).unwrap();
-                  Alert.alert('Success', `${user.full_name} has been removed`);
-                  onRefresh?.();
+                  try {
+                    if (isViewer && user.participant_id) {
+                      // Use removeParticipant for viewers (and guests with participant_id)
+                      const result = await removeParticipant({ 
+                        streamId, 
+                        participantId: user.participant_id.toString() 
+                      }).unwrap();
+                    } else {
+                      // Fallback to removeGuest for legacy guests without participant_id
+                      const result = await removeGuest({ 
+                        streamId, 
+                        guestId: user.id.toString() 
+                      }).unwrap();
+                    }
+                    Alert.alert('Success', `${user.full_name} has been removed`);
+                    onRefresh?.();
+                  } catch (error) {
+                    console.error('Remove error:', error);
+                    throw error; // Re-throw to trigger the outer catch
+                  }
                 }
               }
             ]
@@ -296,9 +376,10 @@ export const MembersListModal = ({
           break;
       }
     } catch (error: any) {
+      console.error('handleAction error:', error);
       Alert.alert('Error', error?.data?.message || 'Action failed. Please try again.');
     }
-  }, [streamId, inviteUsers, removeGuest, blockUser, onRefresh]);
+  }, [streamId, inviteUsers, removeGuest, removeParticipant, blockUser, onRefresh]);
 
   const renderUser = useCallback(({ item, type }: { item: User; type: 'participant' | 'viewer' | 'search' }) => {
     const isParticipant = type === 'participant';
@@ -352,7 +433,16 @@ export const MembersListModal = ({
               <Text className="text-red-400 text-xs font-medium">Guest</Text>
             </View>
           )}
-          {isViewer && (
+          {isViewer && currentUserRole === 'host' && (
+            <TouchableOpacity 
+              onPress={() => handleAction('remove', item)}
+              className="bg-red-600/20 px-3 py-1 rounded-full flex-row items-center"
+            >
+              <Ionicons name="close" size={12} color="#EF4444" />
+              <Text className="text-red-400 text-xs font-medium ml-1">Remove</Text>
+            </TouchableOpacity>
+          )}
+          {isViewer && currentUserRole !== 'host' && (
             <View className="bg-gray-600/30 px-3 py-1 rounded-full">
               <Text className="text-gray-400 text-xs font-medium">Viewer</Text>
             </View>
@@ -362,7 +452,7 @@ export const MembersListModal = ({
               <Text className="text-blue-400 text-xs font-medium">Invite</Text>
             </View>
           )}
-          <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+          {!isViewer && <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />}
         </View>
       </TouchableOpacity>
     );

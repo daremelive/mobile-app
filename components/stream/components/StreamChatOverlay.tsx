@@ -13,32 +13,35 @@ export interface ChatMessage {
 }
 
 interface StreamChatOverlayProps {
-  messages: (ChatMessage | StreamMessage)[];
+  messages?: (ChatMessage | StreamMessage)[];
   isVisible?: boolean;
   keyboardHeight?: number;
   isKeyboardVisible?: boolean;
   inputBarHeight?: number;
   reservedTopGap?: number;
   baseURL?: string;
-  hostId?: number | string;
+  hostId?: number | string | null;
 }
 
 export const StreamChatOverlay = ({
-  messages,
+  messages = [],
   isVisible = true,
   keyboardHeight = 0,
   isKeyboardVisible = false,
   inputBarHeight = 72,
   reservedTopGap = 150,
   baseURL = '',
-  hostId,
+  hostId = null,
 }: StreamChatOverlayProps) => {
   if (!isVisible) {
     return null;
   }
 
+  // Ensure messages is always an array
+  const safeMessages = Array.isArray(messages) ? messages : [];
+  
   // Show only the 3 most recent messages (TikTok style)
-  const recentMessages = messages.slice(-3);
+  const recentMessages = safeMessages.slice(-3);
 
   // Dynamic bottom spacing accounts for keyboard & input bar
   const bottomOffset = (isKeyboardVisible ? keyboardHeight : 0) + inputBarHeight + 8;
@@ -92,13 +95,13 @@ export const StreamChatOverlay = ({
       // Removed profile picture debug logging to reduce console output
       
       return {
-        id: streamMsg.id.toString(),
+        id: streamMsg.id ? String(streamMsg.id) : `msg-${Date.now()}`,
         username: fullName,
         message: streamMsg.message,
         timestamp: streamMsg.created_at,
         profilePicture: profileUrl,
-        isHost: hostId ? streamMsg.user.id.toString() === hostId.toString() : false,
-        userId: streamMsg.user.id.toString(),
+        isHost: hostId && streamMsg.user?.id ? String(streamMsg.user.id) === String(hostId) : false,
+        userId: streamMsg.user?.id ? String(streamMsg.user.id) : 'unknown',
       };
     }
     // Otherwise it's already a ChatMessage

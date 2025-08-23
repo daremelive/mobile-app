@@ -7,6 +7,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import { useGetInboxNotificationsQuery, useMarkInboxNotificationAsReadMutation, useClearAllInboxNotificationsMutation, useClearInboxNotificationMutation } from '../src/api/notificationApi';
+import { useAcceptInviteMutation, useDeclineInviteMutation } from '../src/store/streamsApi';
 import { useNotificationContext } from '../src/context/NotificationContext';
 import { fonts } from '../constants/Fonts';
 
@@ -72,6 +73,10 @@ const NotificationInboxScreen = () => {
   const [markAsRead] = useMarkInboxNotificationAsReadMutation();
   const [clearAllNotifications] = useClearAllInboxNotificationsMutation();
   const [clearNotification] = useClearInboxNotificationMutation();
+  
+  // Stream invitation hooks
+  const [acceptInvite] = useAcceptInviteMutation();
+  const [declineInvite] = useDeclineInviteMutation();
 
   // Real-time notification context
   const { stats: realtimeStats, isConnected } = useNotificationContext();
@@ -110,6 +115,63 @@ const NotificationInboxScreen = () => {
       }),
     ]).start();
   }, []); // Empty dependency array - only run once
+
+  // Handle accepting stream invitation
+  const handleAcceptInvitation = async (notification: any) => {
+    try {
+      const streamId = notification.extra_data?.stream_id || notification.related_object?.stream_id;
+      if (!streamId) {
+        Alert.alert('Error', 'Invalid invitation data');
+        return;
+      }
+
+      await acceptInvite(streamId).unwrap();
+      await markAsRead(notification.id).unwrap();
+      
+      Alert.alert(
+        'Invitation Accepted!',
+        'You have successfully joined the stream.',
+        [
+          {
+            text: 'Join Stream',
+            onPress: () => {
+              const streamMode = notification.extra_data?.stream_mode || 'single';
+              if (streamMode === 'multi') {
+                router.push(`/stream/multi/${streamId}` as any);
+              } else {
+                router.push(`/stream/viewer?streamId=${streamId}` as any);
+              }
+            }
+          }
+        ]
+      );
+      
+      refetch(); // Refresh notifications
+    } catch (error: any) {
+      console.error('Accept invitation error:', error);
+      Alert.alert('Error', error?.data?.error || 'Failed to accept invitation');
+    }
+  };
+
+  // Handle declining stream invitation
+  const handleDeclineInvitation = async (notification: any) => {
+    try {
+      const streamId = notification.extra_data?.stream_id || notification.related_object?.stream_id;
+      if (!streamId) {
+        Alert.alert('Error', 'Invalid invitation data');
+        return;
+      }
+
+      await declineInvite(streamId).unwrap();
+      await markAsRead(notification.id).unwrap();
+      
+      Alert.alert('Invitation Declined', 'The host has been notified of your decision.');
+      refetch(); // Refresh notifications
+    } catch (error: any) {
+      console.error('Decline invitation error:', error);
+      Alert.alert('Error', error?.data?.error || 'Failed to decline invitation');
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -388,24 +450,60 @@ const NotificationInboxScreen = () => {
                     {formatTimeAgo(item.created_at)}
                   </Text>
                   
-                  <TouchableOpacity
-                    onPress={() => handleNotificationPress(item)}
-                    className="px-4 py-2 rounded-full overflow-hidden"
-                  >
-                    <LinearGradient
-                      colors={['#667eea', '#764ba2']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      className="px-4 py-2 items-center justify-center"
-                    >
-                      <Text 
-                        className="text-white text-xs font-semibold"
-                        style={{ fontFamily: fonts.semiBold }}
+                  {/* Different actions based on notification type */}
+                  {(item.notification_type === 'stream_invite' || item.notification_type === 'stream_invitation') ? (
+                    <View className="flex-row space-x-2">
+                      <TouchableOpacity
+                        onPress={() => handleDeclineInvitation(item)}
+                        className="px-3 py-2 rounded-full bg-gray-700/50 border border-gray-600"
                       >
-                        View
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
+                        <Text 
+                          className="text-gray-300 text-xs font-semibold"
+                          style={{ fontFamily: fonts.semiBold }}
+                        >
+                          Decline
+                        </Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        onPress={() => handleAcceptInvitation(item)}
+                        className="px-3 py-2 rounded-full overflow-hidden"
+                      >
+                        <LinearGradient
+                          colors={['#10b981', '#059669']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          className="px-3 py-2 items-center justify-center"
+                        >
+                          <Text 
+                            className="text-white text-xs font-semibold"
+                            style={{ fontFamily: fonts.semiBold }}
+                          >
+                            Accept
+                          </Text>
+                        </LinearGradient>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => handleNotificationPress(item)}
+                      className="px-4 py-2 rounded-full overflow-hidden"
+                    >
+                      <LinearGradient
+                        colors={['#667eea', '#764ba2']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        className="px-4 py-2 items-center justify-center"
+                      >
+                        <Text 
+                          className="text-white text-xs font-semibold"
+                          style={{ fontFamily: fonts.semiBold }}
+                        >
+                          View
+                        </Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             </View>

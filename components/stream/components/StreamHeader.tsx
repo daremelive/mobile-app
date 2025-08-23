@@ -121,11 +121,11 @@ export const StreamHeader = ({
         <View className="mt-2 items-start">
           <View className="bg-black/45 rounded-full px-4 py-2 flex-row items-center mb-2">
             <Ionicons name="eye" size={16} color="white" />
-            <Text className="text-white text-xs font-semibold ml-2">{viewerCount}</Text>
+            <Text className="text-white text-xs font-semibold ml-2">{Number(viewerCount) || 0}</Text>
           </View>
           <View className="bg-black/45 rounded-full px-4 py-2 flex-row items-center">
             <Ionicons name="heart" size={16} color="white" />
-            <Text className="text-white text-xs font-semibold ml-2">{likesCount}</Text>
+            <Text className="text-white text-xs font-semibold ml-2">{Number(likesCount) || 0}</Text>
           </View>
         </View>
       </View>

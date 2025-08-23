@@ -5,6 +5,7 @@ import { useFonts } from 'expo-font';
 import { fontsToLoad } from '../constants/Fonts';
 import { StoreProvider } from '../src/store/Provider';
 import { NotificationProvider } from '../src/context/NotificationContext';
+import { useStreamCleanup } from '../src/hooks/useStreamCleanup';
 import '../global.css';
 
 // Keep the splash screen visible while we fetch resources
@@ -14,6 +15,9 @@ function AppLayout() {
   const { useAuthSession } = require('../src/hooks/useAuthSession');
   const { isLoading: authLoading } = useAuthSession();
   const [fontsLoaded] = useFonts(fontsToLoad);
+  
+  // Initialize stream cleanup hook for automatic stream ending on app termination
+  useStreamCleanup();
 
   useEffect(() => {
     if (fontsLoaded && !authLoading) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Modal, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
@@ -8,6 +8,7 @@ import {
   useAcceptInviteMutation,
   useJoinStreamMutation,
   useLeaveStreamMutation,
+  useStreamActionMutation,
   streamsApi,
 } from '../../../src/store/streamsApi';
 import { StreamVideoClient, StreamCall, StreamVideo, VideoRenderer, useCallStateHooks } from '@stream-io/video-react-native-sdk';
@@ -16,6 +17,7 @@ import { createStreamClient, createStreamUser } from '../../../src/utils/streamC
 import CancelIcon from '../../../assets/icons/cancel.svg';
 import DareMeLiveIcon from '../../../assets/icons/daremelive.svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useStreamHeartbeat } from '../../../src/hooks/useStreamHeartbeat';
 
 export default function MultiParticipantJoinScreen() {
   const router = useRouter();
@@ -30,6 +32,7 @@ export default function MultiParticipantJoinScreen() {
   const [acceptInvite] = useAcceptInviteMutation();
   const [joinStream] = useJoinStreamMutation();
   const [leaveStream] = useLeaveStreamMutation();
+  const [streamAction] = useStreamActionMutation();
 
   const [streamClient, setStreamClient] = useState<StreamVideoClient | null>(null);
   const [call, setCall] = useState<any>(null);
@@ -38,6 +41,9 @@ export default function MultiParticipantJoinScreen() {
   const [isBusy, setIsBusy] = useState(false);
   const [leaveConfirmationVisible, setLeaveConfirmationVisible] = useState(false);
   const initTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Add heartbeat for hosts to keep stream alive
+  const { sendHeartbeat } = useStreamHeartbeat(streamId, isHost && hasJoined);
 
   useEffect(() => {
     if (currentUser?.id && streamId) {
@@ -52,6 +58,64 @@ export default function MultiParticipantJoinScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.id, streamId]);
+
+  // Immediate stream cleanup for multi-participant screen
+  useEffect(() => {
+    if (!streamId || !hasJoined) return;
+
+    let backgroundTime: number | null = null;
+
+    const handleAppStateChange = (nextAppState: any) => {
+      console.log(`[MultiScreen] App state changed to: ${nextAppState}, isHost: ${isHost}, hasJoined: ${hasJoined}`);
+      
+      if (nextAppState === 'background') {
+        backgroundTime = Date.now();
+        
+        // For hosts, end stream immediately when app goes to background
+        if (isHost && hasJoined) {
+          console.log('[MultiScreen] Host backgrounded, ending stream immediately...');
+          streamAction({ 
+            streamId, 
+            action: { action: 'end' } 
+          }).unwrap().catch((error) => {
+            console.error('[MultiScreen] Failed to end stream on immediate background:', error);
+          });
+          
+          // Backup cleanup after 2 seconds
+          setTimeout(() => {
+            if (isHost && hasJoined) {
+              console.log('[MultiScreen] Backup cleanup after 2s...');
+              streamAction({ 
+                streamId, 
+                action: { action: 'end' } 
+              }).unwrap().catch((error) => {
+                console.error('[MultiScreen] Failed backup cleanup:', error);
+              });
+            }
+          }, 2000);
+        }
+      } else if (nextAppState === 'active') {
+        backgroundTime = null;
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription?.remove();
+      
+      // End stream if host component is destroyed
+      if (hasJoined && streamId && isHost) {
+        console.log('[MultiScreen] Host component unmounting, ending stream...');
+        streamAction({ 
+          streamId, 
+          action: { action: 'end' } 
+        }).unwrap().catch((error) => {
+          console.error('[MultiScreen] Failed to end stream on unmount:', error);
+        });
+      }
+    };
+  }, [streamId, hasJoined, isHost, streamAction]);
 
   useFocusEffect(
     React.useCallback(() => {

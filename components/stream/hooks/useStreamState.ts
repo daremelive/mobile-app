@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Alert, Platform, Keyboard } from 'react-native';
 import { Camera } from 'expo-camera';
 import { useSelector, useDispatch } from 'react-redux';
@@ -192,7 +192,7 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       setIsConnecting(false);
       setIsOperationInProgress(false);
     }
-  }, [currentUser, streamDetails, isOperationInProgress, hasJoined, streamId, userRole, joinStream, streamAction, dispatch]);
+  }, [currentUser?.id, streamDetails?.id, isOperationInProgress, hasJoined, streamId, userRole]);
   
   // Leave stream
   const handleLeaveStream = useCallback(async () => {
@@ -247,7 +247,7 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     } finally {
       setIsOperationInProgress(false);
     }
-  }, [isOperationInProgress, hasJoined, call, streamClient, leaveStream, streamId, userRole, streamAction, dispatch]);
+  }, [isOperationInProgress, hasJoined, call, streamClient, streamId, userRole]);
   
   // Send message
   const handleSendMessage = useCallback(async (message: string) => {
@@ -266,9 +266,9 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       console.error('Send message error:', error);
       Alert.alert('Error', 'Failed to send message');
     }
-  }, [hasJoined, streamId, sendMessage, refetchMessages]);
+  }, [hasJoined, streamId]);
   
-  const state: StreamState = {
+  const state: StreamState = React.useMemo(() => ({
     streamClient,
     call,
     hasJoined,
@@ -278,15 +278,15 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     keyboardHeight,
     isKeyboardVisible,
     videoLoadError,
-  };
+  }), [streamClient, call, hasJoined, isConnecting, isOperationInProgress, baseURL, keyboardHeight, isKeyboardVisible, videoLoadError]);
   
-  const actions: StreamActions = {
+  const actions: StreamActions = React.useMemo(() => ({
     initializeStream,
     handleLeaveStream,
     handleSendMessage,
     setVideoLoadError,
     refetchMessages,
-  };
+  }), [initializeStream, handleLeaveStream, handleSendMessage, setVideoLoadError, refetchMessages]);
   
   return {
     state,

@@ -1,17 +1,16 @@
 import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
 import IPDetector from '../utils/ipDetector';
+import { AppConfig } from '../config/env';
 
-// Dynamic base query that handles IP detection
 const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = 'https://daremelive.pythonanywhere.com/api/levels/'; // Production fallback
+  let baseUrl = `${AppConfig.PRODUCTION_API_URL}/levels/`;
   
   if (__DEV__) {
     try {
       baseUrl = await IPDetector.getAPIBaseURL('levels');
-      console.log('🔗 [LevelsAPI] Using detected URL:', baseUrl);
     } catch (error) {
-      console.error('❌ [LevelsAPI] IP detection failed, using fallback:', error);
+      // Silent fallback to production URL
     }
   }
   

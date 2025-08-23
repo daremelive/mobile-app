@@ -1,17 +1,15 @@
 import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
 import IPDetector from '../utils/ipDetector';
+import { AppConfig } from '../config/env';
 
-// Dynamic base query that handles IP detection
 const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = 'https://daremelive.pythonanywhere.com/api/notifications/'; // Production fallback
+  let baseUrl = `${AppConfig.PRODUCTION_API_URL}/notifications/`;
   
-  // Always use IP detector
   try {
     baseUrl = await IPDetector.getAPIBaseURL('notifications');
-    console.log('🔗 [NotificationAPI] Using detected URL:', baseUrl);
   } catch (error) {
-    console.error('❌ [NotificationAPI] IP detection failed, using fallback:', error);
+    // Silent fallback to production URL
   }
   
   // Create a temporary baseQuery with the detected URL

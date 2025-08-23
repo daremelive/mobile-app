@@ -28,6 +28,7 @@ import TransactionIcon from '../../../assets/icons/transaction.svg';
 import LogoutIcon from '../../../assets/icons/logout-01.svg';
 import SentIcon from '../../../assets/icons/sent.svg';
 import { useLogoutMutation, useGetProfileQuery, useUploadProfilePictureMutation } from '../../../src/store/authApi';
+import { useGetMyStreamsQuery, useStreamActionMutation, streamsApi } from '../../../src/store/streamsApi';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout, selectRefreshToken, selectCurrentUser } from '../../../src/store/authSlice';
 import LogoutConfirmationModal from '../../../components/modals/LogoutConfirmationModal';
@@ -50,6 +51,8 @@ const ProfileScreen = () => {
   const [logoutMutation, { isLoading: isLoggingOut }] = useLogoutMutation();
   const { data: profileData, isLoading: isLoadingProfile, refetch: refetchProfile } = useGetProfileQuery();
   const [uploadProfilePicture, { isLoading: isUploadingPicture }] = useUploadProfilePictureMutation();
+  const { data: myStreams } = useGetMyStreamsQuery();
+  const [streamAction] = useStreamActionMutation();
 
   const isImagePickerAvailable = ImagePicker && ImagePicker.requestMediaLibraryPermissionsAsync;
 
@@ -117,10 +120,38 @@ const ProfileScreen = () => {
 
   const handleLogout = async () => {
     try {
+      // First, end any active streams
+      if (myStreams && myStreams.length > 0) {
+        const activeStreams = myStreams.filter(stream => stream.status === 'live');
+        
+        if (activeStreams.length > 0) {
+          console.log(`Ending ${activeStreams.length} active stream(s) before logout...`);
+          
+          // End all active streams
+          for (const stream of activeStreams) {
+            try {
+              await streamAction({ 
+                streamId: stream.id, 
+                action: { action: 'end' } 
+              }).unwrap();
+              console.log(`Stream ${stream.id} ended successfully`);
+            } catch (streamError) {
+              console.error(`Failed to end stream ${stream.id}:`, streamError);
+              // Continue with logout even if stream ending fails
+            }
+          }
+          
+          // Invalidate streams cache
+          dispatch(streamsApi.util.invalidateTags(['Stream']));
+        }
+      }
+
+      // Then proceed with normal logout
       if (refreshToken) {
         await logoutMutation({ refresh: refreshToken }).unwrap();
       }
     } catch (error) {
+      console.error('Logout process error:', error);
       // Continue with logout even if server call fails
     } finally {
       dispatch(logout());
@@ -347,6 +378,7 @@ const ProfileScreen = () => {
         visible={isLogoutModalVisible}
         onClose={() => setLogoutModalVisible(false)}
         onConfirm={handleLogout}
+        hasActiveStreams={myStreams ? myStreams.some(stream => stream.status === 'live') : false}
       />
     </SafeAreaView>
   );

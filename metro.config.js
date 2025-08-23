@@ -28,6 +28,13 @@ config.resolver = {
   ...resolver,
   assetExts: resolver.assetExts.filter((ext) => ext !== "svg"),
   sourceExts: [...resolver.sourceExts, "svg"],
+  platforms: ["ios", "android", "native", "web"],
+  alias: {
+    // Provide web-compatible fallbacks for native WebRTC components
+    ...(process.env.EXPO_TARGET === 'web' && {
+      '@stream-io/react-native-webrtc': '@stream-io/react-native-webrtc/lib/web',
+    }),
+  },
 };
 
 module.exports = withNativeWind(config, { input: "./global.css" });

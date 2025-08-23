@@ -2,29 +2,27 @@ import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/r
 import { RootState } from './index';
 import Constants from 'expo-constants';
 import IPDetector from '../utils/ipDetector';
+import { AppConfig } from '../config/env';
 
 const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = 'https://daremelive.pythonanywhere.com/api/'; // Production fallback
+  let baseUrl = AppConfig.PRODUCTION_API_URL;
   
   try {
-    // In development mode, always use IP detector
     if (__DEV__) {
       baseUrl = await IPDetector.getAPIBaseURL();
-      console.log('🔧 [DEV] Using IP detector URL:', baseUrl);
     } else {
-      // In production, check for environment variables from EAS build
       const envApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL;
       
       if (envApiBaseUrl) {
         // Use environment variable from EAS build configuration
         baseUrl = envApiBaseUrl.endsWith('/api/') ? envApiBaseUrl : `${envApiBaseUrl}/api/`;
-        console.log('🌐 [PROD] Using EAS environment URL:', baseUrl);
+        // Silent operation - no logging
       } else {
-        console.log('⚠️ [PROD] No environment variables found, using fallback:', baseUrl);
+        // Silent fallback - no logging
       }
     }
   } catch (error) {
-    console.log('⚠️ URL detection failed, using fallback:', baseUrl, error);
+    // Silent error handling - no logging
   }
 
   // Create a temporary baseQuery with the detected URL
@@ -170,7 +168,7 @@ export interface JoinStreamRequest {
 }
 
 export interface StreamActionRequest {
-  action: 'start' | 'end';
+  action: 'start' | 'end' | 'heartbeat';
 }
 
 export interface SendMessageRequest {
@@ -235,10 +233,22 @@ export const streamsApi = createApi({
 
     // Get single stream
     getStream: builder.query<Stream, string>({
-      query: (streamId) => ({
-        url: `/streams/${streamId}/`,
-        method: 'GET',
-      }),
+      query: (streamId) => {
+        // Validate streamId before making request
+        if (!streamId || typeof streamId !== 'string' || streamId.trim().length === 0) {
+          throw new Error('Invalid streamId provided to getStream');
+        }
+        
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(streamId)) {
+          throw new Error(`Invalid UUID format for streamId: ${streamId}`);
+        }
+        
+        return {
+          url: `/streams/${streamId}/`,
+          method: 'GET',
+        };
+      },
       providesTags: (result, error, streamId) => [{ type: 'Stream', id: streamId }],
     }),
 
@@ -273,12 +283,31 @@ export const streamsApi = createApi({
 
     // Stream actions (start/end)
     streamAction: builder.mutation<{ message: string; stream?: Stream; stream_id?: string; title?: string }, { streamId: string; action: StreamActionRequest }>({
-      query: ({ streamId, action }) => ({
-        url: `/streams/${streamId}/action/`,
-        method: 'POST',
-        body: action,
-      }),
-      invalidatesTags: (result, error, { streamId }) => [{ type: 'Stream', id: streamId }],
+      query: ({ streamId, action }) => {
+        // Validate streamId before making request
+        if (!streamId || typeof streamId !== 'string' || streamId.trim().length === 0) {
+          throw new Error('Invalid streamId provided to streamAction');
+        }
+        
+        // Additional UUID format validation
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(streamId)) {
+          throw new Error(`Invalid UUID format for streamId: ${streamId}`);
+        }
+        
+        return {
+          url: `/streams/${streamId}/action/`,
+          method: 'POST',
+          body: action,
+        };
+      },
+      invalidatesTags: (result, error, { streamId, action }) => {
+        // For end actions, invalidate all stream lists to refresh UI
+        if (action.action === 'end') {
+          return ['Stream'];  // This invalidates all Stream queries
+        }
+        return [{ type: 'Stream', id: streamId }];
+      },
     }),
 
     // Join stream
@@ -311,10 +340,22 @@ export const streamsApi = createApi({
 
     // Get stream messages
     getStreamMessages: builder.query<StreamMessage[], string>({
-      query: (streamId) => ({
-        url: `/streams/${streamId}/messages/`,
-        method: 'GET',
-      }),
+      query: (streamId) => {
+        // Validate streamId before making request
+        if (!streamId || typeof streamId !== 'string' || streamId.trim().length === 0) {
+          throw new Error('Invalid streamId provided to getStreamMessages');
+        }
+        
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(streamId)) {
+          throw new Error(`Invalid UUID format for streamId: ${streamId}`);
+        }
+        
+        return {
+          url: `/streams/${streamId}/messages/`,
+          method: 'GET',
+        };
+      },
       providesTags: (result, error, streamId) => [{ type: 'StreamMessage', id: streamId }],
     }),
 
@@ -356,11 +397,26 @@ export const streamsApi = createApi({
       }),
     }),
 
+    declineInvite: builder.mutation<{ message: string }, string>({
+      query: (streamId) => ({
+        url: `/streams/${streamId}/decline-invitation/`,
+        method: 'POST',
+      }),
+    }),
+
     removeGuest: builder.mutation<{ message: string; guest_id: string }, { streamId: string; guestId: string }>({
       query: ({ streamId, guestId }) => ({
         url: `/streams/${streamId}/remove-guest/`,
         method: 'POST',
         body: { guest_id: guestId },
+      }),
+    }),
+
+    removeParticipant: builder.mutation<{ message: string; participant_id: string; participant_type: string; user_id: number }, { streamId: string; participantId: string }>({
+      query: ({ streamId, participantId }) => ({
+        url: `/streams/${streamId}/remove-participant/`,
+        method: 'POST',
+        body: { participant_id: participantId },
       }),
     }),
 
@@ -416,6 +472,15 @@ export const streamsApi = createApi({
       }),
       providesTags: ['Search', 'Users'],
     }),
+
+    // Emergency cleanup mutation - ends all active streams for the user
+    emergencyCleanupStreams: builder.mutation<{message: string, streams_ended: number}, void>({
+      query: () => ({
+        url: '/streams/cleanup/',
+        method: 'POST',
+      }),
+      invalidatesTags: ['Stream'],  // Invalidate all stream queries after cleanup
+    }),
   }),
 });
 
@@ -437,11 +502,14 @@ export const {
   useInviteGuestMutation,
   useInviteUsersToStreamMutation,
   useAcceptInviteMutation,
+  useDeclineInviteMutation,
   useRemoveGuestMutation,
+  useRemoveParticipantMutation,
   useToggleCameraMutation,
   useToggleMicrophoneMutation,
   useGetStreamTokenMutation,
   useGetGiftsQuery,
   useSendGiftMutation,
   useSearchQuery,
+  useEmergencyCleanupStreamsMutation,
 } = streamsApi; 

@@ -1,22 +1,20 @@
 import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
 import IPDetector from '../utils/ipDetector';
+import { AppConfig } from '../config/env';
 
-// Dynamic base query that handles IP detection
 const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = 'https://daremelive.pythonanywhere.com/api/levels/'; // Production fallback
+  let baseUrl = `${AppConfig.PRODUCTION_API_URL}/levels/`;
   
   if (__DEV__) {
     try {
       const detectedUrl = await IPDetector.getAPIBaseURL();
       baseUrl = `${detectedUrl}levels/`;
-      console.log('🔗 [LevelsAPI] Using detected URL:', baseUrl);
     } catch (error) {
-      console.error('❌ [LevelsAPI] IP detection failed, using fallback:', error);
+      // Silent fallback to production URL
     }
   }
   
-  // Create a temporary baseQuery with the detected URL
   const baseQuery = fetchBaseQuery({
     baseUrl,
     prepareHeaders: async (headers) => {
@@ -26,7 +24,7 @@ const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
           headers.set('authorization', `Bearer ${token}`);
         }
       } catch (error) {
-        console.error('❌ [LevelsAPI] Error getting auth token:', error);
+        // Silent error handling
       }
       return headers;
     },
@@ -35,7 +33,6 @@ const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
   return baseQuery(args, api, extraOptions);
 };
 
-// Level tier interface
 export interface LevelTier {
   id: number;
   name: string;
@@ -86,16 +83,34 @@ export interface CoinTransaction {
   created_at: string;
 }
 
+export interface StreamChannel {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  max_participants: number;
+  allow_recording: boolean;
+  required_tiers: string[];
+  required_tiers_display: string;
+  is_accessible: boolean;
+  is_locked: boolean;
+  unlock_tier?: string;
+  coins_needed_to_unlock: number;
+  unlock_message?: string;
+}
+
 export interface StreamPrivileges {
   can_create_streams: boolean;
   can_join_streams: boolean;
-  accessible_channels: Array<{
-    code: string;
-    name: string;
-  }>;
+  all_channels: StreamChannel[];
+  accessible_channels: StreamChannel[];
+  locked_channels: StreamChannel[];
   max_stream_duration_minutes: number;
   tier_name: string;
   tier_display_name: string;
+  current_coins: number;
+  current_tier_display: string;
 }
 
 export const levelsApi = createApi({
@@ -103,32 +118,27 @@ export const levelsApi = createApi({
   baseQuery: dynamicBaseQuery,
   tagTypes: ['UserLevel', 'LevelTiers', 'CoinTransactions', 'StreamPrivileges'],
   endpoints: (builder) => ({
-    // Get user level summary
     getUserLevelSummary: builder.query<UserLevelSummary, void>({
       query: () => 'summary/',
       providesTags: ['UserLevel'],
     }),
 
-    // Get user level status
     getUserLevelStatus: builder.query<UserCoins, void>({
       query: () => 'status/',
       providesTags: ['UserLevel'],
     }),
 
-    // Get all level tiers
     getLevelTiers: builder.query<LevelTier[], void>({
       query: () => 'tiers/',
       transformResponse: (response: { results: LevelTier[] }) => response.results,
       providesTags: ['LevelTiers'],
     }),
 
-    // Get user's streaming privileges
     getUserStreamPrivileges: builder.query<StreamPrivileges, void>({
       query: () => 'privileges/',
       providesTags: ['StreamPrivileges'],
     }),
 
-    // Unlock a level
     unlockLevel: builder.mutation<
       { message: string; tier: LevelTier },
       { tier_id: number }
@@ -141,7 +151,6 @@ export const levelsApi = createApi({
       invalidatesTags: ['UserLevel', 'LevelTiers', 'StreamPrivileges'],
     }),
 
-    // Get coin transactions
     getCoinTransactions: builder.query<CoinTransaction[], void>({
       query: () => 'transactions/',
       transformResponse: (response: { results: CoinTransaction[] }) => response.results,

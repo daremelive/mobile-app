@@ -64,10 +64,9 @@ export default function ShareProfileModal({ visible, onClose, userProfile }: Sha
         // Use a more user-friendly URL structure for profile sharing
         const url = `${baseUrl}/profile/${userProfile.username}?utm_source=mobile_share&utm_medium=social`;
         setProfileUrl(url);
-        console.log('🔗 Share Profile URL initialized:', url);
       } catch (error) {
         console.error('❌ Failed to detect IP for sharing:', error);
-        setProfileUrl(`https://daremelive.pythonanywhere.com/profile/${userProfile.username}?utm_source=mobile_share&utm_medium=social`); // Production fallback
+        setProfileUrl(`https://daremelive.pythonanywhere.com/profile/${userProfile.username}?utm_source=mobile_share&utm_medium=social`);
       }
     };
     

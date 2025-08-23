@@ -55,15 +55,6 @@ export default function SignupScreen() {
     scheme: appScheme,
   });
 
-  // Debug logging for production troubleshooting
-  console.log('Google Auth Config (Signup):', {
-    googleClientId: googleClientId ? `${googleClientId.substring(0, 10)}...` : 'undefined',
-    iosClientId: iosClientId ? `${iosClientId.substring(0, 10)}...` : 'undefined',
-    nativeRedirect,
-    redirectUri,
-    platform: Platform.OS,
-  });
-
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: Platform.OS === 'ios' ? iosClientId : Platform.OS === 'android' ? androidClientId : googleClientId,
     iosClientId,

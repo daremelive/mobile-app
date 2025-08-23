@@ -9,8 +9,11 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  AppState,
+  RefreshControl
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { fonts } from '../../../constants/Fonts';
@@ -303,6 +306,7 @@ const SearchResults = React.memo(({ query, onJoinStream, baseURL }: {
 export default function HomeScreen() {
   const [isSearching, setIsSearching] = React.useState(false);
   const [selectedCategory, setSelectedCategory] = React.useState('All');
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [searchState, setSearchState] = React.useState({
     query: '',
     submitted: false,
@@ -356,12 +360,12 @@ export default function HomeScreen() {
   // If there's an authentication error, clear following users to avoid stale data
   const safeFollowingUsers = followingError ? [] : followingUsers;
   
-  // Get popular/trending streams with aggressive polling to avoid stale data
+  // Get popular/trending streams with automatic refresh to detect ended streams
   const { data: popularStreamsData, isLoading: popularLoading, refetch: refetchPopular } = useGetStreamsQuery({ 
     status: 'live',
     channel: selectedCategory === 'All' ? undefined : selectedCategory.toLowerCase().replace('truth/dare', 'truth-or-dare')
   }, {
-    pollingInterval: 0, // Disabled to prevent screen blinking
+    pollingInterval: 30000, // Refresh every 30 seconds to detect ended streams
     refetchOnMountOrArgChange: true,
     refetchOnFocus: true,
     refetchOnReconnect: true,
@@ -372,6 +376,40 @@ export default function HomeScreen() {
   
   // Ensure popularStreams is always an array
   const popularStreams = Array.isArray(popularStreamsData?.results) ? popularStreamsData.results : [];
+
+  // Auto-refresh streams when app comes to foreground to detect ended streams
+  React.useEffect(() => {
+    const handleAppStateChange = (nextAppState: any) => {
+      if (nextAppState === 'active') {
+        console.log('[HomeScreen] App became active, refreshing popular streams...');
+        refetchPopular();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [refetchPopular]);
+
+  // Refresh streams when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[HomeScreen] Screen focused, refreshing streams...');
+      refetchPopular();
+    }, [refetchPopular])
+  );
+
+  // Manual refresh function for pull-to-refresh
+  const onRefresh = React.useCallback(async () => {
+    console.log('[HomeScreen] Manual refresh triggered...');
+    setIsRefreshing(true);
+    try {
+      await refetchPopular();
+    } catch (error) {
+      console.error('[HomeScreen] Refresh failed:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refetchPopular]);
 
   // Since we're filtering at the API level, we can use popularStreams directly
   const filteredStreams = popularStreams;
@@ -485,7 +523,19 @@ export default function HomeScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
-        <ScrollView scrollEnabled={!isSearching && !searchState.showSuggestions}>
+        <ScrollView 
+          scrollEnabled={!isSearching && !searchState.showSuggestions}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor="#C42720"
+              colors={['#C42720']}
+              title="Refreshing streams..."
+              titleColor="#ffffff"
+            />
+          }
+        >
         <View className="p-4">
           {/* Header */}
           <View className="mb-6 flex-row items-center justify-between">

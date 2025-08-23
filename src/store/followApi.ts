@@ -1,12 +1,10 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
 import type { RootState } from './index';
+import { AppConfig } from '../config/env';
 
-// Base URL for your Django backend
-// Use the same base URL detection as authApi
 const getBaseUrl = () => {
   if (__DEV__) {
-    // @ts-ignore
     const { manifest } = require('expo-constants').default;
     
     if (manifest?.debuggerHost) {
@@ -26,7 +24,7 @@ const getBaseUrl = () => {
     }
   }
   
-  return 'https://daremelive.pythonanywhere.com/api';
+  return AppConfig.PRODUCTION_API_URL;
 };
 
 const BASE_URL = getBaseUrl();

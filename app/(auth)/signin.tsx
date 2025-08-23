@@ -51,21 +51,10 @@ export default function SigninScreen() {
     ? (Constants as any)?.expoConfig?.scheme?.[0]
     : (Constants as any)?.expoConfig?.scheme || 'mobile';
   const redirectUri = makeRedirectUri({
-    // Use Google-required native redirect when available; fall back to app scheme
     native: nativeRedirect,
     scheme: appScheme,
   });
 
-  // Debug logging for production troubleshooting
-  console.log('Google Auth Config:', {
-    googleClientId: googleClientId ? `${googleClientId.substring(0, 10)}...` : 'undefined',
-    iosClientId: iosClientId ? `${iosClientId.substring(0, 10)}...` : 'undefined',
-    nativeRedirect,
-    redirectUri,
-    platform: Platform.OS,
-  });
-
-  // Use Authorization Code w/ PKCE (required for iOS native Google OAuth)
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: Platform.OS === 'ios' ? iosClientId : Platform.OS === 'android' ? androidClientId : googleClientId,
     iosClientId,

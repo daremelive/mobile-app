@@ -1,51 +1,37 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
 import type { RootState } from './index';
+import { AppConfig } from '../config/env';
 
-// Base URL for your Django backend
-// Automatically detect local IP for Expo Go development
 const getBaseUrl = () => {
-  console.log('🔧 Detecting API base URL...');
-  
   if (__DEV__) {
-    // For Expo Go development, Metro exposes the local IP
-    // @ts-ignore
     const { manifest } = require('expo-constants').default;
-    console.log('📱 Expo manifest:', manifest);
     
     if (manifest?.debuggerHost) {
       const ip = manifest.debuggerHost.split(':')[0];
       const url = `http://${ip}:8000/api`;
-      console.log(`🔗 Auto-detected API URL from debuggerHost: ${url}`);
       return url;
     }
     
-    // Alternative method: Check for localhost/development environment
     try {
-      // In development, we can also check window.location if available
       if (typeof window !== 'undefined' && window.location?.hostname) {
         const ip = window.location.hostname;
         if (ip !== 'localhost' && ip !== '127.0.0.1') {
           const url = `http://${ip}:8000/api`;
-          console.log(`🔗 Using window hostname: ${url}`);
           return url;
         }
       }
     } catch (e) {
       // Ignore errors in React Native environment
-      console.log('⚠️ Window location not available (normal in React Native)');
     }
   }
   
-  // Fallback for production or if IP detection fails
-  const fallbackUrl = 'https://daremelive.pythonanywhere.com/api';
-  console.log(`🔗 Using fallback API URL: ${fallbackUrl}`);
-  return fallbackUrl;
+  return AppConfig.PRODUCTION_API_URL;
 };
 
 const BASE_URL = getBaseUrl();
 
-console.log(`🚀 Final API Base URL: ${BASE_URL}`);
+// Silent operation - no logging
 
 // Types for API responses and requests
 export interface User {

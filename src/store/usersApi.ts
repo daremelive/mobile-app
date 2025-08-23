@@ -1,10 +1,10 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { RootState } from './index';
 import IPDetector from '../utils/ipDetector';
+import { AppConfig } from '../config/env';
 
-// Dynamic base query that detects the API URL
 const dynamicBaseQuery = async (args: any, api: any, extraOptions: any) => {
-  let baseUrl = 'https://daremelive.pythonanywhere.com/api/';
+  let baseUrl = AppConfig.PRODUCTION_API_URL;
   
   try {
     if (IPDetector) {

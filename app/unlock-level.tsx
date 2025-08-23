@@ -58,7 +58,20 @@ const UnlockLevelScreen = () => {
       refetchTiers();
     } catch (error: any) {
       const errorMessage = error?.data?.tier_id?.[0] || error?.data?.detail || error?.data?.message || 'Failed to unlock level. Please try again.';
-      Alert.alert('Unlock Failed', errorMessage);
+      
+      Alert.alert(
+        'Unlock Failed', 
+        errorMessage,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: '💰 Get Coins', 
+            onPress: () => {
+              router.push('/get-coins');
+            }
+          }
+        ]
+      );
     }
   };
 
@@ -132,12 +145,6 @@ const UnlockLevelScreen = () => {
 
   // Handle other errors
   if (summaryError || tiersError || !levelSummary || !levelTiers) {
-    // Debug information
-    console.log('🐛 [UnlockLevel] Summary Error:', summaryError);
-    console.log('🐛 [UnlockLevel] Tiers Error:', tiersError);
-    console.log('🐛 [UnlockLevel] Level Summary:', levelSummary);
-    console.log('🐛 [UnlockLevel] Level Tiers:', levelTiers);
-    
     return (
       <SafeAreaView className="flex-1 bg-black justify-center items-center px-6">
         <StatusBar style="light" />

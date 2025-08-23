@@ -6,12 +6,14 @@ interface LogoutConfirmationModalProps {
   visible: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  hasActiveStreams?: boolean;
 }
 
 const LogoutConfirmationModal: React.FC<LogoutConfirmationModalProps> = ({
   visible,
   onClose,
   onConfirm,
+  hasActiveStreams = false,
 }) => {
   return (
     <Modal
@@ -23,7 +25,13 @@ const LogoutConfirmationModal: React.FC<LogoutConfirmationModalProps> = ({
       <View className="flex-1 justify-center items-center bg-black/80">
         <View className="bg-[#1E1E1E] rounded-2xl p-8 items-center w-[95%]">
           <Text className="text-white text-2xl font-bold mb-4">Log Out</Text>
-          <Text className="text-gray-400 text-center mb-8">Are you sure you want to log out?</Text>
+          <Text className="text-gray-400 text-center mb-2">Are you sure you want to log out?</Text>
+          {hasActiveStreams && (
+            <Text className="text-orange-400 text-sm text-center mb-6">
+              ⚠️ Your active stream(s) will be ended and viewers will be notified.
+            </Text>
+          )}
+          {!hasActiveStreams && <View className="mb-6" />}
 
           <View className="w-full h-[52px] rounded-full overflow-hidden mb-4">
             <LinearGradient
