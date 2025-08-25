@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState } from 'react-native';
+import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
@@ -17,6 +17,27 @@ function UnifiedHostStreamScreen() {
   const dispatch = useDispatch();
   const currentUser = useSelector(selectCurrentUser) as any;
   const accessToken = useSelector(selectAccessToken);
+
+  // Early platform check for web compatibility
+  if (Platform.OS === 'web') {
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' }}>
+          📱 Mobile Experience Required
+        </Text>
+        <Text style={{ fontSize: 16, textAlign: 'center', marginBottom: 24, color: '#666' }}>
+          Live streaming features are optimized for mobile devices and are not available on web. 
+          Please download the DareMe mobile app to create and host live streams.
+        </Text>
+        <TouchableOpacity 
+          style={{ backgroundColor: '#007AFF', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+          onPress={() => router.back()}
+        >
+          <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>Go Back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
   
   const streamIdFromParams = (params.id as string) || '';
   const titleFromParams = (params.title as string) || '';
@@ -121,10 +142,10 @@ function UnifiedHostStreamScreen() {
     },
   });
 
-  // Add heartbeat to keep stream alive
+  // Heartbeat system disabled - streams persist indefinitely 
   const { sendHeartbeat } = useStreamHeartbeat(
     streamId, 
-    state.hasJoined && !endStreamSystem.isEndingStream // Stop heartbeat when ending stream
+    false // Always disabled
   );
 
   useEffect(() => {
@@ -207,6 +228,17 @@ function UnifiedHostStreamScreen() {
         setIsCreatingStream(true);
         
         try {
+          console.log('🎬 Starting stream creation process...', {
+            fromTitleScreen,
+            streamId,
+            userId: userData?.id,
+            isCreatingStream,
+            titleFromParams,
+            streamMode,
+            channel,
+            maxSeats
+          });
+
           // Check if user has uploaded a profile picture before creating stream
           const hasProfilePicture = !!(
             userData?.profile_picture_url || 
@@ -214,6 +246,7 @@ function UnifiedHostStreamScreen() {
           );
 
           if (!hasProfilePicture) {
+            console.log('❌ Profile picture required for stream creation');
             Alert.alert(
               '📸 Profile Picture Required',
               'To create a professional stream experience, please upload your profile picture first. This helps viewers connect with you and makes your stream look amazing!',
@@ -237,15 +270,42 @@ function UnifiedHostStreamScreen() {
             max_seats: streamMode === 'multi' ? maxSeats : 1,
           };
 
+          console.log('📡 Sending stream creation request:', streamData);
           const newStream = await createStream(streamData).unwrap();
+          console.log('✅ Stream created successfully:', newStream);
           
           setStreamId(newStream.id);
           setTitle(newStream.title);
           
         } catch (error: any) {
+          console.error('❌ Stream creation failed:', {
+            error,
+            errorData: error?.data,
+            errorMessage: error?.message,
+            errorStatus: error?.status,
+            originalError: error?.originalStatus,
+          });
+
+          // Determine specific error message
+          let errorMessage = 'Failed to create stream. Please try again.';
+          
+          if (error?.data?.error) {
+            errorMessage = error.data.error;
+          } else if (error?.data?.detail) {
+            errorMessage = error.data.detail;
+          } else if (error?.message) {
+            errorMessage = error.message;
+          } else if (error?.status === 401) {
+            errorMessage = 'Authentication failed. Please log in again.';
+          } else if (error?.status === 403) {
+            errorMessage = 'Your account doesn\'t have permission to create streams. Please upgrade your tier level.';
+          } else if (error?.status === 400) {
+            errorMessage = 'Invalid stream data. Please check your settings and try again.';
+          }
+
           Alert.alert(
             'Stream Creation Failed',
-            error?.data?.error || error?.message || 'Failed to create stream. Please try again.',
+            errorMessage,
             [
               { text: 'Go Back', onPress: () => router.back() },
               { text: 'Retry', onPress: () => createStreamFromTitleScreen() }
@@ -312,25 +372,8 @@ function UnifiedHostStreamScreen() {
   }, [currentUser?.id, streamId]); // Remove hasJoined and isOperationInProgress from deps to prevent re-initialization
 
   useEffect(() => {
-    if (state.hasJoined && streamId && sendHeartbeat && !initialHeartbeatSent.current) {
-      initialHeartbeatSent.current = true;
-      
-      const timer = setTimeout(() => {
-        sendHeartbeat().then(() => {
-          dispatch(streamsApi.util.invalidateTags(['Stream']));
-        }).catch((error) => {
-          streamAction({
-            streamId,
-            action: { action: 'start' }
-          }).unwrap().then(() => {
-            dispatch(streamsApi.util.invalidateTags(['Stream']));
-          }).catch((startError) => {
-          });
-        });
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
+    // Heartbeat system disabled - no initial heartbeat needed
+    // Streams will persist until manually ended
   }, [state.hasJoined, streamId, sendHeartbeat, streamAction, dispatch]);
 
   useEffect(() => {
@@ -339,6 +382,7 @@ function UnifiedHostStreamScreen() {
     let backgroundTimer: number | null = null;
     let isCleanupInProgress = false;
     let cleanupExecuted = false; // Prevent multiple cleanup executions
+    let backgroundStartTime: number | null = null; // Track when app went to background
 
     const executeStreamCleanup = async (reason: string) => {
       if (isCleanupInProgress || cleanupExecuted) {
@@ -362,55 +406,74 @@ function UnifiedHostStreamScreen() {
         }
         
       } catch (error: any) {
+        console.log('Stream cleanup failed, but continuing cleanup process:', error);
         
         dispatch(streamsApi.util.invalidateTags(['Stream']));
         
-        if (error?.status !== 404 && error?.status !== 400) {
-         
-          setTimeout(() => {
-            if (!cleanupExecuted) { // Only retry if cleanup hasn't succeeded yet
-              streamAction({ streamId, action: { action: 'end' } }).unwrap()
-                .then(() => {
-                 
-                  dispatch(streamsApi.util.invalidateTags(['Stream']));
-                  cleanupExecuted = true;
-                })
-                .catch(e => {
-                 
-                  cleanupExecuted = true; // Stop further attempts
-                });
-            }
-          }, 2000);
-        } else {
-         
-          cleanupExecuted = true;
+        // Always leave the call regardless of API success
+        if (state.call) {
+          state.call.leave().catch(console.error);
         }
+        
+        // Don't retry for any error - just mark as complete
+        // User experience is more important than perfect cleanup
+        cleanupExecuted = true;
+        
       } finally {
         isCleanupInProgress = false;
       }
     };
 
     const handleAppStateChange = (nextAppState: string) => {
-      
+      console.log('App state changed to:', nextAppState);
       
       if (nextAppState === 'background') {
-        // For mobile streaming apps, immediate cleanup is critical for force-close scenarios
-        // This ensures streams don't stay "ghost" live when user force closes
-       
-        if (state.hasJoined && !cleanupExecuted) {
-          executeStreamCleanup('App backgrounded (IMMEDIATE force-close protection)');
-        }
+        backgroundStartTime = Date.now();
+        // Heartbeat system disabled - no automatic cleanup on background
+        // Stream will persist when app is backgrounded
+        console.log('App backgrounded - stream will persist (heartbeat system disabled)');
         
       } else if (nextAppState === 'inactive') {
-        if (state.hasJoined && !cleanupExecuted) {
-          executeStreamCleanup('App inactive (iOS termination protection)');
-        }
+        // iOS specific - don't cleanup immediately on inactive
+        // This happens during notifications, control center, etc.
         
       } else if (nextAppState === 'active') {
+        // Clear any pending cleanup timer
         if (backgroundTimer) {
           clearTimeout(backgroundTimer);
           backgroundTimer = null;
         }
+        
+        // Check if we need to reinitialize after returning from background
+        if (backgroundStartTime && state.hasJoined && !cleanupExecuted) {
+          const timeInBackground = Date.now() - backgroundStartTime;
+          console.log(`App returned to foreground after ${timeInBackground}ms`);
+          
+          // If we were in background for more than 5 seconds, reinitialize camera
+          if (timeInBackground > 5000) {
+            console.log('Reinitializing camera after background period');
+            
+            // First reset the connection state if call doesn't exist
+            if (!state.call) {
+              console.log('No active call found, resetting connection state');
+              actions.resetConnectionState();
+              // Then reinitialize
+              setTimeout(() => {
+                actions.initializeStream();
+              }, 100);
+            } else {
+              // Try to re-enable camera and microphone on existing call
+              state.call.camera.enable().catch((err: any) => {
+                console.log('Camera reinitialization failed:', err);
+              });
+              state.call.microphone.enable().catch((err: any) => {
+                console.log('Microphone reinitialization failed:', err);
+              });
+            }
+          }
+        }
+        
+        backgroundStartTime = null;
       }
     };
 
@@ -444,7 +507,7 @@ function UnifiedHostStreamScreen() {
         }
       }
     };
-  }, [streamId, state.hasJoined, state.call]);
+  }, [streamId, state.hasJoined, state.call, actions]);
 
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;

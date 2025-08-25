@@ -216,6 +216,7 @@ const ProfileScreen = () => {
       <ScrollView 
         className="flex-1" 
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 120 }} // Add sufficient bottom padding for tab bar
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -363,7 +364,7 @@ const ProfileScreen = () => {
           </View>
 
           <TouchableOpacity 
-            className="bg-[#1A1A1A] w-full rounded-lg mt-4 mb-8 p-4 flex-row items-center"
+            className="bg-[#1A1A1A] w-full rounded-lg mt-4 mb-4 p-4 flex-row items-center"
             onPress={() => setLogoutModalVisible(true)}
           >
             <View className="w-8 h-8 p-6 rounded-full justify-center items-center mr-4 bg-[#2A2A2A]">

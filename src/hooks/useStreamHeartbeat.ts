@@ -34,7 +34,6 @@ export const useStreamHeartbeat = (streamId: string | null, isActive: boolean = 
       
       return;
     }
-
     // Silent heartbeat start - no logging
 
     // Send initial heartbeat

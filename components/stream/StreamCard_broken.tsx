@@ -47,22 +47,14 @@ const StreamCard: React.FC<StreamCardProps> = ({
       return;
     }
 
-    console.log('🔍 StreamCard pressed - checking access...');
-    console.log('🔍 Raw currentUser object:', currentUser);
-    console.log('🔍 Raw host object:', host);
-    console.log('User tier:', (currentUser as any)?.vip_level);
-    console.log('Host tier:', host.vip_level);
-
     // First check tier access - user must have equal or higher tier than host
     const tierAccessResult = checkHostAccess(host, { allowHigherTier: true, requireExactMatch: false });
     
-    console.log('🔍 Tier access check result:', {
-      userTier: (currentUser as any)?.vip_level,
+    console.log('🔍 Tier access check:', {
+      userTier: currentUser?.vip_level,
       hostTier: host.vip_level,
       canAccess: tierAccessResult.canAccess,
-      reason: tierAccessResult.reason,
-      userTierFromResult: tierAccessResult.userTier,
-      hostTierFromResult: tierAccessResult.hostTier
+      reason: tierAccessResult.reason
     });
     
     if (!tierAccessResult.canAccess) {
@@ -151,6 +143,12 @@ const StreamCard: React.FC<StreamCardProps> = ({
             source={{ uri: profileImageUrl }} 
             className="w-full h-full justify-between"
           >
+            {/* Debug component - shows in development only */}
+            <DebugTierAccess 
+              hostTier={host.vip_level} 
+              hostName={host.username || host.first_name || 'Unknown Host'} 
+            />
+
             {/* Viewer count, live status, and tier badge */}
             <View className="items-end p-2">
               <View className="bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1 mb-2">
@@ -160,7 +158,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
                 </Text>
               </View>
               
-              {/* Tier Badge
+              {/* Tier Badge */}
               <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
                 <Text className="text-white text-xs font-bold">
                   {tierBadge.emoji}
@@ -171,7 +169,27 @@ const StreamCard: React.FC<StreamCardProps> = ({
                 <View className="bg-red-600 px-2 py-1 rounded-full">
                   <Text className="text-white text-xs font-bold">LIVE</Text>
                 </View>
-              )} */}
+              )}
+            </View>
+              <View className="bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1 mb-2">
+                <EyeIcon width={16} height={16} stroke="#FFFFFF" className="mr-1.5" />
+                <Text className="text-white text-xs font-semibold">
+                  {formatViewerCount(viewer_count)}
+                </Text>
+              </View>
+              
+              {/* Tier Badge */}
+              <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
+                <Text className="text-white text-xs font-bold">
+                  {tierBadge.emoji}
+                </Text>
+              </View>
+              
+              {status === 'live' && (
+                <View className="bg-red-600 px-2 py-1 rounded-full">
+                  <Text className="text-white text-xs font-bold">LIVE</Text>
+                </View>
+              )}
             </View>
             
             {/* Title and host info */}
@@ -210,7 +228,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
               </View>
               
               {/* Tier Badge */}
-              {/* <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
+              <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
                 <Text className="text-white text-xs font-bold">
                   {tierBadge.emoji}
                 </Text>
@@ -220,7 +238,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
                 <View className="bg-red-600 px-2 py-1 rounded-full">
                   <Text className="text-white text-xs font-bold">LIVE</Text>
                 </View>
-              )} */}
+              )}
             </View>
             
             {/* Title and host info */}
@@ -244,7 +262,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
       <TierAccessModal
         visible={tierModalVisible}
         onClose={() => setTierModalVisible(false)}
-        userTier={(currentUser as any)?.vip_level || 'basic'}
+        userTier={currentUser?.vip_level || 'basic'}
         requiredTier={host.vip_level}
         hostName={host.username || host.first_name || 'Unknown Host'}
         streamTitle={title}

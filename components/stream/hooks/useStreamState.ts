@@ -44,6 +44,7 @@ export interface StreamActions {
   handleSendMessage: (message: string) => Promise<void>;
   setVideoLoadError: (error: string | null) => void;
   refetchMessages: () => void;
+  resetConnectionState: () => void;
 }
 
 export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
@@ -122,69 +123,126 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     };
   }, []);
   
-  // Stream initialization - simplified version
+  // Reset connection state when call is disconnected
+  const resetConnectionState = useCallback(() => {
+    setCall(null);
+    setStreamClient(null);
+    setHasJoined(false);
+    setIsConnecting(false);
+    setVideoLoadError(null);
+    setIsOperationInProgress(false);
+  }, []);
+
+  // Stream initialization - simplified version with better timeout handling
   const initializeStream = useCallback(async () => {
     // Allow host to initialize even if streamDetails hasn't loaded yet; others wait
     if (!currentUser?.id) return;
     if (userRole !== 'host' && !streamDetails) return; // viewers/participants still need details
-    if (isOperationInProgress || hasJoined) return;
+    if (isOperationInProgress) return;
+
+    // If hasJoined is true but no call exists, reset state first
+    if (hasJoined && !call) {
+      console.log('Detected stale hasJoined state, resetting...');
+      resetConnectionState();
+      return;
+    }
+
+    if (hasJoined && call) {
+      // Already properly connected
+      return;
+    }
 
     setIsOperationInProgress(true);
     setIsConnecting(true);
 
     try {
+      // Set a timeout for the entire initialization
+      const initTimeout = setTimeout(() => {
+        console.log('Stream initialization timeout - proceeding anyway');
+        setIsConnecting(false);
+        setIsOperationInProgress(false);
+      }, 15000); // 15 second timeout
+
       const client = await createStreamClient(currentUser);
       setStreamClient(client);
 
-  const callId = `stream_${streamId}`;
-  // Use the same call type as existing multi implementation ('default') for consistency
-  const newCall = client.call('default', callId);
+      const callId = `stream_${streamId}`;
+      // Use the same call type as existing multi implementation ('default') for consistency
+      const newCall = client.call('default', callId);
+      
+      // Add call event listeners to detect disconnections
+      newCall.on('call.session_participant_left', () => {
+        console.log('Participant left event detected');
+        resetConnectionState();
+      });
+      
+      newCall.on('call.ended', () => {
+        console.log('Call ended event detected');
+        resetConnectionState();
+      });
+
       if (userRole === 'host') {
         await newCall.join({ create: true });
-        // Request and enable media for host
+        // Request and enable media for host with timeout
         try {
+          const mediaTimeout = setTimeout(() => {
+            console.log('Media enable timeout - continuing with stream');
+          }, 8000); // 8 second media timeout
+          
           const camPerm = await Camera.requestCameraPermissionsAsync();
           const micPerm = await Camera.requestMicrophonePermissionsAsync();
+          
           if (camPerm.status === 'granted') {
-            await newCall.camera.enable().catch(() => {});
+            await Promise.race([
+              newCall.camera.enable(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Camera timeout')), 5000))
+            ]).catch((err) => {
+              console.log('Camera enable failed or timed out:', err.message);
+            });
           }
           if (micPerm.status === 'granted') {
-            await newCall.microphone.enable().catch(() => {});
+            await Promise.race([
+              newCall.microphone.enable(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Mic timeout')), 5000))
+            ]).catch((err) => {
+              console.log('Microphone enable failed or timed out:', err.message);
+            });
           }
+          
+          clearTimeout(mediaTimeout);
         } catch (permErr) {
-          // Media permission/enable error (host)
+          console.log('Media permission/enable error (non-fatal):', permErr);
         }
       } else {
         await newCall.join();
       }
+      
       setCall(newCall);
       setHasJoined(true);
+      clearTimeout(initTimeout);
 
-      // For hosts: automatically start the stream to make it visible in popular channels
+      // For hosts: try to start the stream but don't block on it
       if (userRole === 'host') {
-        try {
-          await streamAction({
-            streamId,
-            action: { action: 'start' }
-          }).unwrap();
-          
+        // Don't await this - let it happen in background
+        streamAction({
+          streamId,
+          action: { action: 'start' }
+        }).unwrap().then(() => {
           dispatch(streamsApi.util.invalidateTags(['Stream']));
-        } catch (startError: any) {
-          // Stream start action failed (may already be live)
+        }).catch((startError: any) => {
+          console.log('Stream start action failed (non-fatal):', startError);
           // Don't fail the entire initialization if start action fails
-          // The stream might already be live or in a valid state
-        }
+        });
       }
 
       if (userRole !== 'host') {
-        try {
-          await joinStream({
-            streamId,
-            data: { participant_type: userRole === 'participant' ? 'guest' : 'viewer' }
-          }).unwrap();
-        } catch (e) {
-          // Non-fatal
-        }
+        // Don't await this either - non-blocking join
+        joinStream({
+          streamId,
+          data: { participant_type: userRole === 'participant' ? 'guest' : 'viewer' }
+        }).unwrap().catch((e) => {
+          console.log('Join stream failed (non-fatal):', e);
+        });
       }
     } catch (error: any) {
       console.error('❌ Stream initialization error:', error);
@@ -285,7 +343,8 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     handleSendMessage,
     setVideoLoadError,
     refetchMessages,
-  }), [initializeStream, handleLeaveStream, handleSendMessage, setVideoLoadError, refetchMessages]);
+    resetConnectionState,
+  }), [initializeStream, handleLeaveStream, handleSendMessage, setVideoLoadError, refetchMessages, resetConnectionState]);
   
   return {
     state,
