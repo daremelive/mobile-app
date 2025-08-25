@@ -177,7 +177,7 @@ const WalletScreen = () => {
               <WalletIcon width={50} height={50} className="ml-2" />
             </View>
             <Text className="text-white/70 text-sm mt-1">
-              {walletData?.coins_equivalent_text || '~ 0 coins'}
+              {walletData?.coins_equivalent_text?.replace(/coins?/gi, 'Riz') || '~ 0 Riz'}
             </Text>
           </View>
           </LinearGradient>
@@ -193,7 +193,7 @@ const WalletScreen = () => {
                 <View className="w-14 h-14 bg-[#3D3E3F] rounded-full justify-center items-center mb-2">
                   <CoinsIcon width={24} height={24} className="ml-2 bg-gray-600 rounded-full p-1" />
                 </View>
-                <Text className="text-white text-base font-semibold">Get more coins</Text>
+                <Text className="text-white text-base font-semibold">Get Riz</Text>
               </View>
             </TouchableOpacity>
             

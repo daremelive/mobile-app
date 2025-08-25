@@ -65,7 +65,7 @@ const UnlockLevelScreen = () => {
         [
           { text: 'Cancel', style: 'cancel' },
           { 
-            text: '💰 Get Coins', 
+            text: '💰 Get Riz', 
             onPress: () => {
               router.push('/get-coins');
             }
@@ -221,12 +221,12 @@ const UnlockLevelScreen = () => {
               <View>
                 <View>
                   <Text className="text-black text-2xl font-bold">{currentTier.display_name}</Text>
-                  <Text className="text-black text-sm">{levelSummary.coins.total_earned} coins earned</Text>
+                  <Text className="text-black text-sm">{levelSummary.coins.total_earned} Riz earned</Text>
                 </View>
                 
                 <Text className="text-black mt-4">
                   {levelSummary.next_tier 
-                    ? `Get ${levelSummary.coins.needed_for_next} more coins to reach ${levelSummary.next_tier.display_name}`
+                    ? `Get ${levelSummary.coins.needed_for_next} more Riz to reach ${levelSummary.next_tier.display_name}`
                     : 'You\'ve reached the maximum level!'}
                 </Text>
                 {levelSummary.next_tier && (

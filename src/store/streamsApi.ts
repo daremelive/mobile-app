@@ -397,13 +397,6 @@ export const streamsApi = createApi({
       }),
     }),
 
-    declineInvite: builder.mutation<{ message: string }, string>({
-      query: (streamId) => ({
-        url: `/streams/${streamId}/decline-invitation/`,
-        method: 'POST',
-      }),
-    }),
-
     removeGuest: builder.mutation<{ message: string; guest_id: string }, { streamId: string; guestId: string }>({
       query: ({ streamId, guestId }) => ({
         url: `/streams/${streamId}/remove-guest/`,
@@ -412,7 +405,7 @@ export const streamsApi = createApi({
       }),
     }),
 
-    removeParticipant: builder.mutation<{ message: string; participant_id: string; participant_type: string; user_id: number }, { streamId: string; participantId: string }>({
+    removeParticipant: builder.mutation<{ message: string; participant_id: string }, { streamId: string; participantId: string }>({
       query: ({ streamId, participantId }) => ({
         url: `/streams/${streamId}/remove-participant/`,
         method: 'POST',
@@ -471,6 +464,7 @@ export const streamsApi = createApi({
         method: 'GET',
       }),
       providesTags: ['Search', 'Users'],
+      keepUnusedDataFor: 0, // Don't cache search results
     }),
 
     // Emergency cleanup mutation - ends all active streams for the user
@@ -502,7 +496,6 @@ export const {
   useInviteGuestMutation,
   useInviteUsersToStreamMutation,
   useAcceptInviteMutation,
-  useDeclineInviteMutation,
   useRemoveGuestMutation,
   useRemoveParticipantMutation,
   useToggleCameraMutation,

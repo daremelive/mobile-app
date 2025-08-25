@@ -81,7 +81,7 @@ export const CoinPurchaseModal = ({
             </View>
             
             {/* Title */}
-            <Text className="text-white text-xl font-bold mb-2">Get more coins</Text>
+            <Text className="text-white text-xl font-bold mb-2">Get more Riz</Text>
             
             {/* Total Balance */}
             <View className="flex-row items-center">
@@ -91,7 +91,7 @@ export const CoinPurchaseModal = ({
             </View>
           </View>
 
-          {/* Coin Packages Grid */}
+          {/* Riz Packages Grid */}
           <ScrollView
             className="flex-1 px-6"
             showsVerticalScrollIndicator={false}
@@ -119,7 +119,7 @@ export const CoinPurchaseModal = ({
                     {/* Diamond Icon */}
                     <DiamondSvg width={24} height={22} />
                     
-                    {/* Coin Amount - Use total_coins which includes bonus */}
+                    {/* Riz Amount - Use total_coins which includes bonus */}
                     <Text className="text-white text-base font-semibold">
                       {coinPackage.total_coins?.toLocaleString() || coinPackage.coins?.toLocaleString()}
                     </Text>

@@ -13,11 +13,13 @@ const MOCK_RECOMMENDED = ['Marriage', 'Banter with Friends', 'Live Gaming', 'Wor
 interface SearchInputProps {
   autoFocus?: boolean;
   onSearchSubmit?: (query: string) => void;
+  onSearchChange?: (query: string) => void;
   initialQuery?: string;
   placeholder?: string;
   showSuggestions?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
+  enableRealtimeSearch?: boolean;
 }
 
 interface SearchSuggestionsProps {
@@ -104,11 +106,13 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = React.memo(({
 const SearchInput = forwardRef<TextInput, SearchInputProps>(({ 
   autoFocus = false, 
   onSearchSubmit,
+  onSearchChange,
   initialQuery = '',
   placeholder = 'Search',
   showSuggestions = true,
   onFocus,
-  onBlur
+  onBlur,
+  enableRealtimeSearch = false
 }, ref) => {
   const [searchQuery, setSearchQuery] = React.useState(initialQuery);
   const [recentSearches, setRecentSearches] = React.useState([
@@ -119,8 +123,40 @@ const SearchInput = forwardRef<TextInput, SearchInputProps>(({
     'Mr & Mrs Kola'
   ]);
 
+  // Debounce for realtime search
+  const debounceTimerRef = React.useRef<number | null>(null);
+
   const handleSearchChange = React.useCallback((text: string) => {
     setSearchQuery(text);
+    
+    // Call immediate change handler if provided
+    if (onSearchChange) {
+      onSearchChange(text);
+    }
+    
+    // Handle realtime search with debouncing
+    if (enableRealtimeSearch && onSearchSubmit) {
+      // Clear existing debounce timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      
+      // Set new debounce timer for 500ms delay
+      if (text.trim().length > 0) {
+        debounceTimerRef.current = setTimeout(() => {
+          onSearchSubmit(text.trim());
+        }, 500);
+      }
+    }
+  }, [onSearchChange, enableRealtimeSearch, onSearchSubmit]);
+
+  // Cleanup debounce timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
   }, []);
 
   const handleSearchSubmit = React.useCallback(() => {

@@ -15,11 +15,20 @@ interface StreamWebSocketConfig {
   onError: (error: string) => void;
 }
 
+// Simple interface for gift/message notifications
+interface SimpleWebSocketConfig {
+  streamId: string;
+  userId: string;
+  token: string;
+  onMessage: (message: any) => void;
+  onError: (error: string) => void;
+}
+
 import IPDetector from '../utils/ipDetector';
 
 export class StreamWebSocketService {
   private websocket: WebSocket | null = null;
-  private config: StreamWebSocketConfig;
+  private config: StreamWebSocketConfig | SimpleWebSocketConfig;
   private isConnected = false;
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
@@ -38,11 +47,18 @@ export class StreamWebSocketService {
   private lastMessageTime = 0;
   private readonly messageThrottleDelay = 100; // 100ms throttle for chat messages
 
-  constructor(config: StreamWebSocketConfig) {
+  constructor(config: StreamWebSocketConfig | SimpleWebSocketConfig) {
     this.config = config;
   }
 
-  async connect(): Promise<void> {
+  // Support both interfaces - new simple interface and legacy full interface
+  async connect(configOrVoid?: SimpleWebSocketConfig): Promise<void> {
+    if (configOrVoid) {
+      // Called with simple config (new style)
+      this.config = configOrVoid;
+    }
+    // Otherwise use config from constructor
+    
     if (this.isConnected || this.connectionFailed) return;
 
     return new Promise(async (resolve, reject) => {
@@ -210,39 +226,53 @@ export class StreamWebSocketService {
   }
 
   private handleMessageType(type: string, messages: any[]): void {
+    // Check if we're using the simple config for gift notifications
+    const isSimpleConfig = 'onMessage' in this.config && !('onGuestInvited' in this.config);
+    
+    if (isSimpleConfig) {
+      // For simple config, pass all messages through onMessage
+      messages.forEach(message => {
+        (this.config as SimpleWebSocketConfig).onMessage(message);
+      });
+      return;
+    }
+    
+    // Full config handling
+    const fullConfig = this.config as StreamWebSocketConfig;
+    
     switch (type) {
       case 'guest_invited':
         // Process only the latest invitation
         const latestInvite = messages[messages.length - 1];
-        this.config.onGuestInvited(latestInvite.guest, latestInvite.invited_by);
+        fullConfig.onGuestInvited(latestInvite.guest, latestInvite.invited_by);
         break;
         
       case 'guest_joined':
         // Process only the latest join
         const latestJoin = messages[messages.length - 1];
-        this.config.onGuestJoined(latestJoin.participant);
+        fullConfig.onGuestJoined(latestJoin.participant);
         break;
         
       case 'guest_declined':
         const latestDecline = messages[messages.length - 1];
-        this.config.onGuestDeclined(latestDecline.guest);
+        fullConfig.onGuestDeclined(latestDecline.guest);
         break;
         
       case 'guest_removed':
         const latestRemoval = messages[messages.length - 1];
-        this.config.onGuestRemoved(latestRemoval.guest_id, latestRemoval.removed_by);
+        fullConfig.onGuestRemoved(latestRemoval.guest_id, latestRemoval.removed_by);
         break;
         
       case 'camera_toggled':
         // Process only the latest camera state
         const latestCamera = messages[messages.length - 1];
-        this.config.onCameraToggled(latestCamera.user_id, latestCamera.enabled);
+        fullConfig.onCameraToggled(latestCamera.user_id, latestCamera.enabled);
         break;
         
       case 'microphone_toggled':
         // Process only the latest microphone state
         const latestMic = messages[messages.length - 1];
-        this.config.onMicrophoneToggled(latestMic.user_id, latestMic.enabled);
+        fullConfig.onMicrophoneToggled(latestMic.user_id, latestMic.enabled);
         break;
         
       case 'stream_message':
@@ -253,46 +283,60 @@ export class StreamWebSocketService {
       case 'stream_state':
         // Process only the latest state
         const latestState = messages[messages.length - 1];
-        this.config.onStreamState(latestState);
+        fullConfig.onStreamState(latestState);
         break;
         
       case 'user_removed':
         // Handle forced removal - highest priority
         const latestUserRemoval = messages[messages.length - 1];
-        this.config.onUserRemoved?.(latestUserRemoval.message, latestUserRemoval.removed_by);
+        fullConfig.onUserRemoved?.(latestUserRemoval.message, latestUserRemoval.removed_by);
         break;
         
       case 'participant_removed':
         // Handle participant removal notification
         const latestParticipantRemoval = messages[messages.length - 1];
-        this.config.onParticipantRemoved?.(latestParticipantRemoval.user_id, latestParticipantRemoval.message);
+        fullConfig.onParticipantRemoved?.(latestParticipantRemoval.user_id, latestParticipantRemoval.message);
         break;
         
       case 'error':
         // Process only critical errors
         const criticalErrors = messages.filter(msg => msg.severity === 'critical');
         if (criticalErrors.length > 0) {
-          this.config.onError(criticalErrors[criticalErrors.length - 1].message);
+          fullConfig.onError(criticalErrors[criticalErrors.length - 1].message);
         }
         break;
     }
   }
 
   private handleBatchedChatMessages(messages: any[]): void {
+    // Check if we're using the simple config
+    const isSimpleConfig = 'onMessage' in this.config && !('onGuestInvited' in this.config);
+    
+    if (isSimpleConfig) {
+      // For simple config, pass all messages through onMessage
+      messages.forEach(msg => {
+        (this.config as SimpleWebSocketConfig).onMessage(msg.message || msg);
+      });
+      return;
+    }
+    
+    // Full config handling
+    const fullConfig = this.config as StreamWebSocketConfig;
+    
     // Industry standard: Throttle chat updates to prevent spam
     const now = Date.now();
     
     if (now - this.lastMessageTime >= this.messageThrottleDelay) {
       // Send all batched messages at once
       messages.forEach(msg => {
-        this.config.onStreamMessage(msg.message);
+        fullConfig.onStreamMessage(msg.message);
       });
       this.lastMessageTime = now;
     } else {
       // Queue for later processing
       setTimeout(() => {
         messages.forEach(msg => {
-          this.config.onStreamMessage(msg.message);
+          fullConfig.onStreamMessage(msg.message);
         });
       }, this.messageThrottleDelay);
     }
@@ -383,6 +427,16 @@ export class StreamWebSocketService {
     });
   }
 
+  // Gift notifications for cross-platform sync
+  sendGiftNotification(message: string, gift: any): void {
+    console.log('🎁 [WebSocket] Attempting to send gift notification:', { message, gift });
+    this.sendMessage({
+      type: 'gift_notification',
+      message: message,
+      gift: gift,
+    });
+  }
+
   private sendMessage(message: any): void {
     console.log('📤 [WebSocket] Private sendMessage called with:', message);
     console.log('📤 [WebSocket] WebSocket state:', this.websocket?.readyState);
@@ -468,3 +522,14 @@ export class StreamWebSocketService {
     this.messageBatch = [];
   }
 } 
+
+// Create a singleton instance for gift notifications
+const streamWebSocketService = new StreamWebSocketService({
+  streamId: '',
+  userId: '',
+  token: '',
+  onMessage: () => {},
+  onError: () => {},
+});
+
+export default streamWebSocketService;

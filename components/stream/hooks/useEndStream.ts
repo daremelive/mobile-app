@@ -31,7 +31,7 @@ export const useEndStream = ({ streamId, onStreamEnd }: UseEndStreamProps) => {
     setIsEndingStream(true);
 
     try {
-      await streamAction({ 
+      const response = await streamAction({ 
         streamId, 
         action: { action: 'end' } 
       }).unwrap();
@@ -44,14 +44,34 @@ export const useEndStream = ({ streamId, onStreamEnd }: UseEndStreamProps) => {
       
       setIsEndStreamModalVisible(false);
       
+      // Navigate away regardless of whether stream was already ended
       router.replace('/(tabs)/home');
       
     } catch (error: any) {
       console.error('Failed to end stream:', error);
-      Alert.alert(
-        'Error', 
-        error?.data?.error || 'Failed to end stream. Please try again.'
-      );
+      
+      // Check if this is the "already ended" case - if so, treat as success
+      const errorMessage = error?.data?.error || error?.data?.message || '';
+      const isAlreadyEnded = errorMessage.toLowerCase().includes('already ended') || 
+                           errorMessage.toLowerCase().includes('stream ended') ||
+                           error?.status === 200;
+      
+      if (isAlreadyEnded) {
+        setIsEndStreamModalVisible(false);
+        
+        if (onStreamEnd) {
+          onStreamEnd();
+        }
+        
+        // Navigate away since the stream is ended anyway
+        router.replace('/(tabs)/home');
+      } else {
+        // Only show error for actual failures
+        Alert.alert(
+          'Error', 
+          errorMessage || 'Failed to end stream. Please try again.'
+        );
+      }
     } finally {
       setIsEndingStream(false);
     }

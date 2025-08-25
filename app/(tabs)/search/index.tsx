@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
 import ClockIcon from '../../../assets/icons/clock.svg';
 import CancelIcon from '../../../assets/icons/cancel.svg';
@@ -10,6 +10,8 @@ import EyeIcon from '../../../assets/icons/eye.svg';
 import CheckIcon from '../../../assets/icons/check.svg';
 import { useSearchQuery, SearchUser, SearchStream } from '../../../src/store/streamsApi';
 import { useFollowUserMutation, useUnfollowUserMutation } from '../../../src/store/followApi';
+import StreamCard from '../../../components/stream/StreamCard';
+import ipDetector from '../../../src/utils/ipDetector';
 
 const MOCK_RECOMMENDED = ['Marriage', 'Banter with Friends', 'Live Gaming', 'World Politics', 'Hot Gist'];
 
@@ -173,51 +175,48 @@ const UserResult = ({ user, onFollowChange }: { user: SearchUser, onFollowChange
     )
 }
 
-const StreamResult = ({ stream }: { stream: SearchStream }) => {
-    const formatViewerCount = (count: number) => {
-        if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-        if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-        return count.toString();
-    };
-
-    return (
-        <View className="w-[48%] h-[250px] rounded-xl overflow-hidden bg-[#1C1C1E] mb-4">
-            <Image 
-                source={{ uri: stream.host.profile_picture_url || 'https://via.placeholder.com/300x400' }} 
-                className="w-full h-full" 
-            />
-            <View className="absolute bottom-0 left-0 right-0 p-3 bg-black/30">
-                <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-1">
-                    {stream.title}
-                </Text>
-                <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
-                    @{stream.host.username}
-                </Text>
-            </View>
-            <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full flex-row items-center">
-                <EyeIcon width={12} height={12} className="mr-1" stroke="white" />
-                <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
-                    {formatViewerCount(stream.viewer_count)}
-                </Text>
-            </View>
-            {stream.status === 'live' && (
-                <View className="absolute top-2 left-2 bg-red-600 px-2 py-1 rounded-full">
-                    <Text style={{ fontFamily: fonts.bold }} className="text-white text-xs">LIVE</Text>
-                </View>
-            )}
-        </View>
-    );
-};
-
 const SearchResults = React.memo(({ query }: { query?: string }) => {
-    const [activeTab, setActiveTab] = React.useState('Top');
-    
-    // Skip API call if no query
-    const { data: searchResults, isLoading, error, refetch } = useSearchQuery(query || '', {
-        skip: !query || query.trim().length === 0,
-    });
+  const [activeTab, setActiveTab] = React.useState('Top');
+  const [baseURL, setBaseURL] = React.useState<string>('');
 
-    if (isLoading) {
+  // Initialize base URL with IP detection
+  React.useEffect(() => {
+    const initializeBaseURL = async () => {
+      try {
+        const detection = await ipDetector.detectIP();
+        let url;
+        // Check if it's production domain or local IP
+        if (detection.ip === 'daremelive.pythonanywhere.com') {
+          url = `https://${detection.ip}`;
+        } else {
+          url = `http://${detection.ip}:8000`;
+        }
+        setBaseURL(url);
+        console.log('🔗 Search Base URL initialized:', url);
+      } catch (error) {
+        console.error('❌ Failed to detect IP in search:', error);
+        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
+      }
+    };
+    
+    initializeBaseURL();
+  }, []);  // Skip API call if no query
+  const { data: searchResults, isLoading, error, refetch } = useSearchQuery(query || '', {
+    skip: !query || query.trim().length === 0,
+  });
+
+  // Debug logging for search results
+  React.useEffect(() => {
+    if (searchResults) {
+      console.log('🔍 Search Results Debug:', {
+        query,
+        totalResults: searchResults.total_results,
+        streamsCount: searchResults.results?.streams?.length || 0,
+        usersCount: searchResults.results?.users?.length || 0,
+        streams: searchResults.results?.streams?.map(s => ({ title: s.title, status: s.status })) || []
+      });
+    }
+  }, [searchResults, query]);    if (isLoading) {
         return (
             <View className="flex-1 justify-center items-center">
                 <ActivityIndicator size="large" color="#DC2626" />
@@ -279,7 +278,16 @@ const SearchResults = React.memo(({ query }: { query?: string }) => {
                         ))}
                         <View className="flex-row flex-wrap justify-between mt-4">
                             {streams.map((stream) => (
-                                <StreamResult key={stream.id} stream={stream} />
+                                <StreamCard
+                                    key={stream.id}
+                                    id={stream.id}
+                                    title={stream.title}
+                                    host={stream.host}
+                                    channel={stream.channel}
+                                    viewer_count={stream.viewer_count}
+                                    status={stream.status}
+                                    baseURL={baseURL}
+                                />
                             ))}
                         </View>
                     </>
@@ -287,7 +295,16 @@ const SearchResults = React.memo(({ query }: { query?: string }) => {
                 {activeTab === 'Streams' && (
                     <View className="flex-row flex-wrap justify-between mt-4">
                         {streams.map((stream) => (
-                            <StreamResult key={stream.id} stream={stream} />
+                            <StreamCard
+                                key={stream.id}
+                                id={stream.id}
+                                title={stream.title}
+                                host={stream.host}
+                                channel={stream.channel}
+                                viewer_count={stream.viewer_count}
+                                status={stream.status}
+                                baseURL={baseURL}
+                            />
                         ))}
                     </View>
                 )}
@@ -334,8 +351,16 @@ export default function SearchScreen() {
   const handleSearchChange = React.useCallback((query: string) => {
     setSearchState(prev => ({
       query,
-      submitted: false
+      submitted: query.trim().length > 0 // Auto-submit for realtime search when query has content
     }));
+    
+    // Clear recent searches from view when query becomes empty
+    if (query.trim().length === 0) {
+      setSearchState(prev => ({
+        ...prev,
+        submitted: false
+      }));
+    }
   }, []);
 
   const handleSelectSuggestion = React.useCallback((suggestion: string) => {
@@ -351,24 +376,30 @@ export default function SearchScreen() {
 
   return (
     <SafeAreaView className="flex-1 bg-black">
-      <View className="p-4">
-        <SearchInput
-          autoFocus
-          initialQuery={searchState.query}
-          onSearchSubmit={handleSearchSubmit}
-          showSuggestions={!searchState.submitted}
-        />
-      </View>
-      {searchState.submitted ? (
-        <SearchResults query={searchState.query} />
-      ) : (
-        <SearchSuggestions 
-          query={searchState.query} 
-          onSelectSuggestion={handleSelectSuggestion}
-          recentSearches={recentSearches}
-          onRemoveRecent={handleRemoveRecent}
-        />
-      )}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View className="flex-1">
+          <View className="p-4">
+            <SearchInput
+              autoFocus
+              initialQuery={searchState.query}
+              onSearchSubmit={handleSearchSubmit}
+              onSearchChange={handleSearchChange}
+              enableRealtimeSearch={true}
+              showSuggestions={!searchState.submitted}
+            />
+          </View>
+          {searchState.submitted && searchState.query.trim().length > 0 ? (
+            <SearchResults query={searchState.query} />
+          ) : (
+            <SearchSuggestions 
+              query={searchState.query} 
+              onSelectSuggestion={handleSelectSuggestion}
+              recentSearches={recentSearches}
+              onRemoveRecent={handleRemoveRecent}
+            />
+          )}
+        </View>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 } 

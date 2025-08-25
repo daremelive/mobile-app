@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../store/authSlice';
@@ -110,28 +110,26 @@ export const useStreamHeartbeat = (streamId: string | null, isActive: boolean = 
     };
   }, [streamId, currentUser, isActive, streamAction]);
 
-  // Memoized sendHeartbeat function to prevent useEffect re-runs
-  const sendHeartbeat = useCallback(async () => {
-    const isValidStreamId = streamId && 
-      typeof streamId === 'string' && 
-      streamId.trim().length > 0 &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(streamId);
-      
-    if (isValidStreamId && isActive) {
-      try {
-        await streamAction({
-          streamId,
-          action: { action: 'heartbeat' }
-        }).unwrap();
-      } catch (error) {
-        // Silent error - no logging
-      }
-    } else {
-      // Silent warning - no logging
-    }
-  }, [streamId, isActive, streamAction]);
-
   return {
-    sendHeartbeat
+    // Manually trigger heartbeat if needed
+    sendHeartbeat: async () => {
+      const isValidStreamId = streamId && 
+        typeof streamId === 'string' && 
+        streamId.trim().length > 0 &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(streamId);
+        
+      if (isValidStreamId && isActive) {
+        try {
+          await streamAction({
+            streamId,
+            action: { action: 'heartbeat' }
+          }).unwrap();
+        } catch (error) {
+          // Silent error - no logging
+        }
+      } else {
+        // Silent warning - no logging
+      }
+    }
   };
 };

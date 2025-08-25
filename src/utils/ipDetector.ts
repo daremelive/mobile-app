@@ -60,7 +60,7 @@ class IPDetector {
 
       // Development fallback
       const fallback: IPDetectionResult = {
-        ip: '172.20.10.2', // Current machine IP
+        ip: '172.20.10.14', // Current machine IP (updated to match server)
         method: 'development-fallback',
         confidence: 'medium'
       };
@@ -232,8 +232,8 @@ class IPDetector {
     try {
       // Common local network IP ranges to try
       const commonIPs = [
-        // Current server IP that was detected
-        '172.20.10.2', '172.20.10.3', '172.20.10.4', '172.20.10.5',
+        // Current server IP that was detected (prioritize this one)
+        '172.20.10.14', '172.20.10.2', '172.20.10.3', '172.20.10.4', '172.20.10.5',
         // Previous IP ranges
         '192.168.1.117', '192.168.1.1', '192.168.1.100', '192.168.1.101', '192.168.1.102',
         '192.168.0.1', '192.168.0.100', '192.168.0.101', '192.168.0.102',

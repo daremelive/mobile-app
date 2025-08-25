@@ -25,8 +25,10 @@ const TransactionScreen = () => {
   const renderTransaction = ({ item }: { item: any }) => {
     const Icon = item.is_outgoing ? ChartDecreaseIcon : ChartIncreaseIcon;
 
-    // Always display currency amount, not coins
-    const displayAmount = item.formatted_amount; // This should show currency like "N1,234.56"
+    // Always display Riz amounts for all transactions to avoid multinational confusion
+    const displayAmount = item.coins && item.coins !== 0 
+      ? `${Math.abs(item.coins)} Riz`
+      : item.formatted_amount; // Fallback to currency if no Riz amount available
 
     return (
       <View className="flex-row items-center justify-between py-4">

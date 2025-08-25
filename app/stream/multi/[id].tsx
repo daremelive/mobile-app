@@ -66,14 +66,10 @@ export default function MultiParticipantJoinScreen() {
     let backgroundTime: number | null = null;
 
     const handleAppStateChange = (nextAppState: any) => {
-      console.log(`[MultiScreen] App state changed to: ${nextAppState}, isHost: ${isHost}, hasJoined: ${hasJoined}`);
-      
       if (nextAppState === 'background') {
         backgroundTime = Date.now();
         
-        // For hosts, end stream immediately when app goes to background
         if (isHost && hasJoined) {
-          console.log('[MultiScreen] Host backgrounded, ending stream immediately...');
           streamAction({ 
             streamId, 
             action: { action: 'end' } 
@@ -81,15 +77,12 @@ export default function MultiParticipantJoinScreen() {
             console.error('[MultiScreen] Failed to end stream on immediate background:', error);
           });
           
-          // Backup cleanup after 2 seconds
           setTimeout(() => {
             if (isHost && hasJoined) {
-              console.log('[MultiScreen] Backup cleanup after 2s...');
               streamAction({ 
                 streamId, 
                 action: { action: 'end' } 
               }).unwrap().catch((error) => {
-                console.error('[MultiScreen] Failed backup cleanup:', error);
               });
             }
           }, 2000);
@@ -135,16 +128,12 @@ export default function MultiParticipantJoinScreen() {
     try {
       console.log('🚀 Initializing participant for stream:', streamId);
       
-      // 1) Create streaming client for user
       const streamUser = createStreamUser(currentUser!);
-      console.log('👤 Created stream user for participant initialization');
       
       const client = await createStreamClient(streamUser);
       if (!client) throw new Error('Failed to initialize streaming client');
-      console.log('✅ GetStream client ready for participant');
       setStreamClient(client);
 
-      // 2) Accept invite if applicable (ignore errors if already accepted)
       if (!isHost) {
         try {
           await acceptInvite(streamId).unwrap();
@@ -278,21 +267,16 @@ export default function MultiParticipantJoinScreen() {
   const Grid = () => {
     const { useParticipants } = useCallStateHooks();
     const participants = useParticipants();
-    const active = participants.filter((p: any) => p.videoStream);
-    const local = participants.find((p: any) => p.isLocalParticipant);
-
-    console.log('🎥 Participant Grid Debug:', {
-      total: participants.length,
-      activeVideo: active.length,
-      localFound: !!local,
-      allParticipants: participants.map((p: any) => ({
-        id: p.userId,
-        isLocal: p.isLocalParticipant,
-        hasVideo: !!p.videoStream,
-        hasAudio: !!p.audioStream,
-        name: p.name
-      }))
+    
+    // Filter out viewers - only show actual participants (host and guests)
+    const activeParticipants = participants.filter((p: any) => {
+      // Exclude viewer-only participants
+      if (p.custom?.viewerOnly === true || p.custom?.role === 'viewer') return false;
+      return true;
     });
+    
+    const active = activeParticipants.filter((p: any) => p.videoStream);
+    const local = activeParticipants.find((p: any) => p.isLocalParticipant);
 
     if (!local) {
       return (
@@ -300,7 +284,7 @@ export default function MultiParticipantJoinScreen() {
           <ActivityIndicator size="large" color="#C42720" />
           <Text className="text-white mt-3">Connecting…</Text>
           <Text className="text-gray-400 text-xs mt-2">
-            Participants: {participants.length}
+            Participants: {activeParticipants.length}
           </Text>
         </View>
       );

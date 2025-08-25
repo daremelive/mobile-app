@@ -34,7 +34,7 @@ const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
           
           <Text className="text-white text-xl font-bold mb-2 text-center">Purchase Successful!</Text>
           <Text className="text-[#EBEBF599] text-base text-center mb-6">
-            Your coins have been added to your wallet. Start gifting now!
+            Your Riz have been added to your wallet. Start gifting now!
           </Text>
 
           <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">

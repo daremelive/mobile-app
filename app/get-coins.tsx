@@ -79,7 +79,7 @@ const GetCoinsScreen = () => {
         
         Alert.alert(
           'Success!', 
-          result.message || `Successfully purchased ${result.coins_added} coins!`,
+          result.message || `Successfully purchased ${result.coins_added} Riz!`,
           [
             {
               text: 'OK',
@@ -182,7 +182,7 @@ const GetCoinsScreen = () => {
           </View>
         </TouchableOpacity>
         <View className="flex-1 items-center">
-          <Text className="text-white text-[20px] font-semibold">Get Coins</Text>
+          <Text className="text-white text-[20px] font-semibold">Get Riz</Text>
         </View>
       </View>
 
@@ -195,7 +195,7 @@ const GetCoinsScreen = () => {
             className="p-6"
           >
             <View className="p-6">
-            <Text className="text-[#EDEEF9] text-lg font-semibold">Coins Left</Text>
+            <Text className="text-[#EDEEF9] text-lg font-semibold">Riz Left</Text>
             <View className="flex-row items-center justify-between">
               <Text className="text-white text-3xl font-bold">{walletSummary.coins}</Text>
               <View className="flex-row items-center">
@@ -258,7 +258,7 @@ const GetCoinsScreen = () => {
                 </View>
               ) : (
                 <Text className="text-gray-800 text-center text-base font-semibold">
-                  {selectedPackage !== null ? `Get ${coinPackages?.[selectedPackage]?.total_coins?.toLocaleString()} Coins Now` : 'Select a package'}
+                  {selectedPackage !== null ? `Get ${coinPackages?.[selectedPackage]?.total_coins?.toLocaleString()} Riz Now` : 'Select a package'}
                 </Text>
               )}
             </TouchableOpacity>

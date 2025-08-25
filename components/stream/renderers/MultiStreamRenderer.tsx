@@ -31,16 +31,6 @@ export const MultiStreamRenderer: React.FC<MultiStreamRendererProps> = ({
     return true;
   });
 
-  console.log('🎥 Multi-stream participants:', {
-    total: participants.length,
-    active: activeParticipants.length,
-    details: activeParticipants.map(p => ({
-      userId: p.userId,
-      hasVideo: !!p.videoStream,
-      hasAudio: !!p.audioStream
-    }))
-  });
-
   if (activeParticipants.length === 0) {
     return (
       <View className="flex-1 items-center justify-center bg-black">

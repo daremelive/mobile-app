@@ -75,10 +75,11 @@ export const GiftModal = ({
             <Text className="text-white text-xl font-bold mb-2">Send Gift</Text>
             
             {/* Total Balance */}
-            <View className="flex-row items-center">
-              <Text className="text-gray-400 text-base mr-2">Total Balance:</Text>
-              <Ionicons name="diamond" size={16} color="#60A5FA" />
-              <Text className="text-yellow-400 font-semibold ml-1 text-base">{walletBalance}</Text>
+            <View className="flex-row items-center bg-gray-800/50 px-4 py-2 rounded-full">
+              <Text className="text-gray-300 text-sm mr-2">Your Balance:</Text>
+              <Ionicons name="diamond" size={18} color="#60A5FA" />
+              <Text className="text-yellow-400 font-bold ml-1 text-lg">{walletBalance}</Text>
+              <Text className="text-gray-400 text-sm ml-1">Riz</Text>
             </View>
           </View>
 
@@ -114,11 +115,20 @@ export const GiftModal = ({
                   key={gift.id}
                   onPress={() => onSendGift(gift)}
                   style={{ width: '22%' }}
-                  disabled={walletBalance < gift.cost}
+                  activeOpacity={0.7}
                 >
-                  <View className={`items-center ${
-                    walletBalance < gift.cost ? 'opacity-50' : ''
-                  }`}>
+                  <View className="items-center relative">
+                    {/* Insufficient funds overlay */}
+                    {walletBalance < gift.cost && (
+                      <View className="absolute top-0 left-0 right-0 bottom-0 z-10 items-center justify-center">
+                        <View className="bg-black/60 rounded-full px-2 py-1">
+                          <Text className="text-orange-400 text-xs font-semibold">
+                            Need {gift.cost - walletBalance} more
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                    
                     {/* Circular Gift Icon Container */}
                     <View 
                       className="rounded-full bg-gray-700/60 items-center justify-center mb-2"
@@ -157,16 +167,23 @@ export const GiftModal = ({
                 </TouchableOpacity>
               ))}
             </View>
-          </ScrollView>
+            
+            {/* Helpful tip */}
+            <View className="mt-4 mb-2 px-4 py-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+              <Text className="text-blue-300 text-center text-sm">
+                💡 Tap any gift to send it! Need more Riz? Use the button below.
+              </Text>
+            </View>
 
-          {/* Buy Coins Button */}
-          <View className="px-6 pb-8">
-            <TouchableOpacity onPress={onBuyCoins}>
-              <View className="bg-white py-4 rounded-full items-center">
-                <Text className="text-black text-lg font-bold">Get More Coins</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
+            {/* Get More Coins Button */}
+            <View className="px-6 pb-8">
+              <TouchableOpacity onPress={onBuyCoins} activeOpacity={0.8}>
+                <View className="bg-white py-4 rounded-full items-center shadow-lg">
+                  <Text className="text-black text-lg font-bold">Get More Riz</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
       </View>
     </Modal>

@@ -58,20 +58,23 @@ export const useGiftSystem = ({ streamId, onGiftSent }: UseGiftSystemProps) => {
 
     // Check if user has enough coins
     if (walletSummary && walletSummary.coins < gift.cost) {
+      const coinsNeeded = gift.cost - walletSummary.coins;
       Alert.alert(
-        'Insufficient Coins',
-        `You need ${gift.cost} coins to send this gift. You have ${walletSummary.coins} coins.`,
+        '💎 Need More Coins!',
+        `You need ${coinsNeeded} more coins to send "${gift.name}".\n\nYour balance: ${walletSummary.coins} coins\nGift cost: ${gift.cost} coins`,
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Maybe Later', style: 'cancel' },
           { 
-            text: 'Buy Coins', 
+            text: '🛒 Get Coins', 
+            style: 'default',
             onPress: () => {
               setGiftModalVisible(false);
               setShouldOpenGiftModalAfterPurchase(true);
               setCoinPurchaseModalVisible(true);
             }
           }
-        ]
+        ],
+        { cancelable: true }
       );
       return;
     }
@@ -95,7 +98,11 @@ export const useGiftSystem = ({ streamId, onGiftSent }: UseGiftSystemProps) => {
       // Close gift modal
       setGiftModalVisible(false);
       
-      Alert.alert('🎁', `Gift sent successfully!`);
+      Alert.alert(
+        '🎁 Gift Sent!', 
+        `You sent "${gift.name}" successfully! 🌟`,
+        [{ text: 'Awesome!', style: 'default' }]
+      );
       
     } catch (error: any) {
       console.error('❌ Gift send error:', error);

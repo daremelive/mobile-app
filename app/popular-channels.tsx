@@ -1,16 +1,18 @@
 import React from 'react';
-import { View, Text, SafeAreaView, ScrollView, TextInput, Image, TouchableOpacity, ImageBackground, RefreshControl, Alert } from 'react-native';
+import { View, Text, SafeAreaView, ScrollView, TextInput, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { router } from 'expo-router';
-import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import SearchIcon from '../assets/icons/search-icon.svg';
-import EyeIcon from '../assets/icons/eye.svg';
 import { useGetPopularStreamsQuery } from '../src/store/streamsApi';
 import ipDetector from '../src/utils/ipDetector';
+import useChannelAccess from '../src/hooks/useChannelAccess';
+import ChannelAccessModal from '../components/modals/ChannelAccessModal';
+import StreamCard from '../components/stream/StreamCard';
 
 export default function PopularChannelsScreen() {
   const [baseURL, setBaseURL] = React.useState<string>('');
+  const { requestChannelAccess, accessModal, closeAccessModal, currentCoins } = useChannelAccess();
   
   // Initialize base URL with IP detection
   React.useEffect(() => {
@@ -41,33 +43,6 @@ export default function PopularChannelsScreen() {
     refetchOnFocus: true,
     refetchOnReconnect: true,
   });
-
-  const handleJoinStream = (streamId: string, streamTitle: string, hostUsername: string) => {
-    Alert.alert(
-      'Join Live Stream',
-      `Join ${hostUsername}'s stream: "${streamTitle}"?`,
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Join',
-          onPress: () => {
-            // Navigate to stream viewer
-            router.push({
-              pathname: '/stream/viewer',
-              params: { 
-                streamId: streamId,
-                hostUsername: hostUsername,
-                streamTitle: streamTitle
-              }
-            });
-          },
-        },
-      ]
-    );
-  };
 
   return (
     <SafeAreaView className="flex-1 bg-black">
@@ -108,47 +83,34 @@ export default function PopularChannelsScreen() {
         ) : (
           <View className="flex-row flex-wrap justify-between">
             {popularStreams.map((stream) => (
-              <TouchableOpacity 
-                key={stream.id} 
-                className="w-[48%] h-[250px] rounded-2xl overflow-hidden mb-4"
-                onPress={() => handleJoinStream(stream.id, stream.title || 'Untitled Stream', stream.host.username || stream.host.first_name || 'Unknown Host')}
-              >
-                <ImageBackground 
-                  source={{ 
-                    uri: stream.host.profile_picture_url 
-                      ? (stream.host.profile_picture_url.startsWith('http') 
-                          ? stream.host.profile_picture_url 
-                          : `${baseURL}${stream.host.profile_picture_url}`)
-                      : `https://picsum.photos/400/${500 + parseInt(stream.id.slice(-3), 16)}` 
-                  }} 
-                  className="w-full h-full justify-between"
-                >
-                  <View className="items-end p-2">
-                    <View className="bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1">
-                      <EyeIcon width={16} height={16} stroke="#FFFFFF" className="mr-1.5" />
-                      <Text className="text-white text-xs font-semibold">
-                        {stream.total_participant_count || stream.viewer_count || 0}
-                      </Text>
-                    </View>
-                  </View>
-                  <BlurView
-                    intensity={30}
-                    tint="dark"
-                    className="absolute bottom-0 left-0 right-0 px-4 py-4 bg-black/30"
-                  >
-                    <Text className="text-white text-base font-bold mb-2" numberOfLines={2}>
-                      {stream.title}
-                    </Text>
-                    <Text className="text-gray-300 text-sm">
-                      @{stream.host.username || stream.host.first_name || 'User'}
-                    </Text>
-                  </BlurView>
-                </ImageBackground>
-              </TouchableOpacity>
+              <StreamCard
+                key={stream.id}
+                id={stream.id}
+                title={stream.title}
+                host={stream.host}
+                channel={stream.channel}
+                viewer_count={stream.viewer_count}
+                status={stream.status}
+                baseURL={baseURL}
+              />
             ))}
           </View>
         )}
       </ScrollView>
+
+      {/* 🏆 PROFESSIONAL ACCESS CONTROL MODAL */}
+      {accessModal.visible && accessModal.channelInfo && (
+        <ChannelAccessModal
+          visible={accessModal.visible}
+          onClose={closeAccessModal}
+          channelName={accessModal.channelInfo.channelName}
+          channelCode={accessModal.channelInfo.channelCode}
+          requiredTier={accessModal.channelInfo.requiredTier || 'Premium'}
+          coinsNeeded={accessModal.channelInfo.coinsNeeded || 0}
+          currentCoins={currentCoins}
+          unlockMessage={accessModal.channelInfo.unlockMessage || 'Upgrade required to access this channel'}
+        />
+      )}
     </SafeAreaView>
   );
 } 

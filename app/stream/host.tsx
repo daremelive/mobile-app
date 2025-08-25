@@ -3,15 +3,13 @@ import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableOpa
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
-import { StreamHeader, StreamChatOverlay, StreamInputBar, MultiParticipantInputBar, StreamControls, useStreamState, useStreamChat, useGiftAnimations, useEndStream, EndStreamModal, MembersListModal } from '../../components/stream';
+import { StreamHeader, StreamChatOverlay, StreamInputBar, MultiParticipantInputBar, StreamControls, useStreamState, useHybridStreamChat, useGiftAnimations, useEndStream, EndStreamModal, MembersListModal } from '../../components/stream';
 import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer } from '@stream-io/video-react-native-sdk';
 import ipDetector from '../../src/utils/ipDetector';
 import { useGetProfileQuery } from '../../src/store/authApi';
 import { useCreateStreamMutation, useStreamActionMutation, streamsApi } from '../../src/store/streamsApi';
-import AddTeamIcon from '../../assets/icons/add-team.svg';
 import GiftAnimation from '../../components/animations/GiftAnimation';
 import { useStreamHeartbeat } from '../../src/hooks/useStreamHeartbeat';
-import { StreamWebSocketService } from '../../src/services/StreamWebSocketService';
 
 function UnifiedHostStreamScreen() {
   const params = useLocalSearchParams();
@@ -26,7 +24,6 @@ function UnifiedHostStreamScreen() {
   const maxSeats = parseInt((params.maxSeats as string) || '6');
   const fromTitleScreen = params.fromTitleScreen === 'true';
   
-  // Determine mode from params or existing streamId
   const modeFromParams = (params.mode as string) || '';
   const [streamMode, setStreamMode] = useState<'single' | 'multi'>(
     modeFromParams === 'multi' ? 'multi' : 'single'
@@ -35,6 +32,7 @@ function UnifiedHostStreamScreen() {
   const [streamId, setStreamId] = useState(streamIdFromParams);
   const [title, setTitle] = useState(titleFromParams);
   const [isCreatingStream, setIsCreatingStream] = useState(false);
+  const [realtimeMessages, setRealtimeMessages] = useState<any[]>([]);
 
   const { data: freshUserData } = useGetProfileQuery();
   const userData = freshUserData || currentUser;
@@ -52,217 +50,65 @@ function UnifiedHostStreamScreen() {
 
   const { state, actions, streamDetails, messages: streamMessages } = useStreamState(streamStateParams);
 
-  const chat = useStreamChat({
+  const chat = useHybridStreamChat({
     streamId,
+    streamTitle: title || streamDetails?.title || `${streamMode === 'multi' ? 'Multi ' : ''}Live Stream`,
     userId: userData?.id?.toString(),
     username: userData?.username,
     isHost: true,
-    profilePicture: profilePictureUrl,
+    hostId: streamDetails?.host?.id?.toString() || userData?.id?.toString(),
+    profilePicture: '',
+    useStreamChat: true,
+    baseURL: state.baseURL,
   });
 
-  // REAL-TIME CHAT: WebSocket for instant messaging
-  const [webSocketService, setWebSocketService] = useState<StreamWebSocketService | null>(null);
-  const [realtimeMessages, setRealtimeMessages] = useState<any[]>([]);
-  const [wsConnectionAttempts, setWsConnectionAttempts] = useState(0);
-  const maxWsAttempts = 3; // Limit WebSocket connection attempts
-  const initialHeartbeatSent = useRef(false); // Track if initial heartbeat was sent
+  const initialHeartbeatSent = useRef(false);
 
-  // Initialize WebSocket for real-time chat with better error handling
-  useEffect(() => {
-    console.log('[HostScreen] 🔍 WebSocket useEffect triggered:', {
-      streamId: streamId ? 'exists' : 'missing',
-      userId: userData?.id ? 'exists' : 'missing', 
-      hasJoined: state.hasJoined,
-      token: accessToken ? 'exists' : 'missing',
-      wsConnectionAttempts,
-      maxWsAttempts
-    });
-
-    // Debug currentUser object
-    console.log('[HostScreen] 🔍 currentUser debug:', {
-      hasCurrentUser: !!currentUser,
-      currentUserKeys: currentUser ? Object.keys(currentUser) : 'none',
-      hasAccessToken: !!accessToken,
-      tokenLength: accessToken ? accessToken.length : 0,
-      userId: currentUser?.id || currentUser?.user_id
-    });
-
-    if (!streamId || !userData?.id || !state.hasJoined || !accessToken) {
-      console.log('[HostScreen] ❌ WebSocket initialization skipped - missing requirements');
-      return;
-    }
-    
-    // Prevent excessive connection attempts
-    if (wsConnectionAttempts >= maxWsAttempts) {
-      console.log('[HostScreen] Max WebSocket connection attempts reached, skipping');
-      return;
-    }
-
-    console.log('[HostScreen] Initializing WebSocket for real-time chat...');
-
-    const wsService = new StreamWebSocketService({
-      streamId,
-      userId: userData.id.toString(),
-      token: accessToken,
-      onGuestInvited: (guest, invitedBy) => {
-        console.log('Guest invited:', guest);
-      },
-      onGuestJoined: (participant) => {
-        console.log('Guest joined:', participant);
-      },
-      onGuestDeclined: (guest) => {
-        console.log('Guest declined:', guest);
-      },
-      onGuestRemoved: (guestId, removedBy) => {
-        console.log('Guest removed:', guestId);
-      },
-      onUserRemoved: (message, removedBy) => {
-        console.log('[HostScreen] 📢 User removed notification:', message);
-        // Host doesn't get removed, so this is just for logging
-      },
-      onParticipantRemoved: (userId, message) => {
-        console.log('[HostScreen] 📢 Participant removed:', userId, message);
-        // The UI will automatically refresh when the WebSocket receives the update
-        // Force a small delay to ensure backend has processed the removal
-        setTimeout(() => {
-          actions.refetchMessages();
-        }, 500);
-      },
-      onCameraToggled: (userId, enabled) => {
-        console.log('Camera toggled:', userId, enabled);
-      },
-      onMicrophoneToggled: (userId, enabled) => {
-        console.log('Microphone toggled:', userId, enabled);
-      },
-      onStreamMessage: (message) => {
-        console.log('[HostScreen] 📨 Real-time message received:', message);
-        
-        // Don't add messages from the current user since they already added them locally
-        const currentUserId = userData?.id?.toString();
-        const messageUserId = message.user?.id?.toString();
-        if (messageUserId === currentUserId) {
-          console.log('[HostScreen] 🔄 Ignoring own message to prevent duplicate');
-          return;
-        }
-        
-        // Add to real-time messages for instant display
-        setRealtimeMessages(prev => [...prev.slice(-49), message]);
-      },
-      onStreamState: (state) => {
-        console.log('Stream state update:', state);
-      },
-      onError: (error) => {
-        console.error('[HostScreen] WebSocket error:', error);
-        // Don't increment attempts for regular errors, only for connection failures
-      },
-    });
-
-    // Connect to WebSocket with timeout and error handling
-    const connectTimeout = setTimeout(() => {
-      console.log('[HostScreen] WebSocket connection timeout, cleaning up...');
-      wsService.disconnect();
-      setWsConnectionAttempts(prev => prev + 1);
-    }, 10000); // 10 second timeout
-
-    wsService.connect().then(() => {
-      clearTimeout(connectTimeout);
-      console.log('[HostScreen] ✅ WebSocket connected for real-time chat');
-      setWebSocketService(wsService);
-      setWsConnectionAttempts(0); // Reset attempts on successful connection
-    }).catch((error) => {
-      clearTimeout(connectTimeout);
-      console.error('[HostScreen] ❌ WebSocket connection failed:', error);
-      setWsConnectionAttempts(prev => prev + 1);
-      
-      // If it's a 403 error, don't retry as it's likely an auth issue
-      if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
-        console.log('[HostScreen] Authentication error detected, not retrying WebSocket');
-        setWsConnectionAttempts(maxWsAttempts); // Stop further attempts
-      }
-    });
-
-    return () => {
-      clearTimeout(connectTimeout);
-      console.log('[HostScreen] Cleaning up WebSocket connection...');
-      wsService.gracefulDisconnect(); // Use graceful disconnect
-      setWebSocketService(null);
-    };
-  }, [streamId, userData?.id, state.hasJoined]); // Removed token and baseURL to prevent constant recreation
-
-  // Merge WebSocket messages with existing chat messages for instant display
   const allMessages = React.useMemo(() => {
     const chatMessages = chat.messages || [];
+    const safeRealtimeMessages = Array.isArray(realtimeMessages) ? realtimeMessages : [];
     
-    // Convert real-time WebSocket messages to chat format
-    const convertedRealtimeMessages = realtimeMessages.map((msg: any) => {
-      // Safely handle timestamp conversion
-      let timestamp;
-      if (typeof msg.timestamp === 'string') {
-        // Already in ISO format (from new backend)
-        timestamp = msg.timestamp;
-      } else if (typeof msg.timestamp === 'number') {
-        // Handle numeric timestamps carefully
-        if (msg.timestamp > 946684800 && msg.timestamp < 946684800000) {
-          // Looks like Unix timestamp, convert to milliseconds then to ISO
-          timestamp = new Date(msg.timestamp * 1000).toISOString();
-        } else if (msg.timestamp > 946684800000) {
-          // Already in milliseconds
-          timestamp = new Date(msg.timestamp).toISOString();
-        } else {
-          // Invalid or very small timestamp, use current time
-          timestamp = new Date().toISOString();
-        }
-      } else {
-        // No timestamp or invalid format
-        timestamp = new Date().toISOString();
-      }
-
-      return {
-        id: `ws-${msg.timestamp || Date.now()}`,
-        username: msg.user?.username || msg.user?.first_name || 'User',
-        message: msg.message || '',
-        timestamp: timestamp,
-        isHost: msg.user?.id === userData?.id,
-        userId: msg.user?.id?.toString(),
-        profilePicture: msg.user?.profile_picture_url
-      };
+    // Combine and sort by timestamp (same as viewer)
+    const combined = [...chatMessages, ...safeRealtimeMessages];
+    
+    // Remove duplicates and sort by timestamp
+    const uniqueMessages = combined.filter((message, index, array) => {
+      const firstIndex = array.findIndex(msg => msg.id === message.id);
+      return firstIndex === index;
     });
-
-    // Combine and deduplicate messages
-    const combined = [...chatMessages, ...convertedRealtimeMessages];
-    const seen = new Set();
-    return combined.filter(msg => {
-      const key = `${msg.message}-${msg.username}-${msg.timestamp.substring(0, 19)}`; // Ignore milliseconds
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }).sort((a, b) => {
-      // Safe timestamp comparison
-      const timeA = new Date(a.timestamp).getTime();
-      const timeB = new Date(b.timestamp).getTime();
+    
+    // Sort by timestamp
+    return uniqueMessages.sort((a, b) => {
+      const getTimestamp = (msg: any) => {
+        if (msg.timestamp instanceof Date) {
+          return msg.timestamp.getTime();
+        }
+        
+        if (typeof msg.timestamp === 'string') {
+          const parsed = new Date(msg.timestamp);
+          return isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+        }
+        
+        if (typeof msg.timestamp === 'number') {
+          return msg.timestamp > 1000000000000 ? msg.timestamp : msg.timestamp * 1000;
+        }
+        
+        return 0;
+      };
       
-      // Handle invalid dates
-      if (isNaN(timeA) && isNaN(timeB)) return 0;
-      if (isNaN(timeA)) return 1; // Put invalid dates at the end
-      if (isNaN(timeB)) return -1;
-      
+      const timeA = getTimestamp(a);
+      const timeB = getTimestamp(b);
       return timeA - timeB;
     });
-  }, [chat.messages, realtimeMessages, userData?.id]);
-
-  // Clear processed real-time messages periodically to prevent memory leaks
-  useEffect(() => {
-    const cleanup = setInterval(() => {
-      setRealtimeMessages(prev => prev.slice(-20)); // Keep only last 20
-    }, 30000); // Clean up every 30 seconds
-
-    return () => clearInterval(cleanup);
-  }, []);
+  }, [chat.messages, realtimeMessages, chat.chatProvider, streamDetails?.host?.id, userData?.id]);
 
   const giftAnimations = useGiftAnimations({
-    messages: allMessages || [], // Use combined messages for gift detection
+    messages: allMessages || [],
     baseURL: state.baseURL || '',
   });
+  
+  React.useEffect(() => {
+  }, [giftAnimations.activeGiftAnimations, allMessages]);
 
   const endStreamSystem = useEndStream({
     streamId,
@@ -271,7 +117,6 @@ function UnifiedHostStreamScreen() {
         state.call.leave().catch(console.error);
       }
       actions.handleLeaveStream();
-      // Reset heartbeat tracking when stream ends
       initialHeartbeatSent.current = false;
     },
   });
@@ -282,20 +127,11 @@ function UnifiedHostStreamScreen() {
     state.hasJoined && !endStreamSystem.isEndingStream // Stop heartbeat when ending stream
   );
 
-  // Debug: Log heartbeat status
-  useEffect(() => {
-    const heartbeatActive = state.hasJoined && !endStreamSystem.isEndingStream;
-    console.log(`[HostScreen] Heartbeat status - streamId: ${streamId}, hasJoined: ${state.hasJoined}, isEndingStream: ${endStreamSystem.isEndingStream}, heartbeatActive: ${heartbeatActive}`);
-  }, [streamId, state.hasJoined, endStreamSystem.isEndingStream]);
-
-  // FORCE-CLOSE PROTECTION: Additional cleanup on app initialization
-  // This helps clean up streams that were orphaned by force-close
   useEffect(() => {
     if (!userData?.id) return;
 
     const cleanupOrphanedStreams = async () => {
       try {
-        console.log('[HostScreen] Checking for orphaned streams from previous session...');
         
         // Get user's streams to check if any are stuck live
         const response = await fetch(`${state.baseURL}/streams/my-streams/`, {
@@ -310,8 +146,6 @@ function UnifiedHostStreamScreen() {
           const liveStreams = data.results?.filter((s: any) => s.status === 'live') || [];
           
           if (liveStreams.length > 0) {
-            console.log(`[HostScreen] Found ${liveStreams.length} orphaned live streams, cleaning up...`);
-            
             // End each orphaned stream
             for (const orphanStream of liveStreams) {
               // Only clean up if it's not the current stream we're about to start
@@ -321,23 +155,17 @@ function UnifiedHostStreamScreen() {
                     streamId: orphanStream.id,
                     action: { action: 'end' }
                   }).unwrap();
-                  console.log(`[HostScreen] ✅ Cleaned up orphaned stream: ${orphanStream.title}`);
                 } catch (error) {
-                  console.log(`[HostScreen] ⚠️ Could not clean up orphaned stream ${orphanStream.id}:`, error);
-                  // Don't fail the whole process if one cleanup fails
+                  // Don't fail if cleanup fails
                 }
               }
             }
             
-            // Invalidate cache after cleanup
             dispatch(streamsApi.util.invalidateTags(['Stream']));
-          } else {
-            console.log('[HostScreen] No orphaned streams found - good!');
           }
         }
       } catch (error) {
-        console.log('[HostScreen] Could not check for orphaned streams:', error);
-        // Don't fail the app if this check fails
+        // Don't fail if check fails
       }
     };
 
@@ -354,12 +182,54 @@ function UnifiedHostStreamScreen() {
     }
   }, [streamDetails, modeFromParams]);
 
+  // Monitor stream status for disconnection detection
+  const previousStreamStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (streamDetails?.status) {
+      const currentStatus = streamDetails.status;
+      const previousStatus = previousStreamStatusRef.current;
+      
+      if (previousStatus === 'live' && currentStatus === 'ended') {
+        
+        // Show the modal with "already ended" context
+        setTimeout(() => {
+          endStreamSystem.showEndStreamModal();
+        }, 1000); // Brief delay to let any animations finish
+      }
+      
+      previousStreamStatusRef.current = currentStatus;
+    }
+  }, [streamDetails?.status, endStreamSystem]);
+
   useEffect(() => {
     const createStreamFromTitleScreen = async () => {
       if (fromTitleScreen && !streamId && userData?.id && !isCreatingStream) {
         setIsCreatingStream(true);
         
         try {
+          // Check if user has uploaded a profile picture before creating stream
+          const hasProfilePicture = !!(
+            userData?.profile_picture_url || 
+            userData?.profile_picture
+          );
+
+          if (!hasProfilePicture) {
+            Alert.alert(
+              '📸 Profile Picture Required',
+              'To create a professional stream experience, please upload your profile picture first. This helps viewers connect with you and makes your stream look amazing!',
+              [
+                { text: 'Cancel', onPress: () => router.back() },
+                { 
+                  text: 'Upload Photo', 
+                  onPress: () => {
+                    router.replace('/(tabs)/profile');
+                  }
+                }
+              ]
+            );
+            return;
+          }
+
           const streamData = {
             title: titleFromParams.trim() || `${userData.username || 'User'}'s ${streamMode === 'multi' ? 'Multi ' : ''}Live Stream`,
             mode: streamMode,
@@ -437,18 +307,14 @@ function UnifiedHostStreamScreen() {
   // Initialize stream when user data and stream ID are available  
   useEffect(() => {
     if (currentUser?.id && streamId && !state.hasJoined && !state.isOperationInProgress) {
-      console.log('[HostScreen] Initializing stream...');
       actions.initializeStream();
     }
   }, [currentUser?.id, streamId]); // Remove hasJoined and isOperationInProgress from deps to prevent re-initialization
 
-  // CRITICAL: Send immediate heartbeat when stream is joined to start it
   useEffect(() => {
     if (state.hasJoined && streamId && sendHeartbeat && !initialHeartbeatSent.current) {
-      console.log('[HostScreen] Stream joined! Sending immediate heartbeat to start stream...');
-      initialHeartbeatSent.current = true; // Mark as sent to prevent re-execution
+      initialHeartbeatSent.current = true;
       
-      // Add a small delay to prevent race conditions with initialization
       const timer = setTimeout(() => {
         sendHeartbeat().then(() => {
           dispatch(streamsApi.util.invalidateTags(['Stream']));
@@ -461,13 +327,12 @@ function UnifiedHostStreamScreen() {
           }).catch((startError) => {
           });
         });
-      }, 1000); // 1 second delay to ensure initialization is complete
+      }, 1000);
       
       return () => clearTimeout(timer);
     }
-  }, [state.hasJoined, streamId, sendHeartbeat, streamAction, dispatch]); // Added state.hasJoined back with other stable dependencies
+  }, [state.hasJoined, streamId, sendHeartbeat, streamAction, dispatch]);
 
-  // Industry Standard Stream Cleanup - End stream when app is force closed or host leaves
   useEffect(() => {
     if (!streamId || !state.hasJoined) return;
 
@@ -490,21 +355,16 @@ function UnifiedHostStreamScreen() {
           action: { action: 'end' } 
         }).unwrap();
         
-        // CRITICAL: Immediately invalidate all stream caches to remove from popular channels
         dispatch(streamsApi.util.invalidateTags(['Stream']));
         
-        // Also try to leave the GetStream call
         if (state.call) {
           state.call.leave().catch(console.error);
         }
         
       } catch (error: any) {
-
         
-        // Even if the API call failed, invalidate cache in case it was a network issue
         dispatch(streamsApi.util.invalidateTags(['Stream']));
         
-        // Only retry if it's not a 404 (stream already deleted) or 400 (bad request)
         if (error?.status !== 404 && error?.status !== 400) {
          
           setTimeout(() => {
@@ -538,32 +398,24 @@ function UnifiedHostStreamScreen() {
         // This ensures streams don't stay "ghost" live when user force closes
        
         if (state.hasJoined && !cleanupExecuted) {
-          // Execute cleanup immediately without any delay for force-close scenarios
           executeStreamCleanup('App backgrounded (IMMEDIATE force-close protection)');
         }
         
       } else if (nextAppState === 'inactive') {
-        // iOS-specific: When app is about to be terminated
-      
         if (state.hasJoined && !cleanupExecuted) {
-          // Pre-emptive cleanup for iOS app termination
           executeStreamCleanup('App inactive (iOS termination protection)');
         }
         
       } else if (nextAppState === 'active') {
-        // Clear backup timer if user returns quickly
         if (backgroundTimer) {
-         
           clearTimeout(backgroundTimer);
           backgroundTimer = null;
         }
-        // Don't reset cleanupExecuted here - once cleanup is done, it's done
       }
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-    // Global cleanup insurance - runs when component unmounts
     return () => {
       subscription?.remove();
       
@@ -571,63 +423,33 @@ function UnifiedHostStreamScreen() {
         clearTimeout(backgroundTimer);
       }
       
-      // Reset heartbeat tracking when component unmounts
       initialHeartbeatSent.current = false;
       
-      // Emergency cleanup for component unmount (navigation, force close)
       if (state.hasJoined && streamId && !cleanupExecuted) {
-      
-        cleanupExecuted = true; // Mark as executed to prevent race conditions
+        cleanupExecuted = true;
         
-        // Fire-and-forget cleanup (don't await since component is unmounting)
         streamAction({ 
           streamId, 
           action: { action: 'end' } 
         }).unwrap()
         .then(() => {
-          
-          // Invalidate cache even on unmount
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         })
         .catch((error) => {
-         
-          // Still invalidate cache in case it was a network issue
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         });
         
-        // Also try to leave the call
         if (state.call) {
           state.call.leave().catch(console.error);
         }
       }
     };
-  }, [streamId, state.hasJoined, state.call]); // Removed streamAction and dispatch to prevent re-render loops
+  }, [streamId, state.hasJoined, state.call]);
 
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
 
-    // Send via WebSocket for instant delivery
-    if (webSocketService) {
-      console.log('[HostScreen] 🚀 Sending message via WebSocket:', message);
-      webSocketService.sendChatMessage(message.trim());
-      
-      // Also add to local chat immediately for instant feedback
-      chat.addMessage({
-        id: `local-${Date.now()}`,
-        username: userData?.username || 'You',
-        message: message.trim(),
-        timestamp: new Date().toISOString(),
-        isHost: true,
-        userId: userData?.id?.toString(),
-        profilePicture: profilePictureUrl
-      });
-    } else {
-      // Fallback to regular API call if WebSocket not available
-      console.log('[HostScreen] WebSocket not available, using API fallback...');
-      if (chat?.sendMessage) {
-        await chat.sendMessage(message);
-      }
-    }
+    await chat.sendMessage(message.trim());
   };
 
   const handleAddParticipant = () => {
@@ -791,7 +613,7 @@ function UnifiedHostStreamScreen() {
           isKeyboardVisible={chat.isKeyboardVisible}
           inputBarHeight={72}
           baseURL={state.baseURL}
-          hostId={userData?.id}
+          hostId={streamDetails?.host?.id || userData?.id}
         />
 
         {/* Dynamic Input Bar based on mode */}
@@ -833,6 +655,7 @@ function UnifiedHostStreamScreen() {
           onCancel={endStreamSystem.hideEndStreamModal}
           onEndStream={endStreamSystem.handleEndStream}
           isLoading={endStreamSystem.isEndingStream}
+          streamStatus={streamDetails?.status as 'live' | 'ended' | 'disconnected' | null}
         />
 
         <MembersListModal
@@ -868,7 +691,6 @@ function UnifiedHostStreamScreen() {
           currentUserRole="host"
           onRefresh={() => {
             // Trigger refresh of stream data
-            console.log('Refreshing stream data...');
           }}
         />
       </View>

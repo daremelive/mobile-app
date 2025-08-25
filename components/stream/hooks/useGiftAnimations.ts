@@ -14,6 +14,8 @@ export interface GiftAnimationData {
   sender: {
     username: string;
     full_name: string;
+    first_name?: string;
+    last_name?: string;
     profile_picture_url?: string;
   };
   animationKey: string;
@@ -34,8 +36,16 @@ export const useGiftAnimations = ({ messages, baseURL }: UseGiftAnimationsProps)
     if (messages.length > 0) {
       const latestMessage = messages[messages.length - 1] as any;
       
+      // Check for gift messages in multiple formats
+      const isGiftMessage = latestMessage.message_type === 'gift' || 
+                           latestMessage.gift || 
+                           latestMessage.gift_name ||
+                           latestMessage.gift_id ||
+                           (latestMessage.message && latestMessage.message.includes('sent ')) && // TikTok-style "sent [gift name]"
+                           (latestMessage.gift_icon || latestMessage.gift_cost);
+      
       // Only process gift messages that haven't been processed yet
-      if (latestMessage.message_type === 'gift' && !processedMessageIds.has(latestMessage.id)) {
+      if (isGiftMessage && !processedMessageIds.has(latestMessage.id)) {
         // Mark this message as processed
         setProcessedMessageIds(prev => new Set([...prev, latestMessage.id]));
         
@@ -46,34 +56,39 @@ export const useGiftAnimations = ({ messages, baseURL }: UseGiftAnimationsProps)
         if (latestMessage.gift?.icon_url) {
           // Use the full icon_url from gift object if available
           iconUrl = latestMessage.gift.icon_url;
-        } else if (latestMessage.gift_icon) {
+        } else if (latestMessage.gift_icon && typeof latestMessage.gift_icon === 'string') {
           // Fallback to constructing URL from gift_icon path - use web URL not API URL
           const cleanPath = latestMessage.gift_icon.startsWith('/') ? latestMessage.gift_icon.substring(1) : latestMessage.gift_icon;
           const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
           iconUrl = `${webURL}/media/${cleanPath}`;
         }
         
-        console.log('🖼️ Constructed icon URL:', iconUrl);
-        
         const newGiftAnimation: GiftAnimationData = {
           id: animationId,
           gift: {
-            id: latestMessage.gift?.id || 0,
-            name: latestMessage.gift_name || 'Gift',
+            id: latestMessage.gift?.id || latestMessage.gift_id || 0,
+            name: latestMessage.gift_name || latestMessage.gift?.name || 'Gift',
             icon_url: iconUrl,
-            icon: latestMessage.gift_icon || '🎁',
-            cost: latestMessage.gift?.cost || 0
+            icon: latestMessage.gift_icon || latestMessage.gift?.icon || '🎁',
+            cost: latestMessage.gift?.cost || latestMessage.gift_cost || 0
           },
           sender: {
-            username: latestMessage.user.username || 'User',
-            full_name: latestMessage.user.full_name || latestMessage.user.username || 'User',
-            profile_picture_url: latestMessage.user.profile_picture_url || latestMessage.user.avatar_url
+            username: latestMessage.user?.username || latestMessage.username || 'User',
+            full_name: latestMessage.user?.full_name || 
+                      (latestMessage.user?.first_name && latestMessage.user?.last_name 
+                        ? `${latestMessage.user.first_name} ${latestMessage.user.last_name}` 
+                        : latestMessage.user?.username || latestMessage.username || 'User'),
+            first_name: latestMessage.user?.first_name || latestMessage.first_name,
+            last_name: latestMessage.user?.last_name || latestMessage.last_name,
+            profile_picture_url: latestMessage.user?.profile_picture_url || latestMessage.user?.avatar_url || latestMessage.profile_picture_url
           },
           animationKey: animationId,
         };
         
-        console.log('🎬 Creating gift animation:', newGiftAnimation);
-        setActiveGiftAnimations(prev => [...prev, newGiftAnimation]);
+        setActiveGiftAnimations(prev => {
+          const newAnimations = [...prev, newGiftAnimation];
+          return newAnimations;
+        });
       }
     }
   }, [messages.length, baseURL, processedMessageIds]);
@@ -99,7 +114,9 @@ export const useGiftAnimations = ({ messages, baseURL }: UseGiftAnimationsProps)
         username: currentUser?.username || 'User',
         full_name: currentUser?.first_name && currentUser?.last_name 
           ? `${currentUser.first_name} ${currentUser.last_name}`
-          : currentUser?.username || 'User',
+          : currentUser?.full_name || currentUser?.username || 'User',
+        first_name: currentUser?.first_name,
+        last_name: currentUser?.last_name,
         profile_picture_url: currentUser?.profile_picture_url || currentUser?.profile_picture
       },
       animationKey: animationId,

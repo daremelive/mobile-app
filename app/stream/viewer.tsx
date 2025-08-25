@@ -9,6 +9,7 @@ import {
   ViewerInputBar, 
   useStreamState, 
   useStreamChat, 
+  useHybridStreamChat, 
   useGiftAnimations,
   useFollowSystem,
   GiftModal,
@@ -21,7 +22,6 @@ import { useGetProfileQuery } from '../../src/store/authApi';
 import { useGetStreamQuery, useJoinStreamMutation, useLeaveStreamMutation, useGetGiftsQuery, useSendGiftMutation, useLikeStreamMutation } from '../../src/store/streamsApi';
 import { useGetWalletSummaryQuery, useGetCoinPackagesQuery, usePurchaseCoinsMutation } from '../../src/api/walletApi';
 import { createStreamClient, createStreamUser } from '../../src/utils/streamClient';
-import { StreamWebSocketService } from '../../src/services/StreamWebSocketService';
 import GiftAnimation from '../../components/animations/GiftAnimation';
 
 // Component that uses call state hooks - must be inside StreamCall
@@ -49,31 +49,10 @@ function StreamContent({
   const participantCount = useParticipantCount() || 0;
   const remoteParticipants = useRemoteParticipants();
   
-  // Find the host participant (usually the first one or the one with video)
   const hostParticipant = remoteParticipants?.find(p => p.videoStream) || remoteParticipants?.[0];
-  
-  // Debug logging
-  if (__DEV__) {
-    console.log('🎥 Video Debug:', {
-      participantCount,
-      remoteParticipantsCount: remoteParticipants?.length || 0,
-      hostParticipant: hostParticipant ? {
-        userId: hostParticipant.userId,
-        hasVideoStream: !!hostParticipant.videoStream,
-        hasAudioStream: !!hostParticipant.audioStream,
-        sessionId: hostParticipant.sessionId
-      } : null,
-      allParticipants: remoteParticipants?.map(p => ({
-        userId: p.userId,
-        hasVideo: !!p.videoStream,
-        hasAudio: !!p.audioStream
-      })) || []
-    });
-  }
   
   return (
     <View className="flex-1">
-      {/* Video Layer */}
       <View className="flex-1 relative">
         {isConnecting ? (
           <View className="flex-1 items-center justify-center">
@@ -111,7 +90,6 @@ function StreamContent({
           </View>
         )}
 
-        {/* Gift Animations Overlay */}
         {giftAnimations.activeGiftAnimations.map((animation: any) => (
           <GiftAnimation
             key={animation.id}
@@ -149,24 +127,17 @@ export default function UnifiedViewerStreamScreen() {
   const [selectedGiftId, setSelectedGiftId] = useState<number | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
   
-  // Like functionality
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   
-  // Profile picture URLs
   const [hostProfilePictureUrl, setHostProfilePictureUrl] = useState<string>('');
   const [viewerProfilePictureUrl, setViewerProfilePictureUrl] = useState<string>('');
 
   const [baseURL, setBaseURL] = useState<string>('');
   const initializationTimeoutRef = useRef<number | null>(null);
 
-  // WebSocket for real-time messaging
-  const [webSocketService, setWebSocketService] = useState<StreamWebSocketService | null>(null);
   const [realtimeMessages, setRealtimeMessages] = useState<any[]>([]);
-  const [wsConnectionAttempts, setWsConnectionAttempts] = useState(0);
-  const maxWsAttempts = 3;
 
-  // Initialize baseURL
   useEffect(() => {
     const initBaseURL = async () => {
       const url = await ipDetector.getAPIBaseURL();
@@ -184,13 +155,11 @@ export default function UnifiedViewerStreamScreen() {
   const [likeStream] = useLikeStreamMutation();
   const [purchaseCoins] = usePurchaseCoinsMutation();
 
-  // Determine stream mode from params or stream details
   const modeFromParams = (params.mode as string) || '';
   const [streamMode, setStreamMode] = useState<'single' | 'multi'>(
     modeFromParams === 'multi' ? 'multi' : 'single'
   );
 
-  // API calls
   const { 
     data: streamDetails, 
     isLoading: streamLoading, 
@@ -216,55 +185,49 @@ export default function UnifiedViewerStreamScreen() {
     refetch: refetchCoinPackages 
   } = useGetCoinPackagesQuery();
 
-  // Stream state and chat
   const { state, actions, messages: streamMessages } = useStreamState({ 
     streamId: streamId, 
     userRole: 'viewer' 
   });
 
-  const chat = useStreamChat({
+  const chat = useHybridStreamChat({
     streamId,
+    streamTitle: streamDetails?.title || 'Live Stream',
     userId: userData?.id?.toString(),
     username: userData?.username,
     isHost: false,
+    hostId: streamDetails?.host?.id?.toString(),
     profilePicture: viewerProfilePictureUrl,
+    useStreamChat: true,
+    baseURL: baseURL,
   });
 
-  // Merge WebSocket messages with existing chat messages for instant display
   const allMessages = React.useMemo(() => {
     const streamChatMessages = Array.isArray(chat.messages) ? chat.messages : [];
     const safeRealtimeMessages = Array.isArray(realtimeMessages) ? realtimeMessages : [];
     
-    // Combine and sort by timestamp
+    const allCombined = [...streamChatMessages, ...safeRealtimeMessages];
     const combined = [...streamChatMessages, ...safeRealtimeMessages];
     
-    // Remove duplicates based on unique ID only
     const uniqueMessages = combined.filter((message, index, array) => {
       if (!message || !message.message) return false;
-      // Only deduplicate if we have a proper ID to compare
       if (!message.id) return true;
       return index === array.findIndex(m => m?.id === message.id);
     });
     
-    // Sort by timestamp with safe date parsing
     return uniqueMessages.sort((a, b) => {
-      // Safely parse timestamps with fallback for invalid dates
       const getTimestamp = (msg: any) => {
         if (!msg?.timestamp) return 0;
         
-        // Handle ISO string timestamps (from local messages and new backend)
         if (typeof msg.timestamp === 'string') {
           const date = new Date(msg.timestamp);
           return isNaN(date.getTime()) ? 0 : date.getTime();
         }
         
-        // Handle numeric timestamps (from old backend messages)
         if (typeof msg.timestamp === 'number') {
-          // If it's a reasonable Unix timestamp (after year 2000)
           if (msg.timestamp > 946684800) {
-            return msg.timestamp * 1000; // Convert to milliseconds
+            return msg.timestamp * 1000;
           }
-          // If it's already in milliseconds or invalid, use as-is
           return msg.timestamp;
         }
         
@@ -277,50 +240,41 @@ export default function UnifiedViewerStreamScreen() {
     });
   }, [chat.messages, realtimeMessages]);
 
-  // Gift animations
   const giftAnimations = useGiftAnimations({ 
-    messages: allMessages, // Use combined messages for gift detection
+    messages: allMessages,
     baseURL: baseURL
   });
 
-  // Follow system
   const followSystem = useFollowSystem({
     userId: userData?.id?.toString(),
     targetUserId: streamDetails?.host?.id?.toString()
   });
 
-  // Profile picture URL construction helper (like in host.tsx)
-  const getProfilePictureUrl = async (user: any) => {
+  const getProfilePictureUrl = (user: any, baseURL: string) => {
     if (user?.profile_picture_url) {
       if (user.profile_picture_url.startsWith('http')) {
         return user.profile_picture_url;
       }
-      try {
-        const apiBaseURL = await ipDetector.getAPIBaseURL();
-        const webURL = apiBaseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-        return `${webURL}${user.profile_picture_url}`;
-      } catch (error) {
-        return `https://daremelive.pythonanywhere.com${user.profile_picture_url}`;
-      }
+      const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
+      const profilePath = user.profile_picture_url.startsWith('/') ? user.profile_picture_url : `/${user.profile_picture_url}`;
+      const fullUrl = `${webURL}${profilePath}`;
+      return fullUrl;
     }
     
     if (user?.profile_picture) {
       if (user.profile_picture.startsWith('http')) {
         return user.profile_picture;
       }
-      try {
-        const apiBaseURL = await ipDetector.getAPIBaseURL();
-        const webURL = apiBaseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-        return `${webURL}${user.profile_picture}`;
-      } catch (error) {
-        return `https://daremelive.pythonanywhere.com${user.profile_picture}`;
-      }
+      const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
+      // Ensure no double slashes
+      const profilePath = user.profile_picture.startsWith('/') ? user.profile_picture : `/${user.profile_picture}`;
+      const fullUrl = `${webURL}${profilePath}`;
+      return fullUrl;
     }
     
     return null;
   };
 
-  // Safe data arrays with type adapters
   const safeGifts = Array.isArray(gifts) ? gifts.map(gift => ({
     ...gift,
     image_url: gift.icon_url,
@@ -329,7 +283,7 @@ export default function UnifiedViewerStreamScreen() {
   
   const safeCoinPackages = Array.isArray(coinPackages) ? coinPackages.map((pkg, index) => ({
     id: pkg.id,
-    name: pkg.formatted_price || `${pkg.coins} Coins`,
+    name: pkg.formatted_price || `${pkg.coins} Riz`,
     coins: pkg.coins,
     price: parseFloat(pkg.price) || 0,
     currency: pkg.currency,
@@ -340,7 +294,6 @@ export default function UnifiedViewerStreamScreen() {
     is_active: pkg.is_active
   })) : [];
 
-  // Update stream mode when details are loaded
   useEffect(() => {
     if (streamDetails?.mode) {
       setStreamMode(streamDetails.mode as 'single' | 'multi');
@@ -356,194 +309,30 @@ export default function UnifiedViewerStreamScreen() {
 
   // Update host profile picture URL when stream details load
   useEffect(() => {
-    if (streamDetails?.host) {
-      console.log('🔍 Raw Host Data:', JSON.stringify(streamDetails.host, null, 2));
-      
-      getProfilePictureUrl(streamDetails.host).then(url => {
-        console.log('🖼️ Host Profile Picture Debug:', {
-          hostId: streamDetails.host.id,
-          hostUsername: streamDetails.host.username,
-          rawProfileUrl: streamDetails.host.profile_picture_url,
-          constructedURL: url,
-          baseURL: baseURL
-        });
-        if (url) {
-          setHostProfilePictureUrl(url);
-          console.log('✅ Setting hostProfilePictureUrl to:', url);
-        } else {
-          console.log('❌ No URL constructed for host profile picture');
-        }
-      });
+    if (streamDetails?.host && baseURL) {
+      const url = getProfilePictureUrl(streamDetails.host, baseURL);
+      if (url) {
+        setHostProfilePictureUrl(url);
+      } else {
+        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(streamDetails.host.full_name || streamDetails.host.username)}&background=C42720&color=fff&size=100`;
+        setHostProfilePictureUrl(fallbackUrl);
+      }
     }
   }, [streamDetails?.host, baseURL]);
 
   // Update viewer profile picture URL when user data loads
   useEffect(() => {
-    if (userData) {
-      getProfilePictureUrl(userData).then(url => {
-        console.log('🖼️ Viewer Profile Picture Debug:', {
-          viewerId: userData.id,
-          viewerUsername: userData.username,
-          rawProfileUrl: userData.profile_picture_url,
-          constructedURL: url,
-          baseURL: baseURL
-        });
-        if (url) setViewerProfilePictureUrl(url);
-      });
+    if (userData && baseURL) {
+      const url = getProfilePictureUrl(userData, baseURL);
+      if (url) {
+        setViewerProfilePictureUrl(url);
+      } else {
+        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.full_name || userData.username)}&background=C42720&color=fff&size=100`;
+        setViewerProfilePictureUrl(fallbackUrl);
+      }
     }
   }, [userData, baseURL]);
 
-  // Initialize WebSocket for real-time messaging
-  useEffect(() => {
-    console.log('[ViewerScreen] 🔍 WebSocket useEffect triggered:', {
-      streamId: streamId ? 'exists' : 'missing',
-      userId: userData?.id ? 'exists' : 'missing', 
-      hasJoined,
-      token: accessToken ? 'exists' : 'missing',
-      wsConnectionAttempts,
-      maxWsAttempts
-    });
-
-    // Debug currentUser object
-    console.log('[ViewerScreen] 🔍 currentUser debug:', {
-      hasCurrentUser: !!currentUser,
-      currentUserKeys: currentUser ? Object.keys(currentUser) : 'none',
-      hasAccessToken: !!accessToken,
-      tokenLength: accessToken ? accessToken.length : 0,
-      userId: currentUser?.id || currentUser?.user_id
-    });
-
-    if (!streamId || !userData?.id || !hasJoined || !accessToken) {
-      console.log('[ViewerScreen] ❌ WebSocket initialization skipped - missing requirements');
-      return;
-    }
-    
-    // Prevent excessive connection attempts
-    if (wsConnectionAttempts >= maxWsAttempts) {
-      console.log('[ViewerScreen] Max WebSocket connection attempts reached, skipping');
-      return;
-    }
-
-    console.log('[ViewerScreen] Initializing WebSocket for real-time chat...');
-
-    const wsService = new StreamWebSocketService({
-      streamId,
-      userId: userData.id.toString(),
-      token: accessToken,
-      onGuestInvited: (guest, invitedBy) => {
-        console.log('Guest invited:', guest);
-      },
-      onGuestJoined: (participant) => {
-        console.log('Guest joined:', participant);
-      },
-      onGuestDeclined: (guest) => {
-        console.log('Guest declined:', guest);
-      },
-      onGuestRemoved: (guestId, removedBy) => {
-        console.log('Guest removed:', guestId);
-      },
-      onUserRemoved: (message, removedBy) => {
-        console.log('[ViewerScreen] 🚨 User removed from stream:', message);
-        Alert.alert(
-          'Removed from Stream',
-          'You have been removed from this stream by the host.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                // Navigate back to home
-                router.replace('/(tabs)/home');
-              }
-            }
-          ],
-          { cancelable: false }
-        );
-      },
-      onParticipantRemoved: (userId, message) => {
-        console.log('[ViewerScreen] 📢 Participant removed:', userId, message);
-        // This will help update the UI to remove the participant from any lists
-        // if we have participant lists in the viewer screen
-      },
-      onCameraToggled: (userId, enabled) => {
-        console.log('Camera toggled:', userId, enabled);
-      },
-      onMicrophoneToggled: (userId, enabled) => {
-        console.log('Microphone toggled:', userId, enabled);
-      },
-      onStreamMessage: (message) => {
-        console.log('[ViewerScreen] 📨 Real-time message received:', message);
-        console.log('[ViewerScreen] 🔍 Message userId:', message.user?.id, 'type:', typeof message.user?.id);
-        console.log('[ViewerScreen] 🔍 Current userId:', userData?.id?.toString(), 'type:', typeof userData?.id?.toString());
-        console.log('[ViewerScreen] 🔍 UserIds match:', message.user?.id?.toString() === userData?.id?.toString());
-        
-        // Don't add messages from the current user since they already added them locally
-        const currentUserId = userData?.id?.toString();
-        const messageUserId = message.user?.id?.toString();
-        if (messageUserId === currentUserId) {
-          console.log('[ViewerScreen] 🔄 Ignoring own message to prevent duplicate');
-          return;
-        }
-        
-        // Add to real-time messages for instant display
-        setRealtimeMessages(prev => [...prev.slice(-49), message]);
-      },
-      onStreamState: (state) => {
-        console.log('Stream state update:', state);
-      },
-      onError: (error) => {
-        console.error('[ViewerScreen] WebSocket error:', error);
-      },
-    });
-
-    // Connect to WebSocket with timeout and error handling
-    const connectTimeout = setTimeout(() => {
-      console.log('[ViewerScreen] WebSocket connection timeout, cleaning up...');
-      wsService.disconnect();
-      setWsConnectionAttempts(prev => prev + 1);
-    }, 10000); // 10 second timeout
-
-    wsService.connect().then(() => {
-      clearTimeout(connectTimeout);
-      console.log('[ViewerScreen] ✅ WebSocket connected for real-time chat');
-      setWebSocketService(wsService);
-      setWsConnectionAttempts(0); // Reset attempts on successful connection
-    }).catch((error) => {
-      clearTimeout(connectTimeout);
-      console.error('[ViewerScreen] ❌ WebSocket connection failed:', error);
-      setWsConnectionAttempts(prev => prev + 1);
-      
-      // If it's a 403 error, don't retry as it's likely an auth issue
-      if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
-        console.log('[ViewerScreen] Authentication error detected, not retrying WebSocket');
-        setWsConnectionAttempts(maxWsAttempts); // Stop further attempts
-      }
-    });
-
-    return () => {
-      clearTimeout(connectTimeout);
-      console.log('[ViewerScreen] Cleaning up WebSocket connection...');
-      wsService.gracefulDisconnect();
-      setWebSocketService(null);
-    };
-  }, [streamId, userData?.id, hasJoined]);
-
-  // Debug StreamHeader props
-  useEffect(() => {
-    if (__DEV__ && streamDetails) {
-      console.log('🎬 StreamHeader Props Debug:', {
-        streamTitle: streamDetails?.title,
-        hostFirstName: streamDetails?.host?.first_name,
-        hostLastName: streamDetails?.host?.last_name,
-        hostUsername: streamDetails?.host?.username,
-        hostProfilePicture: hostProfilePictureUrl,
-        hostProfilePictureLength: hostProfilePictureUrl?.length,
-        hasStreamDetails: !!streamDetails,
-        hasHost: !!streamDetails?.host
-      });
-    }
-  }, [streamDetails, hostProfilePictureUrl]);
-
-  // Handle gift modal after purchase
   useEffect(() => {
     if (shouldOpenGiftModalAfterPurchase && !coinPurchaseModalVisible) {
       setGiftModalVisible(true);
@@ -551,40 +340,23 @@ export default function UnifiedViewerStreamScreen() {
     }
   }, [shouldOpenGiftModalAfterPurchase, coinPurchaseModalVisible]);
 
-  // Messages handling - same as host
   const messages = streamMessages || [];
 
   const openGiftModal = () => {
     setGiftModalVisible(true);
   };
 
-  // Custom message handler that uses WebSocket when available
+  // Custom message handler - uses Stream Chat exclusively
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
 
-    // Send via WebSocket for instant delivery
-    if (webSocketService) {
-      console.log('[ViewerScreen] 🚀 Sending message via WebSocket:', message);
-      webSocketService.sendChatMessage(message.trim());
-      
-      // Also add to local chat immediately for instant feedback
-      const localMessage = {
-        id: `local-${Date.now()}`,
-        username: userData?.username || 'You',
-        message: message.trim(),
-        timestamp: new Date().toISOString(),
-        isHost: false,
-        userId: userData?.id?.toString(),
-        profilePicture: viewerProfilePictureUrl
-      };
-      console.log('[ViewerScreen] 📝 Adding local message:', localMessage);
-      setRealtimeMessages(prev => [...prev.slice(-49), localMessage]);
-    } else {
-      // Fallback to regular API call if WebSocket not available
-      console.log('[ViewerScreen] WebSocket not available, using API fallback...');
-      if (chat?.sendMessage) {
-        await chat.sendMessage(message);
+    if (chat?.sendMessage) {
+      try {
+        await chat.sendMessage(message.trim());
+      } catch (error) {
+        console.error('[ViewerScreen] ❌ Stream Chat send failed:', error);
       }
+    } else {
     }
   };
 
@@ -607,23 +379,30 @@ export default function UnifiedViewerStreamScreen() {
   };
 
   const handleSendGift = async (gift: any) => {
-    if (sendingGift || !walletSummary || walletSummary.coins < gift.coin_cost) {
-      if (!walletSummary || walletSummary.coins < gift.coin_cost) {
-        Alert.alert(
-          'Insufficient Coins',
-          `You need ${gift.coin_cost} coins to send this gift. Your balance: ${walletSummary?.coins || 0} coins.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Buy Coins', 
-              onPress: () => {
-                setGiftModalVisible(false);
-                setCoinPurchaseModalVisible(true);
-              }
+    // Check if user has enough coins first, before any other checks
+    if (!walletSummary || walletSummary.coins < gift.cost) {
+      const coinsNeeded = gift.cost - (walletSummary?.coins || 0);
+      Alert.alert(
+        '💎 Need More Coins!',
+        `You need ${coinsNeeded} more coins to send "${gift.name}".\n\nYour balance: ${walletSummary?.coins || 0} coins\nGift cost: ${gift.cost} coins`,
+        [
+          { text: 'Maybe Later', style: 'cancel' },
+          { 
+            text: '🛒 Get Coins', 
+            style: 'default',
+            onPress: () => {
+              setGiftModalVisible(false);
+              setCoinPurchaseModalVisible(true);
+              setShouldOpenGiftModalAfterPurchase(true);
             }
-          ]
-        );
-      }
+          }
+        ],
+        { cancelable: true }
+      );
+      return;
+    }
+
+    if (sendingGift) {
       return;
     }
 
@@ -641,21 +420,62 @@ export default function UnifiedViewerStreamScreen() {
       // Close gift modal
       setGiftModalVisible(false);
       
-      // Refresh wallet to show updated balance
+      try {
+        if (chat.chatProvider === 'stream-chat' && chat.sendGiftEvent) {
+          const giftEventData = {
+            gift_id: gift.id,
+            gift_name: gift.name,
+            gift_icon: gift.icon_url, // Use icon_url instead of icon
+            gift_cost: gift.cost,
+            gift: gift,
+            sender_id: userData?.id?.toString(),
+            sender_username: userData?.username || 'Anonymous',
+            sender_full_name: userData?.first_name && userData?.last_name 
+              ? `${userData.first_name} ${userData.last_name}`
+              : userData?.full_name || userData?.username || 'Anonymous',
+            sender_profile_picture: userData?.profile_picture_url || userData?.profile_picture,
+            stream_id: streamId,
+            timestamp: new Date().toISOString(),
+          };
+          
+          // Send the gift event to all participants
+          await chat.sendGiftEvent(giftEventData);
+          
+          // ALSO send as a chat message so it appears in the chat feed like TikTok
+          await chat.sendMessage(`sent ${gift.name}`, {
+            customType: 'gift',
+            gift_id: gift.id,
+            gift_name: gift.name,
+            gift_icon: gift.icon_url, // Use icon_url instead of icon
+            gift_cost: gift.cost,
+            gift: gift,
+          });
+          
+        } else {
+          console.error('❌ [StreamChat Gift] Stream Chat not available or sendGiftEvent not available');
+        }
+      } catch (chatError) {
+        console.error('❌ [StreamChat Gift] Failed to send gift event:', chatError);
+      }
+      
       refetchWallet();
       
-      Alert.alert('Gift Sent!', `You sent ${gift.name} to the stream!`);
+      Alert.alert(
+        '🎁 Gift Sent!', 
+        `You sent "${gift.name}" to the stream! 🌟\n\nRemaining balance: ${(walletSummary?.coins || 0) - gift.cost} coins`,
+        [{ text: 'Awesome!', style: 'default' }]
+      );
     } catch (error: any) {
       console.error('Failed to send gift:', error);
       
       if (error?.data?.error === 'Insufficient coins') {
         Alert.alert(
-          'Insufficient Coins',
-          'You don\'t have enough coins to send this gift.',
+          '💎 Insufficient Coins',
+          'Your coin balance has changed. Please refresh and try again.',
           [
-            { text: 'Cancel', style: 'cancel' },
+            { text: 'OK', style: 'cancel' },
             { 
-              text: 'Buy Coins', 
+              text: 'Get More Coins', 
               onPress: () => {
                 setShouldOpenGiftModalAfterPurchase(true);
                 setGiftModalVisible(false);
@@ -665,7 +485,7 @@ export default function UnifiedViewerStreamScreen() {
           ]
         );
       } else {
-        Alert.alert('Error', 'Failed to send gift. Please try again.');
+        Alert.alert('❌ Oops!', 'Something went wrong sending your gift. Please try again.');
       }
     } finally {
       setSendingGift(false);
@@ -713,7 +533,7 @@ export default function UnifiedViewerStreamScreen() {
       try {
         await leaveStream(streamId).unwrap();
       } catch (error) {
-        console.log('Backend cleanup: user was not registered');
+        // User was not registered, ignore
       }
       
       // For viewers, just disconnect - no need to leave call since we never joined as participants
@@ -775,13 +595,10 @@ export default function UnifiedViewerStreamScreen() {
         await streamCall.join({ 
           create: false
         });
-        console.log('📺 Joined stream as viewer');
         
-        // Disable camera and microphone for viewer
         await streamCall.camera.disable();
         await streamCall.microphone.disable();
       } catch (error) {
-        console.log('⚠️ Stream not found, creating and joining as viewer...');
         // If call doesn't exist yet, create it and join as viewer
         await streamCall.join({ 
           create: true
@@ -804,13 +621,10 @@ export default function UnifiedViewerStreamScreen() {
             streamId,
             data: { participant_type: 'viewer' }
           }).unwrap();
-          console.log('✅ Registered as viewer in backend');
         } catch (joinError: any) {
-          // If user is already in stream, that's okay - continue with connection
           if (joinError?.data?.error !== 'You are already in this stream') {
-            throw joinError; // Re-throw if it's a different error
+            throw joinError;
           }
-          console.log('User already registered as viewer, continuing...');
         }
       }
 
@@ -874,7 +688,7 @@ export default function UnifiedViewerStreamScreen() {
         try {
           await leaveStream(streamId).unwrap();
         } catch (error) {
-          console.log('Backend leave failed (user may not have been registered)');
+          // User may not have been registered, ignore
         }
       }
       
@@ -932,7 +746,6 @@ export default function UnifiedViewerStreamScreen() {
 
   useEffect(() => {
     return () => {
-      // Cleanup on component unmount - for viewers, just disconnect
       if (streamClient) {
         streamClient.disconnectUser().catch(console.error);
       }
@@ -949,13 +762,6 @@ export default function UnifiedViewerStreamScreen() {
   }
 
   if (streamError || !streamDetails) {
-    console.log('🔍 Stream loading error details:', {
-      streamError,
-      streamDetails,
-      streamId,
-      hasStreamId: !!streamId
-    });
-    
     return (
       <SafeAreaView className="flex-1 bg-black items-center justify-center">
         <Text className="text-white text-lg mb-4">Failed to load stream</Text>

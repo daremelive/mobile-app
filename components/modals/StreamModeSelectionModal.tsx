@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSelector } from 'react-redux';
 import CancelIcon from '../../assets/icons/cancel.svg';
 import UserIcon from '../../assets/icons/user.svg';
 import UsersIcon from '../../assets/icons/users.svg';
@@ -11,6 +12,8 @@ import BanterIcon from '../../assets/icons/banter.svg';
 import SeatsIcon from '../../assets/icons/seat-selector.svg';
 import LockIcon from '../../assets/icons/lock.svg';
 import { useGetUserStreamPrivilegesQuery, StreamChannel } from '../../src/api/levelsApi';
+import { useGetProfileQuery } from '../../src/store/authApi';
+import { selectCurrentUser } from '../../src/store/authSlice';
 
 interface StreamModeSelectionModalProps {
   visible: boolean;
@@ -27,6 +30,8 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
   const [selectedSeats, setSelectedSeats] = useState<number | null>(null);
 
   const { data: privileges, isLoading: privilegesLoading, refetch: refetchPrivileges } = useGetUserStreamPrivilegesQuery();
+  const { data: currentUserProfile } = useGetProfileQuery();
+  const currentUser = useSelector(selectCurrentUser);
 
   const getDynamicSeatOptions = (): number[] => {
     if (!selectedChannel || !privileges?.all_channels) {
@@ -72,6 +77,33 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
   }, [selectedChannel]);
 
   const handleProceed = () => {
+    // Get user data - prioritize fresh profile data over cached user
+    const userData = currentUserProfile || currentUser;
+    
+    // Check if user has uploaded a profile picture
+    const hasProfilePicture = !!(
+      userData?.profile_picture_url || 
+      userData?.profile_picture
+    );
+
+    if (!hasProfilePicture) {
+      Alert.alert(
+        '📸 Profile Picture Required',
+        'To create a professional stream experience, please upload your profile picture first. This helps viewers connect with you and makes your stream look amazing!',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Upload Photo', 
+            onPress: () => {
+              onClose();
+              router.push('/(tabs)/profile');
+            }
+          }
+        ]
+      );
+      return;
+    }
+
     if (!privileges?.can_create_streams) {
       Alert.alert(
         'Stream Creation Restricted',
@@ -254,7 +286,7 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
                           [
                             { text: 'Maybe Later', style: 'cancel' },
                             {
-                              text: `💰 Get Coins`,
+                              text: `💰 Get Riz`,
                               onPress: () => {
                                 onClose();
                                 router.push('/get-coins');

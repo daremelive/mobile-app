@@ -66,7 +66,9 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
   const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
   
   // API hooks
-  const { data: streamDetails, isLoading: streamLoading, error: streamError } = useGetStreamQuery(streamId);
+  const { data: streamDetails, isLoading: streamLoading, error: streamError } = useGetStreamQuery(streamId, {
+    skip: !streamId || streamId.length === 0, // Skip query if streamId is empty
+  });
   const [joinStream] = useJoinStreamMutation();
   const [leaveStream] = useLeaveStreamMutation();
   const [sendMessage] = useSendMessageMutation();
@@ -76,6 +78,7 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     { 
       // pollingInterval: 3000, // Disabled to prevent screen blinking
       refetchOnMountOrArgChange: true,
+      skip: !streamId || streamId.length === 0, // Skip query if streamId is empty
     }
   );
   
@@ -149,7 +152,7 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
             await newCall.microphone.enable().catch(() => {});
           }
         } catch (permErr) {
-          console.log('⚠️ Media permission/enable error (host):', permErr);
+          // Media permission/enable error (host)
         }
       } else {
         await newCall.join();
@@ -164,12 +167,10 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
             streamId,
             action: { action: 'start' }
           }).unwrap();
-          console.log('✅ Stream started and is now live');
           
-          // Invalidate streams cache to update popular channels immediately
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         } catch (startError: any) {
-          console.log('ℹ️ Stream start action failed (may already be live):', startError?.data?.error || startError.message);
+          // Stream start action failed (may already be live)
           // Don't fail the entire initialization if start action fails
           // The stream might already be live or in a valid state
         }
@@ -210,12 +211,10 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
             streamId,
             action: { action: 'end' }
           }).unwrap();
-          console.log('✅ Stream ended and removed from popular channels');
           
           // Invalidate streams cache to update popular channels immediately
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         } catch (endError: any) {
-          console.log('ℹ️ Stream end action failed (may already be ended):', endError?.data?.error || endError.message);
           // Continue with cleanup even if end action fails
         }
       }

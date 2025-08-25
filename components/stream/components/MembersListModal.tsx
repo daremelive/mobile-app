@@ -71,23 +71,9 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
   const canBlock = currentUserRole === 'host' && userType === 'viewer';
   const canInvite = currentUserRole === 'host' && userType === 'search';
 
-  console.log('ActionMenu conditions:', {
-    currentUserRole,
-    userType,
-    canInvite,
-    canPromote,
-    canBlock,
-    canRemove
-  });
-
-  console.log('ActionMenu visible prop:', visible);
-
   if (!visible) {
-    console.log('ActionMenu not visible, returning null');
     return null;
   }
-
-  console.log('ActionMenu rendering with user:', user?.username);
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
@@ -95,14 +81,12 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
         className="flex-1 bg-black/50" 
         activeOpacity={1} 
         onPress={() => {
-          console.log('ActionMenu background pressed - closing');
           onClose();
         }}
       >
         <View className="flex-1 items-center justify-center px-6">
           <TouchableOpacity 
             activeOpacity={1}
-            onPress={() => console.log('ActionMenu content pressed - preventing close')}
           >
             <View className="bg-gray-800 rounded-2xl p-4 w-full max-w-sm">
               <View className="flex-row items-center mb-4 pb-4 border-b border-gray-700">
@@ -120,7 +104,6 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
                 {canInvite && (
                   <TouchableOpacity
                     onPress={() => {
-                      console.log('Invite button pressed for user:', user);
                       Alert.alert('Test', 'Invite button was pressed!');
                       onAction('invite', user);
                       onClose();
@@ -135,7 +118,6 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
                 {/* Add a test button to verify modal is working */}
                 <TouchableOpacity
                   onPress={() => {
-                    console.log('Test button pressed!');
                     Alert.alert('Test', 'Modal is working!');
                   }}
                   className="flex-row items-center py-3 px-4 rounded-xl bg-green-600/20"
@@ -212,14 +194,6 @@ export const MembersListModal = ({
   currentUserRole,
   onRefresh,
 }: MembersListModalProps) => {
-  console.log('MembersListModal rendered with props:', {
-    visible,
-    streamId,
-    currentUserRole,
-    participantsCount: participants?.length || 0,
-    viewersCount: viewers?.length || 0
-  });
-
   const currentUser = useSelector(selectCurrentUser);
   const [activeTab, setActiveTab] = useState<'guests' | 'audience'>('guests');
   const [searchQuery, setSearchQuery] = useState('');
@@ -242,11 +216,9 @@ export const MembersListModal = ({
         return;
       }
 
-      console.log('Searching for users with query:', searchQuery.trim());
       setIsSearching(true);
       try {
         const results = await messagesApi.searchUsers(searchQuery.trim());
-        console.log('Search API results:', results);
         // Filter out current user and already participating users
         const filtered = results.filter(user => 
           user.id !== currentUser?.id && 
@@ -256,10 +228,8 @@ export const MembersListModal = ({
           ...user,
           full_name: user.full_name || `${user.first_name} ${user.last_name}`.trim()
         }));
-        console.log('Filtered search results:', filtered);
         setSearchResults(filtered);
       } catch (error) {
-        console.error('Search failed:', error);
         setSearchResults([]);
       } finally {
         setIsSearching(false);
@@ -283,25 +253,19 @@ export const MembersListModal = ({
   );
 
   const openActionMenu = (user: User, type: 'participant' | 'viewer' | 'search') => {
-    console.log('openActionMenu called with:', user, type);
-    console.log('Setting actionMenuVisible to true');
     setSelectedUser(user);
     setUserType(type);
     setActionMenuVisible(true);
-    console.log('ActionMenu state should now be visible');
   };
 
   const handleAction = useCallback(async (action: ActionType, user: User) => {
     try {
-      console.log('handleAction called with:', action, user);
       switch (action) {
         case 'invite':
-          console.log('Sending invitation to user:', user.id, 'for stream:', streamId);
           const result = await inviteUsers({ 
             streamId, 
             userIds: [user.id] 
           }).unwrap();
-          console.log('Invitation result:', result);
           Alert.alert('Success', `Invitation sent to ${user.full_name}`);
           setSearchQuery('');
           break;
@@ -366,7 +330,6 @@ export const MembersListModal = ({
                     Alert.alert('Success', `${user.full_name} has been removed`);
                     onRefresh?.();
                   } catch (error) {
-                    console.error('Remove error:', error);
                     throw error; // Re-throw to trigger the outer catch
                   }
                 }
@@ -376,7 +339,6 @@ export const MembersListModal = ({
           break;
       }
     } catch (error: any) {
-      console.error('handleAction error:', error);
       Alert.alert('Error', error?.data?.message || 'Action failed. Please try again.');
     }
   }, [streamId, inviteUsers, removeGuest, removeParticipant, blockUser, onRefresh]);

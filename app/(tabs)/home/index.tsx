@@ -11,7 +11,8 @@ import {
   Alert,
   ActivityIndicator,
   AppState,
-  RefreshControl
+  RefreshControl,
+  TextInput
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -20,7 +21,7 @@ import { fonts } from '../../../constants/Fonts';
 import { router } from 'expo-router';
 import SearchInput from '../../../components/SearchInput';
 import { useGetFollowingQuery } from '../../../src/store/followApi';
-import { useGetStreamsQuery, useGetFollowingLiveStreamsQuery, useSearchQuery } from '../../../src/store/streamsApi';
+import { useGetPopularStreamsQuery, useGetFollowingLiveStreamsQuery, useSearchQuery } from '../../../src/store/streamsApi';
 import { useFollowUserMutation, useUnfollowUserMutation } from '../../../src/store/followApi';
 import { useNotificationContext } from '../../../src/context/NotificationContext';
 import ClockIcon from '../../../assets/icons/clock.svg';
@@ -29,6 +30,10 @@ import StarsIcon from '../../../assets/icons/stars.svg';
 import CheckIcon from '../../../assets/icons/check.svg';
 import EyeIcon from '../../../assets/icons/eye.svg';
 import ipDetector from '../../../src/utils/ipDetector';
+import useChannelAccess from '../../../src/hooks/useChannelAccess';
+import ChannelAccessModal from '../../../components/modals/ChannelAccessModal';
+import ProfileAvatar from '../../../components/ui/ProfileAvatar';
+import StreamCard from '../../../components/stream/StreamCard';
 
 const categories = ['All', 'Video', 'Game', 'Truth/Dare', 'Banter'];
 const SEARCH_SUGGESTIONS = ['Marriage', 'Banter with Friends', 'Live Gaming', 'World Politics', 'Hot Gist'];
@@ -179,7 +184,7 @@ const UserSearchResult = ({ user, onFollowChange, baseURL }: {
 // Stream Search Result Component
 const StreamSearchResult = ({ stream, onJoinStream, baseURL }: { 
   stream: any;
-  onJoinStream: (streamId: string, streamTitle: string, hostUsername: string) => void;
+  onJoinStream: (streamId: string, streamTitle: string, hostUsername: string, channel?: string) => void;
   baseURL: string;
 }) => {
   const formatViewerCount = (count: number) => {
@@ -191,18 +196,17 @@ const StreamSearchResult = ({ stream, onJoinStream, baseURL }: {
   return (
     <TouchableOpacity
       className="w-[48%] h-[200px] rounded-xl overflow-hidden bg-[#1C1C1E] mb-4"
-      onPress={() => onJoinStream(stream.id, stream.title, stream.host.username)}
+      onPress={() => onJoinStream(stream.id, stream.title, stream.host.username, stream.channel)}
     >
       <View className="relative flex-1">
-        <Image
-          source={{ 
-            uri: stream.host.profile_picture_url 
-              ? (stream.host.profile_picture_url.startsWith('http') 
-                  ? stream.host.profile_picture_url 
-                  : `${baseURL}${stream.host.profile_picture_url}`)
-              : `https://ui-avatars.com/api/?name=${encodeURIComponent(`${stream.host.first_name || ''} ${stream.host.last_name || ''}`).trim() || stream.host.username}&background=C42720&color=fff&size=400`
-          }}
-          className="w-full h-full"
+        <ProfileAvatar
+          profilePictureUrl={stream.host.profile_picture_url}
+          username={stream.host.username}
+          firstName={stream.host.first_name}
+          lastName={stream.host.last_name}
+          size="full"
+          className=""
+          baseURL={baseURL}
         />
         <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full">
           <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
@@ -229,7 +233,7 @@ const StreamSearchResult = ({ stream, onJoinStream, baseURL }: {
 // Search Results Component
 const SearchResults = React.memo(({ query, onJoinStream, baseURL }: { 
   query: string;
-  onJoinStream: (streamId: string, streamTitle: string, hostUsername: string) => void;
+  onJoinStream: (streamId: string, streamTitle: string, hostUsername: string, channel?: string) => void;
   baseURL: string;
 }) => {
   const { data: searchResults, isLoading, error, refetch } = useSearchQuery(query || '', {
@@ -320,8 +324,9 @@ export default function HomeScreen() {
     'Mr & Mrs Kola'
   ]);
   
-  const searchInputRef = React.useRef(null);
+  const searchInputRef = React.useRef<TextInput>(null);
   const [baseURL, setBaseURL] = React.useState<string>('');
+  const { requestChannelAccess, accessModal, closeAccessModal, currentCoins } = useChannelAccess();
 
   // Initialize base URL with IP detection
   React.useEffect(() => {
@@ -346,25 +351,14 @@ export default function HomeScreen() {
   // Get live streams from following users
   const { data: followingLiveStreamsData, isLoading: liveStreamsLoading } = useGetFollowingLiveStreamsQuery();
   
-  // Ensure followingLiveStreams is always an array
-  const followingLiveStreams = Array.isArray(followingLiveStreamsData?.results) ? followingLiveStreamsData.results : [];
-
-  // Debug logging
-  React.useEffect(() => {
-    console.log('🔍 DEBUG Following Users:', followingUsers);
-    console.log('🔍 DEBUG Following Error:', followingError);
-    console.log('🔍 DEBUG Live Streams:', followingLiveStreams);
-    console.log('🔍 DEBUG Following Users with is_live=true:', followingUsers.filter(user => user.is_live));
-  }, [followingUsers, followingLiveStreams, followingError]);
+  // Ensure followingLiveStreams is always an array - API returns Stream[] directly
+  const followingLiveStreams = Array.isArray(followingLiveStreamsData) ? followingLiveStreamsData : [];
 
   // If there's an authentication error, clear following users to avoid stale data
   const safeFollowingUsers = followingError ? [] : followingUsers;
   
   // Get popular/trending streams with automatic refresh to detect ended streams
-  const { data: popularStreamsData, isLoading: popularLoading, refetch: refetchPopular } = useGetStreamsQuery({ 
-    status: 'live',
-    channel: selectedCategory === 'All' ? undefined : selectedCategory.toLowerCase().replace('truth/dare', 'truth-or-dare')
-  }, {
+  const { data: popularStreamsData, isLoading: popularLoading, refetch: refetchPopular } = useGetPopularStreamsQuery(undefined, {
     pollingInterval: 30000, // Refresh every 30 seconds to detect ended streams
     refetchOnMountOrArgChange: true,
     refetchOnFocus: true,
@@ -374,14 +368,13 @@ export default function HomeScreen() {
   // Real-time notification stats
   const { stats: notificationStats, isConnected: notificationConnected } = useNotificationContext();
   
-  // Ensure popularStreams is always an array
-  const popularStreams = Array.isArray(popularStreamsData?.results) ? popularStreamsData.results : [];
+  // Ensure popularStreams is always an array - API returns Stream[] directly
+  const popularStreams = Array.isArray(popularStreamsData) ? popularStreamsData : [];
 
   // Auto-refresh streams when app comes to foreground to detect ended streams
   React.useEffect(() => {
     const handleAppStateChange = (nextAppState: any) => {
       if (nextAppState === 'active') {
-        console.log('[HomeScreen] App became active, refreshing popular streams...');
         refetchPopular();
       }
     };
@@ -393,7 +386,6 @@ export default function HomeScreen() {
   // Refresh streams when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      console.log('[HomeScreen] Screen focused, refreshing streams...');
       refetchPopular();
     }, [refetchPopular])
   );
@@ -412,9 +404,31 @@ export default function HomeScreen() {
   }, [refetchPopular]);
 
   // Since we're filtering at the API level, we can use popularStreams directly
-  const filteredStreams = popularStreams;
+  const filteredStreams = React.useMemo(() => {
+    if (!popularStreams || popularStreams.length === 0) return [];
+    
+    if (selectedCategory === 'All') {
+      return popularStreams;
+    }
+    
+    // Filter by selected category
+    const channelFilter = selectedCategory.toLowerCase().replace('truth/dare', 'truth-or-dare');
+    return popularStreams.filter(stream => stream.channel === channelFilter);
+  }, [popularStreams, selectedCategory]);
 
-  const handleJoinStream = (streamId: string, streamTitle: string, hostUsername: string) => {
+  // Debug popular streams data
+  const handleJoinStream = (streamId: string, streamTitle: string, hostUsername: string, channel?: string) => {
+    // 🏆 PROFESSIONAL TIER ACCESS CHECK - No more "connection failed"!
+    // For safety, default to 'video' if channel is not provided
+    const streamChannel = channel || 'video';
+    const hasAccess = requestChannelAccess(streamChannel);
+    
+    if (!hasAccess) {
+      // Access modal will be shown automatically by the hook
+      return;
+    }
+
+    // User has access - proceed with confirmation
     Alert.alert(
       'Join Live Stream',
       `Join ${hostUsername}'s stream: "${streamTitle}"?`,
@@ -426,6 +440,7 @@ export default function HomeScreen() {
         {
           text: 'Join',
           onPress: () => {
+            console.log(`✅ Joining ${streamChannel} stream: ${streamId}`);
             // Navigate to stream viewer
             router.push({
               pathname: '/stream/viewer',
@@ -443,7 +458,10 @@ export default function HomeScreen() {
 
   const handleSearchFocus = React.useCallback(() => {
     setIsSearching(true);
-    setSearchState(prev => ({ ...prev, showSuggestions: true }));
+    setSearchState(prev => ({ 
+      ...prev, 
+      showSuggestions: prev.query.length > 0 && prev.query.trim().length === 0
+    }));
   }, []);
 
   const handleSearchBlur = React.useCallback(() => {
@@ -458,8 +476,8 @@ export default function HomeScreen() {
     setSearchState(prev => ({
       ...prev,
       query,
-      submitted: false,
-      showSuggestions: query.length > 0
+      submitted: query.trim().length > 0, // Auto-submit for realtime search when query has content
+      showSuggestions: query.length > 0 && query.trim().length === 0 // Show suggestions only when there are characters but no meaningful content
     }));
   }, []);
 
@@ -535,6 +553,8 @@ export default function HomeScreen() {
               titleColor="#ffffff"
             />
           }
+          contentContainerStyle={{ paddingBottom: 100 }} // Add bottom padding for tab bar
+          showsVerticalScrollIndicator={false}
         >
         <View className="p-4">
           {/* Header */}
@@ -577,9 +597,10 @@ export default function HomeScreen() {
               onBlur={handleSearchBlur}
               placeholder="Search for streamers, content..."
               onSearchSubmit={handleSearchSubmit}
+              onSearchChange={handleSearchChange}
+              enableRealtimeSearch={true}
               initialQuery={searchState.query}
               showSuggestions={false} // We'll handle suggestions manually
-              onSearchChange={handleSearchChange}
             />
             {searchState.showSuggestions && (
               <SearchSuggestions
@@ -703,7 +724,7 @@ export default function HomeScreen() {
                       // Find the user's live stream
                       const userStream = followingLiveStreams.find(stream => stream.host.id === user.id);
                       if (userStream) {
-                        handleJoinStream(userStream.id, userStream.title, user.username);
+                        handleJoinStream(userStream.id, userStream.title, user.username, userStream.channel);
                       } else {
                         Alert.alert('Stream Unavailable', 'This stream is no longer available or has ended.');
                       }
@@ -759,7 +780,7 @@ export default function HomeScreen() {
           </View>
 
           {/* Popular Channels */}
-          <View>
+          <View className="mb-8">{/* Add bottom margin */}
             <View className="flex-row justify-between items-center mb-4">
               <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg">
                 {selectedCategory === 'All' ? 'Popular Channels' : `${selectedCategory} Streams`}
@@ -800,44 +821,20 @@ export default function HomeScreen() {
               ) : filteredStreams.length === 0 ? (
                 null // Don't render inside ScrollView, handle below
               ) : (
-                // Live streams data
+                // Live streams data using StreamCard component
                 filteredStreams.slice(0, 8).map((stream) => (
-                  <TouchableOpacity
+                  <StreamCard
                     key={stream.id}
-                    className="w-56 h-80 rounded-xl overflow-hidden bg-[#1C1C1E] mr-3"
-                    onPress={() => handleJoinStream(stream.id, stream.title, stream.host.username)}
-                  >
-                    <View className="relative flex-1">
-                      <Image
-                        source={{ 
-                          uri: stream.host.profile_picture_url 
-                            ? (stream.host.profile_picture_url.startsWith('http') 
-                                ? stream.host.profile_picture_url 
-                                : `${baseURL}${stream.host.profile_picture_url}`)
-                            : `https://ui-avatars.com/api/?name=${encodeURIComponent(`${stream.host.first_name || ''} ${stream.host.last_name || ''}`).trim() || stream.host.username}&background=C42720&color=fff&size=400`
-                        }}
-                        className="w-full h-full"
-                      />
-                      <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full flex-row items-center gap-1">
-                        <EyeIcon width={16} height={16} stroke="#FFFFFF" className="mr-1.5" />
-                        <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
-                          {stream.viewer_count || '0'}
-                        </Text>
-                      </View>
-                      <BlurView
-                        intensity={30}
-                        tint="dark"
-                        className="absolute bottom-0 left-0 right-0 px-4 py-4 bg-black/30"
-                      >
-                        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-2" numberOfLines={2}>
-                          {stream.title}
-                        </Text>
-                        <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
-                          @{stream.host.username}
-                        </Text>
-                      </BlurView>
-                    </View>
-                  </TouchableOpacity>
+                    id={stream.id}
+                    title={stream.title}
+                    host={stream.host}
+                    channel={stream.channel}
+                    viewer_count={stream.viewer_count}
+                    status={stream.status}
+                    baseURL={baseURL}
+                    width="w-56"
+                    height="h-80"
+                  />
                 ))
               )}
             </ScrollView>
@@ -870,6 +867,20 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
       </TouchableWithoutFeedback>
+
+      {/* 🏆 PROFESSIONAL ACCESS CONTROL MODAL */}
+      {accessModal.visible && accessModal.channelInfo && (
+        <ChannelAccessModal
+          visible={accessModal.visible}
+          onClose={closeAccessModal}
+          channelName={accessModal.channelInfo.channelName}
+          channelCode={accessModal.channelInfo.channelCode}
+          requiredTier={accessModal.channelInfo.requiredTier || 'Premium'}
+          coinsNeeded={accessModal.channelInfo.coinsNeeded || 0}
+          currentCoins={currentCoins}
+          unlockMessage={accessModal.channelInfo.unlockMessage || 'Upgrade required to access this channel'}
+        />
+      )}
     </SafeAreaView>
   );
 }

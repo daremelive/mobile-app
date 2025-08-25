@@ -48,17 +48,6 @@ export const StreamHeader = ({
     (hostFirstName && hostLastName ? `${hostFirstName} ${hostLastName}` : 
      hostFirstName || hostLastName || hostUsername || 'Host');
 
-  // Debug logging for profile picture
-  if (__DEV__) {
-    console.log('🎭 StreamHeader Profile Picture Debug:', {
-      hostProfilePicture,
-      hasProfilePicture: !!hostProfilePicture,
-      profilePictureLength: hostProfilePicture?.length,
-      displayName,
-      hostUsername
-    });
-  }
-
   return (
     <View className="absolute left-0 right-0 z-10" style={{ top: 0 }}>
       <View className="px-3" style={{ paddingTop: topPad }}>
@@ -68,7 +57,10 @@ export const StreamHeader = ({
               {/* Avatar */}
               <View className="w-12 h-12 rounded-full overflow-hidden bg-gray-600 mr-3">
                 {hostProfilePicture ? (
-                  <Image source={{ uri: hostProfilePicture }} className="w-full h-full" />
+                  <Image 
+                    source={{ uri: hostProfilePicture }} 
+                    className="w-full h-full"
+                  />
                 ) : (
                   <View className="flex-1 items-center justify-center">
                     <Ionicons name="person" size={22} color="white" />
@@ -88,10 +80,10 @@ export const StreamHeader = ({
               {onToggleFollow && !disableFollow && (
                 <TouchableOpacity
                   onPress={onToggleFollow}
-                  className={`px-6 h-12 rounded-full items-center justify-center mr-2 ${isFollowing ? 'bg-white/90' : 'bg-white'}`}
+                  className={`px-4 h-12 rounded-full items-center justify-center mr-2 ${isFollowing ? 'bg-white/90' : 'bg-white'}`}
                   disabled={disableFollow}
                 >
-                  <Text className={`text-xs font-semibold ${isFollowing ? 'text-black/50' : 'text-black'}`}>{isFollowing ? 'Following' : 'Follow'}</Text>
+                  <Text className={`text-sm font-semibold ${isFollowing ? 'text-black/50' : 'text-black'}`}>{isFollowing ? 'Following' : 'Follow'}</Text>
                 </TouchableOpacity>
               )}
               {/* Share */}
