@@ -416,6 +416,14 @@ export default function HomeScreen() {
     return popularStreams.filter(stream => stream.channel === channelFilter);
   }, [popularStreams, selectedCategory]);
 
+  // Navigate to user profile
+  const navigateToProfile = (userId: number) => {
+    router.push({
+      pathname: '/user-profile',
+      params: { userId: userId.toString() }
+    });
+  };
+
   // Debug popular streams data
   const handleJoinStream = (streamId: string, streamTitle: string, hostUsername: string, channel?: string) => {
     // 🏆 PROFESSIONAL TIER ACCESS CHECK - No more "connection failed"!
@@ -666,11 +674,11 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
 
-          {/* Live Following Section */}
+          {/* Following Section */}
           <View className="mb-8">
             <View className="flex-row justify-between items-center mb-4">
               <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg">
-                Live Following
+                Following
               </Text>
               <TouchableOpacity 
                 onPress={() => router.push('/followings')}
@@ -708,27 +716,19 @@ export default function HomeScreen() {
                   ))}
                 </View>
               ) : (() => {
-                // Filter to only show followers who are currently live streaming
+                // Show all followed users, not just live ones
                 // Use safeFollowingUsers to avoid stale data when auth fails
-                const liveFollowers = safeFollowingUsers.filter(user => user.is_live);
+                const allFollowers = safeFollowingUsers;
                 
-                if (liveFollowers.length === 0) {
+                if (allFollowers.length === 0) {
                   return null; // Don't render inside ScrollView, handle below
                 }
 
-                return liveFollowers.map((user) => (
+                return allFollowers.map((user) => (
                   <TouchableOpacity 
                     key={user.id} 
                     className="relative mr-4"
-                    onPress={() => {
-                      // Find the user's live stream
-                      const userStream = followingLiveStreams.find(stream => stream.host.id === user.id);
-                      if (userStream) {
-                        handleJoinStream(userStream.id, userStream.title, user.username, userStream.channel);
-                      } else {
-                        Alert.alert('Stream Unavailable', 'This stream is no longer available or has ended.');
-                      }
-                    }}
+                    onPress={() => navigateToProfile(user.id)}
                   >
                     <View className="relative">
                       <Image
@@ -739,39 +739,43 @@ export default function HomeScreen() {
                                 : `${baseURL}${user.profile_picture_url}`)
                             : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
                         }}
-                        className="w-16 h-16 rounded-full border-2 border-[#C42720]"
+                        className={`w-16 h-16 rounded-full border-2 ${user.is_live ? 'border-[#C42720]' : 'border-gray-600'}`}
                       />
-                      {/* Live indicator with pulse animation */}
-                      <View className="absolute top-[-2px] right-[-2px] w-6 h-6 bg-[#C42720] rounded-full items-center justify-center">
-                        <View className="w-2 h-2 bg-white rounded-full" />
-                        <View className="absolute w-6 h-6 bg-[#C42720] rounded-full animate-pulse opacity-50" />
-                      </View>
-                      {/* Live badge at bottom */}
-                      <View className="absolute bottom-[-4px] self-center bg-[#C42720] px-2 py-0.5 rounded-lg shadow-lg">
-                        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-[10px]">
-                          LIVE
-                        </Text>
-                      </View>
+                      {/* Live indicator with pulse animation - only show if user is live */}
+                      {user.is_live && (
+                        <View className="absolute top-[-2px] right-[-2px] w-6 h-6 bg-[#C42720] rounded-full items-center justify-center">
+                          <View className="w-2 h-2 bg-white rounded-full" />
+                          <View className="absolute w-6 h-6 bg-[#C42720] rounded-full animate-pulse opacity-50" />
+                        </View>
+                      )}
+                      {/* Live badge at bottom - only show if user is live */}
+                      {user.is_live && (
+                        <View className="absolute bottom-[-4px] self-center bg-[#C42720] px-2 py-0.5 rounded-lg shadow-lg">
+                          <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-[10px]">
+                            LIVE
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </TouchableOpacity>
                 ));
               })()}
             </ScrollView>
             
-            {/* Empty state for Live Following - positioned outside ScrollView for proper centering */}
-            {!followingLoading && !liveStreamsLoading && safeFollowingUsers.filter(user => user.is_live).length === 0 && (
+            {/* Empty state for Following - positioned outside ScrollView for proper centering */}
+            {!followingLoading && !liveStreamsLoading && safeFollowingUsers.length === 0 && (
               <View className="w-full items-center justify-center py-12">
                 <View className="items-center">
                   <View className="w-20 h-20 rounded-full bg-gradient-to-br from-red-600 to-red-800 items-center justify-center mb-4 opacity-60">
-                    <MaterialIcons name="videocam-off" size={32} color="white" />
+                    <MaterialIcons name="people-outline" size={32} color="white" />
                   </View>
                   <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base mb-2 text-center">
-                    No Live Streams
+                    No Following Yet
                   </Text>
                   <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm text-center leading-5">
                     {followingError 
-                      ? "Please log in to see your friends' live streams."
-                      : "None of your friends are streaming right now.\nCheck back later for live content!"
+                      ? "Please log in to see the people you follow."
+                      : "Start following people to see them here.\nTap 'View All' to discover users to follow!"
                     }
                   </Text>
                 </View>

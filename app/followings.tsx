@@ -5,7 +5,7 @@ import { SvgXml } from 'react-native-svg';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import SearchIcon from '../assets/icons/search-icon.svg';
 import CheckIcon from '../assets/icons/check.svg';
-import { useGetFollowingQuery, useFollowUserMutation, useUnfollowUserMutation } from '../src/store/followApi';
+import { useGetFollowingQuery, useFollowUserMutation, useUnfollowUserMutation, useDiscoverUsersQuery } from '../src/store/followApi';
 import ipDetector from '../src/utils/ipDetector';
 
 // Sent icon SVG
@@ -42,15 +42,41 @@ export default function FollowingsScreen() {
   }, []);
   
   // RTK Query hooks with aggressive refresh to ensure data is current
-  const { data: followingUsers = [], isLoading, error, refetch } = useGetFollowingQuery(
+  // Use both following users and discover users to show all available users
+  const { data: followingUsers = [], isLoading: followingLoading, error: followingError, refetch: refetchFollowing } = useGetFollowingQuery(
     { search }, 
     {
-      // Force refresh every time component mounts or when args change
       refetchOnMountOrArgChange: true,
       refetchOnFocus: true,
       refetchOnReconnect: true
     }
   );
+  
+  const { data: discoverUsers = [], isLoading: discoverLoading, error: discoverError, refetch: refetchDiscover } = useDiscoverUsersQuery(
+    { search }, 
+    {
+      refetchOnMountOrArgChange: true,
+      refetchOnFocus: true,
+      refetchOnReconnect: true
+    }
+  );
+
+  // Combine both lists and remove duplicates
+  const allUsers = React.useMemo(() => {
+    const combined = [...followingUsers, ...discoverUsers];
+    const unique = combined.filter((user, index, self) => 
+      index === self.findIndex(u => u.id === user.id)
+    );
+    return unique;
+  }, [followingUsers, discoverUsers]);
+
+  const isLoading = followingLoading || discoverLoading;
+  const error = followingError || discoverError;
+  
+  const refetch = () => {
+    refetchFollowing();
+    refetchDiscover();
+  };
   const [followUser, { isLoading: isFollowing }] = useFollowUserMutation();
   const [unfollowUser, { isLoading: isUnfollowing }] = useUnfollowUserMutation();
 
@@ -179,7 +205,7 @@ export default function FollowingsScreen() {
           />
         }
       >
-        {followingUsers.length === 0 ? (
+        {allUsers.length === 0 ? (
           <View className="flex-1 justify-center items-center py-20">
             <Text className="text-white text-lg mb-2">No users found</Text>
             <Text className="text-gray-400 text-center">
@@ -187,7 +213,7 @@ export default function FollowingsScreen() {
             </Text>
           </View>
         ) : (
-          followingUsers.map((user) => (
+          allUsers.map((user) => (
             <View key={user.id} className="flex-row items-center justify-between mb-6">
               <TouchableOpacity 
                 className="flex-row items-center flex-1"

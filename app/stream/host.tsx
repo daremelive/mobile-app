@@ -491,14 +491,20 @@ function UnifiedHostStreamScreen() {
       if (state.hasJoined && streamId && !cleanupExecuted) {
         cleanupExecuted = true;
         
+        // Additional safety: Only end stream if we're actually the host
+        // and this is a genuine component unmount, not a state change
+        console.log('🔧 Host cleanup function triggered - ending stream');
+        
         streamAction({ 
           streamId, 
           action: { action: 'end' } 
         }).unwrap()
         .then(() => {
+          console.log('✅ Stream ended successfully via cleanup');
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         })
         .catch((error) => {
+          console.error('❌ Error ending stream via cleanup:', error);
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         });
         

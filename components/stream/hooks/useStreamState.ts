@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Alert, Platform, Keyboard } from 'react-native';
+import { Alert, Platform, Keyboard, AppState } from 'react-native';
 import { Camera } from 'expo-camera';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser } from '../../../src/store/authSlice';
@@ -45,11 +45,15 @@ export interface StreamActions {
   setVideoLoadError: (error: string | null) => void;
   refetchMessages: () => void;
   resetConnectionState: () => void;
+  refetchStreamDetails: () => void;
 }
 
 export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
   const currentUser = useSelector(selectCurrentUser);
   const dispatch = useDispatch();
+  
+  // App state for smart polling
+  const [appState, setAppState] = useState(AppState.currentState);
   
   // Connection state
   const [streamClient, setStreamClient] = useState<StreamVideoClient | null>(null);
@@ -66,9 +70,10 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
   // Error state
   const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
   
-  // API hooks
-  const { data: streamDetails, isLoading: streamLoading, error: streamError } = useGetStreamQuery(streamId, {
+  // API hooks with smart polling based on app state
+  const { data: streamDetails, isLoading: streamLoading, error: streamError, refetch: refetchStreamDetails } = useGetStreamQuery(streamId, {
     skip: !streamId || streamId.length === 0, // Skip query if streamId is empty
+    pollingInterval: appState === 'active' ? 5000 : 30000, // Active: 5s, Background: 30s
   });
   const [joinStream] = useJoinStreamMutation();
   const [leaveStream] = useLeaveStreamMutation();
@@ -122,6 +127,17 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       keyboardDidHideListener.remove();
     };
   }, []);
+
+  // App state listener for smart polling
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: any) => {
+      console.log('📱 App state changed from', appState, 'to', nextAppState);
+      setAppState(nextAppState);
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [appState]);
   
   // Reset connection state when call is disconnected
   const resetConnectionState = useCallback(() => {
@@ -171,9 +187,25 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       const newCall = client.call('default', callId);
       
       // Add call event listeners to detect disconnections
-      newCall.on('call.session_participant_left', () => {
-        console.log('Participant left event detected');
-        resetConnectionState();
+      newCall.on('call.session_participant_left', (event) => {
+        console.log('Participant left event detected:', event);
+        
+        // Only reset connection state if the current user (host) is the one who left
+        // Don't reset when other participants/viewers leave
+        if (event.participant?.user?.id === String(currentUser?.id)) {
+          console.log('Host left the call, resetting connection state');
+          resetConnectionState();
+        } else {
+          console.log('Another participant left, maintaining host connection');
+          // Immediately refetch stream details to update viewer count
+          refetchStreamDetails();
+        }
+      });
+      
+      newCall.on('call.session_participant_joined', (event) => {
+        console.log('Participant joined event detected:', event);
+        // Immediately refetch stream details to update viewer count
+        refetchStreamDetails();
       });
       
       newCall.on('call.ended', () => {
@@ -385,7 +417,8 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     setVideoLoadError,
     refetchMessages,
     resetConnectionState,
-  }), [initializeStream, handleLeaveStream, handleSendMessage, setVideoLoadError, refetchMessages, resetConnectionState]);
+    refetchStreamDetails,
+  }), [initializeStream, handleLeaveStream, handleSendMessage, setVideoLoadError, refetchMessages, resetConnectionState, refetchStreamDetails]);
   
   return {
     state,
