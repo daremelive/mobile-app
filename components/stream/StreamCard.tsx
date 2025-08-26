@@ -160,7 +160,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
                 </Text>
               </View>
               
-              {/* Tier Badge
+              {/* Tier Badge */}
               <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
                 <Text className="text-white text-xs font-bold">
                   {tierBadge.emoji}
@@ -171,7 +171,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
                 <View className="bg-red-600 px-2 py-1 rounded-full">
                   <Text className="text-white text-xs font-bold">LIVE</Text>
                 </View>
-              )} */}
+              )}
             </View>
             
             {/* Title and host info */}
@@ -210,7 +210,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
               </View>
               
               {/* Tier Badge */}
-              {/* <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
+              <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
                 <Text className="text-white text-xs font-bold">
                   {tierBadge.emoji}
                 </Text>
@@ -220,7 +220,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
                 <View className="bg-red-600 px-2 py-1 rounded-full">
                   <Text className="text-white text-xs font-bold">LIVE</Text>
                 </View>
-              )} */}
+              )}
             </View>
             
             {/* Title and host info */}

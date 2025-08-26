@@ -259,11 +259,49 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       return;
     }
 
+    // Debug log to track stream leave behavior
+    console.log('[StreamState] 🎯 handleLeaveStream called');
+    console.log('[StreamState] Call stack:', new Error().stack);
+    console.log('[StreamState] Leaving stream:', {
+      streamId,
+      userRole,
+      hasJoined,
+      currentUserId: currentUser?.id,
+      streamHostId: streamDetails?.host?.id,
+      isActualHost: userRole === 'host' && streamDetails?.host?.id === currentUser?.id,
+      streamDetailsRaw: streamDetails
+    });
+
     setIsOperationInProgress(true);
 
     try {
       // For hosts: end the stream to remove it from popular channels
-      if (userRole === 'host' && hasJoined) {
+      // IMPORTANT: Only allow actual stream owners to end the stream
+      // Multiple verification layers to prevent unauthorized stream ending
+      const isUserActuallyHost = userRole === 'host' && 
+                                hasJoined && 
+                                streamDetails?.host?.id === currentUser?.id;
+      
+      // Additional safety check: verify user role is actually 'host' and not incorrectly assigned
+      const isCurrentUserStreamOwner = currentUser?.id && 
+                                      streamDetails?.host?.id && 
+                                      currentUser.id === streamDetails.host.id;
+      
+      // Final verification: both conditions must be true to end stream
+      const shouldEndStream = isUserActuallyHost && isCurrentUserStreamOwner;
+      
+      console.log('[StreamState] Host verification check:', {
+        userRole,
+        hasJoined,
+        currentUserId: currentUser?.id,
+        streamHostId: streamDetails?.host?.id,
+        isUserActuallyHost,
+        isCurrentUserStreamOwner,
+        shouldEndStream
+      });
+      
+      if (shouldEndStream) {
+        console.log('[StreamState] ✅ Verified user is actual stream owner - ending stream');
         try {
           await streamAction({
             streamId,
@@ -273,8 +311,11 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
           // Invalidate streams cache to update popular channels immediately
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         } catch (endError: any) {
+          console.error('[StreamState] ❌ Failed to end stream:', endError);
           // Continue with cleanup even if end action fails
         }
+      } else {
+        console.log('[StreamState] ⚠️ User not authorized to end stream - skipping stream end');
       }
 
       // Leave backend stream

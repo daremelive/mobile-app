@@ -1,5 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import { useFollowUserMutation, useUnfollowUserMutation, useGetFollowingQuery, useGetFollowersQuery } from '../../../src/store/followApi';
+import { authApi } from '../../../src/store/authApi';
+import { usersApi } from '../../../src/store/usersApi';
+import { streamsApi } from '../../../src/store/streamsApi';
 
 interface UseFollowSystemProps {
   userId?: string;
@@ -20,6 +24,7 @@ export const useFollowSystem = ({
   targetUserId,
 }: UseFollowSystemProps): UseFollowSystemReturn => {
   const [isFollowing, setIsFollowing] = useState(false);
+  const dispatch = useDispatch();
   
   const [followUserMutation, { isLoading: isFollowLoading }] = useFollowUserMutation();
   const [unfollowUserMutation, { isLoading: isUnfollowLoading }] = useUnfollowUserMutation();
@@ -69,6 +74,14 @@ export const useFollowSystem = ({
       // Refresh follow data
       refetchFollowing();
       refetchFollowers();
+      
+      // Invalidate all related caches to ensure sync across the app
+      dispatch(authApi.util.invalidateTags(['User', 'Auth']));
+      dispatch(usersApi.util.invalidateTags(['Users', 'UserProfile']));
+      dispatch(streamsApi.util.invalidateTags(['Stream', 'Users']));
+      
+      console.log('🔄 Follow/unfollow completed - all caches invalidated for sync');
+      
     } catch (error) {
       console.error('Failed to toggle follow:', error);
     }
@@ -81,12 +94,19 @@ export const useFollowSystem = ({
     unfollowUserMutation,
     refetchFollowing,
     refetchFollowers,
+    dispatch,
   ]);
 
   const refreshFollowStatus = useCallback(() => {
     refetchFollowing();
     refetchFollowers();
-  }, [refetchFollowing, refetchFollowers]);
+    
+    // Also refresh related caches
+    dispatch(authApi.util.invalidateTags(['Profile']));
+    dispatch(usersApi.util.invalidateTags(['Users']));
+    dispatch(streamsApi.util.invalidateTags(['Stream']));
+    
+  }, [refetchFollowing, refetchFollowers, dispatch]);
 
   return {
     isFollowing,

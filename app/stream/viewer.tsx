@@ -187,7 +187,7 @@ export default function UnifiedViewerStreamScreen() {
 
   const { state, actions, messages: streamMessages } = useStreamState({ 
     streamId: streamId, 
-    userRole: 'viewer' 
+    userRole: 'viewer' // FORCE viewer role - viewers should never end streams
   });
 
   const chat = useHybridStreamChat({

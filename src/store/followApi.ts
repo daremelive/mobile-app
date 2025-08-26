@@ -125,7 +125,7 @@ export const followApi = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ['Following', 'Followers', 'Users', 'Search'],
   endpoints: (builder) => ({
-    // Follow a user
+        // Follow a user
     followUser: builder.mutation<FollowResponse, FollowRequest>({
       query: (data) => ({
         url: '/users/follow/',
@@ -138,21 +138,6 @@ export const followApi = createApi({
         'Search',
         { type: 'Users', id: user_id }
       ],
-      // Optimistic update
-      async onQueryStarted({ user_id }, { dispatch, queryFulfilled }) {
-        // Update user profile cache
-        const patchResult = dispatch(
-          followApi.util.updateQueryData('getUserProfile', user_id, (draft) => {
-            draft.is_following = true;
-          })
-        );
-        
-        try {
-          await queryFulfilled;
-        } catch {
-          patchResult.undo();
-        }
-      },
     }),
 
     // Unfollow a user
@@ -168,21 +153,6 @@ export const followApi = createApi({
         'Search',
         { type: 'Users', id: user_id }
       ],
-      // Optimistic update
-      async onQueryStarted({ user_id }, { dispatch, queryFulfilled }) {
-        // Update user profile cache
-        const patchResult = dispatch(
-          followApi.util.updateQueryData('getUserProfile', user_id, (draft) => {
-            draft.is_following = false;
-          })
-        );
-        
-        try {
-          await queryFulfilled;
-        } catch {
-          patchResult.undo();
-        }
-      },
     }),
 
     // Get list of users the current user is following
