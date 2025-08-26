@@ -16,7 +16,7 @@ function AppLayout() {
   const { isLoading: authLoading } = useAuthSession();
   const [fontsLoaded] = useFonts(fontsToLoad);
   
-  // Initialize stream cleanup hook for automatic stream ending on app termination
+  // Stream cleanup system disabled - streams persist indefinitely for better UX
   useStreamCleanup();
 
   useEffect(() => {

@@ -42,7 +42,7 @@ export default function MultiParticipantJoinScreen() {
   const [leaveConfirmationVisible, setLeaveConfirmationVisible] = useState(false);
   const initTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Add heartbeat for hosts to keep stream alive
+  // Heartbeat system disabled - useStreamHeartbeat returns no-op functions
   const { sendHeartbeat } = useStreamHeartbeat(streamId, isHost && hasJoined);
 
   useEffect(() => {
@@ -69,24 +69,10 @@ export default function MultiParticipantJoinScreen() {
       if (nextAppState === 'background') {
         backgroundTime = Date.now();
         
-        if (isHost && hasJoined) {
-          streamAction({ 
-            streamId, 
-            action: { action: 'end' } 
-          }).unwrap().catch((error) => {
-            console.error('[MultiScreen] Failed to end stream on immediate background:', error);
-          });
-          
-          setTimeout(() => {
-            if (isHost && hasJoined) {
-              streamAction({ 
-                streamId, 
-                action: { action: 'end' } 
-              }).unwrap().catch((error) => {
-              });
-            }
-          }, 2000);
-        }
+        // Stream cleanup disabled - streams persist when app is backgrounded
+        // This prevents the "camera initialising" issue when returning to app
+        console.log('Multi-stream backgrounded - stream will persist (cleanup disabled)');
+        
       } else if (nextAppState === 'active') {
         backgroundTime = null;
       }
