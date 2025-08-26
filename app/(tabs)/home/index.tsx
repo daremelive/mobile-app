@@ -20,9 +20,11 @@ import { BlurView } from 'expo-blur';
 import { fonts } from '../../../constants/Fonts';
 import { router } from 'expo-router';
 import SearchInput from '../../../components/SearchInput';
+import UniversalSearch from '../../../components/UniversalSearch';
 import { useGetFollowingQuery } from '../../../src/store/followApi';
 import { useGetPopularStreamsQuery, useGetFollowingLiveStreamsQuery, useSearchQuery } from '../../../src/store/streamsApi';
 import { useFollowUserMutation, useUnfollowUserMutation } from '../../../src/store/followApi';
+import { useGetBlockedUsersQuery } from '../../../src/api/blockedApi';
 import { useNotificationContext } from '../../../src/context/NotificationContext';
 import ClockIcon from '../../../assets/icons/clock.svg';
 import CancelIcon from '../../../assets/icons/cancel.svg';
@@ -36,295 +38,12 @@ import ProfileAvatar from '../../../components/ui/ProfileAvatar';
 import StreamCard from '../../../components/stream/StreamCard';
 
 const categories = ['All', 'Video', 'Game', 'Truth/Dare', 'Banter'];
-const SEARCH_SUGGESTIONS = ['Marriage', 'Banter with Friends', 'Live Gaming', 'World Politics', 'Hot Gist'];
-
-// Search Suggestions Component
-const SearchSuggestions = React.memo(({ 
-  query, 
-  onSelectSuggestion, 
-  recentSearches,
-  onRemoveRecent
-}: {
-  query: string;
-  onSelectSuggestion: (suggestion: string) => void;
-  recentSearches: string[];
-  onRemoveRecent: (index: number) => void;
-}) => {
-  if (!query) return null;
-
-  const filteredRecents = recentSearches.filter(s => s.toLowerCase().includes(query.toLowerCase()));
-  const filteredRecommended = SEARCH_SUGGESTIONS.filter(s => s.toLowerCase().includes(query.toLowerCase()));
-
-  return (
-    <View className="absolute top-full left-0 right-0 bg-black border border-gray-700 rounded-lg mt-2 max-h-80 z-50">
-      <ScrollView keyboardShouldPersistTaps="handled">
-        {filteredRecents.length > 0 && (
-          <View>
-            <Text style={{ fontFamily: fonts.semiBold }} className="text-[#757688] text-sm mb-2 mt-3 mx-4">Recents</Text>
-            {filteredRecents.map((item, index) => (
-              <View key={`recent-${index}`} className="flex-row items-center justify-between py-2 px-4">
-                <TouchableOpacity onPress={() => onSelectSuggestion(item)} className="flex-row items-center flex-1">
-                  <View className="w-8 h-8 rounded-full border border-gray-600 items-center justify-center mr-3">
-                    <ClockIcon width={16} height={16} />
-                  </View>
-                  <Text style={{ fontFamily: fonts.regular }} className="text-white text-sm">{item}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => onRemoveRecent(index)} className="p-1">
-                  <CancelIcon width={16} height={16} />
-                </TouchableOpacity>
-              </View>
-            ))}
-          </View>
-        )}
-        {filteredRecommended.length > 0 && (
-          <View>
-            <Text style={{ fontFamily: fonts.semiBold }} className="text-[#757688] text-sm mb-2 mt-4 mx-4">Recommended</Text>
-            {filteredRecommended.map((item, index) => (
-              <TouchableOpacity 
-                onPress={() => onSelectSuggestion(item)} 
-                key={`rec-${index}`} 
-                className="flex-row items-center py-2 px-4"
-              >
-                <View className="w-8 h-8 rounded-full border border-gray-600 items-center justify-center mr-3">
-                  <StarsIcon width={16} height={16} />
-                </View>
-                <Text style={{ fontFamily: fonts.regular }} className="text-white text-sm">{item}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </ScrollView>
-    </View>
-  );
-});
-
-// User Search Result Component
-const UserSearchResult = ({ user, onFollowChange, baseURL }: { 
-  user: any, 
-  onFollowChange?: () => void,
-  baseURL: string
-}) => {
-  const [isFollowing, setIsFollowing] = React.useState(user.is_following);
-  const [followUser, { isLoading: isFollowingLoading }] = useFollowUserMutation();
-  const [unfollowUser, { isLoading: isUnfollowingLoading }] = useUnfollowUserMutation();
-  
-  const formatFollowerCount = (count: number) => {
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return count.toString();
-  };
-
-  const handleFollowToggle = async () => {
-    try {
-      if (isFollowing) {
-        await unfollowUser({ user_id: user.id }).unwrap();
-        setIsFollowing(false);
-      } else {
-        await followUser({ user_id: user.id }).unwrap();
-        setIsFollowing(true);
-      }
-      onFollowChange?.();
-    } catch (error: any) {
-      Alert.alert('Error', error.data?.message || 'Failed to update follow status');
-    }
-  };
-
-  const handleUserPress = () => {
-    router.push({
-      pathname: '/user-profile',
-      params: { userId: user.id.toString() }
-    });
-  };
-
-  return (
-    <View className="flex-row items-center justify-between py-3">
-      <TouchableOpacity 
-        className="flex-row items-center flex-1"
-        onPress={handleUserPress}
-      >
-        <Image 
-          source={{ 
-            uri: user.profile_picture_url 
-              ? (user.profile_picture_url.startsWith('http') 
-                  ? user.profile_picture_url 
-                  : `${baseURL}${user.profile_picture_url}`)
-              : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
-          }} 
-          className="w-12 h-12 rounded-full mr-3" 
-        />
-        <View>
-          <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base">
-            {user.full_name || user.username}
-          </Text>
-          <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
-            {formatFollowerCount(user.follower_count || 0)} followers
-          </Text>
-        </View>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        className={`px-4 h-8 rounded-full flex-row items-center justify-center ${isFollowing ? 'bg-[#330000]' : 'bg-red-600'}`}
-        onPress={handleFollowToggle}
-        disabled={isFollowingLoading || isUnfollowingLoading}
-      >
-        {(isFollowingLoading || isUnfollowingLoading) ? (
-          <ActivityIndicator size="small" color="white" />
-        ) : (
-          <>
-            {isFollowing && <CheckIcon width={12} height={12} className="mr-1" stroke="white" />}
-            <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-xs">
-              {isFollowing ? 'Following' : 'Follow'}
-            </Text>
-          </>
-        )}
-      </TouchableOpacity>
-    </View>
-  );
-};
-
-// Stream Search Result Component
-const StreamSearchResult = ({ stream, onJoinStream, baseURL }: { 
-  stream: any;
-  onJoinStream: (streamId: string, streamTitle: string, hostUsername: string, channel?: string) => void;
-  baseURL: string;
-}) => {
-  const formatViewerCount = (count: number) => {
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return count.toString();
-  };
-
-  return (
-    <TouchableOpacity
-      className="w-[48%] h-[200px] rounded-xl overflow-hidden bg-[#1C1C1E] mb-4"
-      onPress={() => onJoinStream(stream.id, stream.title, stream.host.username, stream.channel)}
-    >
-      <View className="relative flex-1">
-        <ProfileAvatar
-          profilePictureUrl={stream.host.profile_picture_url}
-          username={stream.host.username}
-          firstName={stream.host.first_name}
-          lastName={stream.host.last_name}
-          size="full"
-          className=""
-          baseURL={baseURL}
-        />
-        <View className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded-full">
-          <Text style={{ fontFamily: fonts.regular }} className="text-white text-xs">
-            {formatViewerCount(stream.viewer_count || 0)}
-          </Text>
-        </View>
-        <BlurView
-          intensity={30}
-          tint="dark"
-          className="absolute bottom-0 left-0 right-0 px-3 py-3 bg-black/30"
-        >
-          <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-sm mb-2" numberOfLines={2}>
-            {stream.title}
-          </Text>
-          <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-xs">
-            @{stream.host.username}
-          </Text>
-        </BlurView>
-      </View>
-    </TouchableOpacity>
-  );
-};
-
-// Search Results Component
-const SearchResults = React.memo(({ query, onJoinStream, baseURL }: { 
-  query: string;
-  onJoinStream: (streamId: string, streamTitle: string, hostUsername: string, channel?: string) => void;
-  baseURL: string;
-}) => {
-  const { data: searchResults, isLoading, error, refetch } = useSearchQuery(query || '', {
-    skip: !query || query.trim().length === 0,
-  });
-
-  if (isLoading) {
-    return (
-      <View className="flex-1 justify-center items-center py-12">
-        <ActivityIndicator size="large" color="#C42720" />
-        <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 mt-2">
-          Searching...
-        </Text>
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View className="flex-1 justify-center items-center py-12">
-        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg mb-2">
-          Search Error
-        </Text>
-        <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-center">
-          Unable to search at the moment. Please try again.
-        </Text>
-      </View>
-    );
-  }
-
-  if (!searchResults || searchResults.total_results === 0) {
-    return (
-      <View className="flex-1 justify-center items-center py-12">
-        <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg mb-2">
-          No Results Found
-        </Text>
-        <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-center">
-          Try searching with different keywords.
-        </Text>
-      </View>
-    );
-  }
-
-  const { streams = [], users = [] } = searchResults.results;
-
-  return (
-    <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-      {users.length > 0 && (
-        <View className="mb-6">
-          <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg mb-4">
-            Users
-          </Text>
-          {users.slice(0, 3).map((user) => (
-            <UserSearchResult key={user.id} user={user} onFollowChange={refetch} baseURL={baseURL} />
-          ))}
-        </View>
-      )}
-      {streams.length > 0 && (
-        <View className="mb-6">
-          <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg mb-4">
-            Live Streams
-          </Text>
-          <View className="flex-row flex-wrap justify-between">
-            {streams.map((stream) => (
-              <StreamSearchResult key={stream.id} stream={stream} onJoinStream={onJoinStream} baseURL={baseURL} />
-            ))}
-          </View>
-        </View>
-      )}
-    </ScrollView>
-  );
-});
 
 export default function HomeScreen() {
-  const [isSearching, setIsSearching] = React.useState(false);
   const [selectedCategory, setSelectedCategory] = React.useState('All');
   const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [searchState, setSearchState] = React.useState({
-    query: '',
-    submitted: false,
-    showSuggestions: false
-  });
-  const [recentSearches, setRecentSearches] = React.useState([
-    'Marriage Sacrifices', 
-    'Dating Life', 
-    'How to cook', 
-    'Gaming in SA', 
-    'Mr & Mrs Kola'
-  ]);
+  const [isSearching, setIsSearching] = React.useState(false);
   
-  const searchInputRef = React.useRef<TextInput>(null);
   const [baseURL, setBaseURL] = React.useState<string>('');
   const { requestChannelAccess, accessModal, closeAccessModal, currentCoins } = useChannelAccess();
 
@@ -348,6 +67,36 @@ export default function HomeScreen() {
   // Get following users with live status
   const { data: followingUsers = [], isLoading: followingLoading, error: followingError } = useGetFollowingQuery({ search: '' });
   
+  // Get blocked users to filter them out (with error handling)
+  const { data: blockedUsers = [] } = useGetBlockedUsersQuery(undefined, {
+    // Don't fail the entire following section if blocked users can't be fetched
+    refetchOnMountOrArgChange: false,
+    refetchOnFocus: false,
+  });
+  
+  // Filter out blocked users from following list
+  const filteredFollowingUsers = React.useMemo(() => {
+    if (!followingUsers || !Array.isArray(followingUsers)) return [];
+    
+    // Get blocked user IDs for efficient filtering
+    const blockedUserIds = new Set(blockedUsers.map(blocked => blocked.blocked_user.id));
+    
+    // Filter out blocked users
+    const filtered = followingUsers.filter(user => !blockedUserIds.has(user.id));
+    
+    // Debug logging
+    if (blockedUserIds.size > 0) {
+      console.log('🚫 Following section block filtering:', {
+        totalFollowing: followingUsers.length,
+        blockedCount: blockedUserIds.size,
+        filteredCount: filtered.length,
+        blockedUserIds: Array.from(blockedUserIds)
+      });
+    }
+    
+    return filtered;
+  }, [followingUsers, blockedUsers]);
+  
   // Get live streams from following users
   const { data: followingLiveStreamsData, isLoading: liveStreamsLoading } = useGetFollowingLiveStreamsQuery();
   
@@ -355,7 +104,7 @@ export default function HomeScreen() {
   const followingLiveStreams = Array.isArray(followingLiveStreamsData) ? followingLiveStreamsData : [];
 
   // If there's an authentication error, clear following users to avoid stale data
-  const safeFollowingUsers = followingError ? [] : followingUsers;
+  const safeFollowingUsers = followingError ? [] : filteredFollowingUsers;
   
   // Get popular/trending streams with automatic refresh to detect ended streams
   const { data: popularStreamsData, isLoading: popularLoading, refetch: refetchPopular } = useGetPopularStreamsQuery(undefined, {
@@ -424,7 +173,6 @@ export default function HomeScreen() {
     });
   };
 
-  // Debug popular streams data
   const handleJoinStream = (streamId: string, streamTitle: string, hostUsername: string, channel?: string) => {
     // 🏆 PROFESSIONAL TIER ACCESS CHECK - No more "connection failed"!
     // For safety, default to 'video' if channel is not provided
@@ -464,85 +212,8 @@ export default function HomeScreen() {
     );
   };
 
-  const handleSearchFocus = React.useCallback(() => {
-    setIsSearching(true);
-    setSearchState(prev => ({ 
-      ...prev, 
-      showSuggestions: prev.query.length > 0 && prev.query.trim().length === 0
-    }));
-  }, []);
-
-  const handleSearchBlur = React.useCallback(() => {
-    // Delay hiding to allow suggestion selection
-    setTimeout(() => {
-      setIsSearching(false);
-      setSearchState(prev => ({ ...prev, showSuggestions: false }));
-    }, 200);
-  }, []);
-
-  const handleSearchChange = React.useCallback((query: string) => {
-    setSearchState(prev => ({
-      ...prev,
-      query,
-      submitted: query.trim().length > 0, // Auto-submit for realtime search when query has content
-      showSuggestions: query.length > 0 && query.trim().length === 0 // Show suggestions only when there are characters but no meaningful content
-    }));
-  }, []);
-
-  const handleSearchSubmit = React.useCallback((query: string) => {
-    const trimmedQuery = query.trim();
-    if (trimmedQuery) {
-      // Add to recent searches
-      setRecentSearches(prev => {
-        if (!prev.includes(trimmedQuery)) {
-          return [trimmedQuery, ...prev.slice(0, 4)]; // Keep only 5 recent searches
-        }
-        return prev;
-      });
-      
-      setSearchState({
-        query: trimmedQuery,
-        submitted: true,
-        showSuggestions: false
-      });
-    }
-  }, []);
-
-  const handleSelectSuggestion = React.useCallback((suggestion: string) => {
-    setSearchState({
-      query: suggestion,
-      submitted: true,
-      showSuggestions: false
-    });
-    
-    // Add to recent searches
-    setRecentSearches(prev => {
-      if (!prev.includes(suggestion)) {
-        return [suggestion, ...prev.slice(0, 4)];
-      }
-      return prev;
-    });
-  }, []);
-
-  const handleRemoveRecent = React.useCallback((index: number) => {
-    setRecentSearches(prev => prev.filter((_, i) => i !== index));
-  }, []);
-
   const dismissKeyboard = React.useCallback(() => {
     Keyboard.dismiss();
-    if (searchInputRef.current?.blur) {
-      searchInputRef.current.blur();
-    }
-    setIsSearching(false);
-    setSearchState(prev => ({ ...prev, showSuggestions: false }));
-  }, []);
-
-  const handleClearSearch = React.useCallback(() => {
-    setSearchState({
-      query: '',
-      submitted: false,
-      showSuggestions: false
-    });
     setIsSearching(false);
   }, []);
 
@@ -550,7 +221,7 @@ export default function HomeScreen() {
     <SafeAreaView className="flex-1 bg-[#090909]">
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
         <ScrollView 
-          scrollEnabled={!isSearching && !searchState.showSuggestions}
+          scrollEnabled={!isSearching}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -597,52 +268,19 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Search Bar */}
-          <View className="mb-6 relative" style={{ zIndex: 2 }}>
-            <SearchInput
-              ref={searchInputRef}
-              onFocus={handleSearchFocus}
-              onBlur={handleSearchBlur}
-              placeholder="Search for streamers, content..."
-              onSearchSubmit={handleSearchSubmit}
-              onSearchChange={handleSearchChange}
-              enableRealtimeSearch={true}
-              initialQuery={searchState.query}
-              showSuggestions={false} // We'll handle suggestions manually
-            />
-            {searchState.showSuggestions && (
-              <SearchSuggestions
-                query={searchState.query}
-                onSelectSuggestion={handleSelectSuggestion}
-                recentSearches={recentSearches}
-                onRemoveRecent={handleRemoveRecent}
-              />
-            )}
-          </View>
+          {/* Universal Search Component */}
+          <UniversalSearch
+            mode="embedded"
+            onJoinStream={handleJoinStream}
+            baseURL={baseURL}
+            placeholder="Search for streamers, content..."
+            className="mb-6"
+            onClose={() => setIsSearching(false)}
+          />
 
-            {/* Main Content */}
-            {searchState.submitted && searchState.query ? (
-              /* Search Results */
-              <View className="flex-1">
-                <View className="flex-row items-center justify-between mb-4">
-                  <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg">
-                    Search Results for "{searchState.query}"
-                  </Text>
-                  <TouchableOpacity 
-                    onPress={handleClearSearch}
-                    className="px-3 py-1 bg-gray-800 rounded-full"
-                  >
-                    <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
-                      Clear
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <SearchResults query={searchState.query} onJoinStream={handleJoinStream} baseURL={baseURL} />
-              </View>
-            ) : !isSearching ? (
-              /* Normal Home Content */
-              <>
-          {/* Categories */}
+          {!isSearching && (
+            <>
+              {/* Categories */}
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false} 
@@ -864,10 +502,10 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               </View>
-            )}
-          </View>
-              </>
-            ) : null}
+              )}
+            </View>
+            </>
+          )}
         </View>
       </ScrollView>
       </TouchableWithoutFeedback>

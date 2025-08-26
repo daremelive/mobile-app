@@ -18,6 +18,7 @@ import {
   useUnfollowUserMutation 
 } from '../src/store/followApi';
 import { useGetUserProfileQuery } from '../src/store/usersApi';
+import { useBlockUserMutation } from '../src/api/blockedApi';
 import ShareProfileModal from '../components/ShareProfileModal';
 import ipDetector from '../src/utils/ipDetector';
 
@@ -48,6 +49,7 @@ export default function UserProfileScreen() {
   // Follow/Unfollow mutations
   const [followUser, { isLoading: followLoading }] = useFollowUserMutation();
   const [unfollowUser, { isLoading: unfollowLoading }] = useUnfollowUserMutation();
+  const [blockUser, { isLoading: blockLoading }] = useBlockUserMutation();
   
   const [actionLoading, setActionLoading] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
@@ -108,7 +110,7 @@ export default function UserProfileScreen() {
     });
   };
 
-  const handleBlockUser = () => {
+  const handleBlockUser = async () => {
     Alert.alert(
       'Block User',
       `Are you sure you want to block ${userProfile?.full_name || userProfile?.username}?`,
@@ -117,9 +119,38 @@ export default function UserProfileScreen() {
         { 
           text: 'Block', 
           style: 'destructive',
-          onPress: () => {
-            // TODO: Implement block functionality
-            Alert.alert('Blocked', 'User has been blocked');
+          onPress: async () => {
+            try {
+              console.log('🚫 Starting block process for user:', {
+                userId: parseInt(userId),
+                username: userProfile?.username,
+                fullName: userProfile?.full_name
+              });
+              
+              const result = await blockUser({ user_id: parseInt(userId) }).unwrap();
+              
+              console.log('✅ Block request successful:', result);
+              Alert.alert('Success', `${userProfile?.full_name || userProfile?.username} has been blocked`, [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    // Navigate to homepage immediately after blocking
+                    router.replace('/(tabs)/home');
+                  }
+                }
+              ]);
+              
+              // Also refetch data in case user stays on page
+              refetch();
+            } catch (error: any) {
+              console.error('❌ Failed to block user:', error);
+              console.error('❌ Error details:', {
+                status: error.status,
+                data: error.data,
+                message: error.message
+              });
+              Alert.alert('Error', error.data?.message || 'Failed to block user. Please try again.');
+            }
           }
         }
       ]
@@ -223,7 +254,7 @@ export default function UserProfileScreen() {
           {/* Follow/Unfollow Button */}
           <TouchableOpacity
             onPress={handleFollowToggle}
-            disabled={actionLoading || followLoading || unfollowLoading}
+            disabled={actionLoading || followLoading || unfollowLoading || blockLoading}
             className={`px-8 py-3 rounded-full flex-row items-center gap-2 ${
               userProfile.is_following ? 'bg-gray-600' : 'bg-red-600'
             }`}
@@ -329,7 +360,7 @@ export default function UserProfileScreen() {
             id: userProfile.id,
             username: userProfile.username,
             full_name: userProfile.full_name,
-            profile_picture_url: userProfile.profile_picture_url,
+            profile_picture_url: userProfile.profile_picture_url || undefined,
           }}
         />
       )}

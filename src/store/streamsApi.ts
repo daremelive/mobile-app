@@ -397,6 +397,13 @@ export const streamsApi = createApi({
       }),
     }),
 
+    declineInvite: builder.mutation<{ message: string }, string>({
+      query: (streamId) => ({
+        url: `/streams/${streamId}/decline-invitation/`,
+        method: 'POST',
+      }),
+    }),
+
     removeGuest: builder.mutation<{ message: string; guest_id: string }, { streamId: string; guestId: string }>({
       query: ({ streamId, guestId }) => ({
         url: `/streams/${streamId}/remove-guest/`,
@@ -496,6 +503,7 @@ export const {
   useInviteGuestMutation,
   useInviteUsersToStreamMutation,
   useAcceptInviteMutation,
+  useDeclineInviteMutation,
   useRemoveGuestMutation,
   useRemoveParticipantMutation,
   useToggleCameraMutation,

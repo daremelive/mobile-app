@@ -3,31 +3,50 @@ import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Imag
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
-import SearchIcon from '../assets/icons/search-icon.svg';
+import SearchInput from '../components/SearchInput';
 import { 
   useGetBlockedUsersQuery,
   useGetBlockedUsersCountQuery,
   useUnblockUserMutation,
 } from '../src/api/blockedApi';
+import ipDetector from '../src/utils/ipDetector';
 
 const BlockedListScreen = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [baseURL, setBaseURL] = useState<string>('');
 
-  // Debounce search input
+  // Initialize base URL with IP detection
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    const initializeBaseURL = async () => {
+      try {
+        const detection = await ipDetector.detectIP();
+        const url = `http://${detection.ip}:8000`;
+        setBaseURL(url);
+        console.log('🔗 Blocked List Base URL initialized:', url);
+      } catch (error) {
+        console.error('❌ Failed to detect IP in blocked list:', error);
+        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
+      }
+    };
+    
+    initializeBaseURL();
+  }, []);
 
   // RTK Query hooks
-  const { data: blockedUsers, isLoading: blockedUsersLoading, refetch } = useGetBlockedUsersQuery(debouncedSearch || undefined);
+  const { data: blockedUsers, isLoading: blockedUsersLoading, refetch, error } = useGetBlockedUsersQuery(searchQuery || undefined);
   const { data: countData } = useGetBlockedUsersCountQuery();
   const [unblockUser] = useUnblockUserMutation();
+
+  // Add logging to debug
+  useEffect(() => {
+    console.log('🔍 BlockedList Debug:', {
+      blockedUsers: blockedUsers?.length || 0,
+      isLoading: blockedUsersLoading,
+      error: error,
+      countData: countData
+    });
+  }, [blockedUsers, blockedUsersLoading, error, countData]);
 
   const handleUnblock = async (userId: number, username: string) => {
     Alert.alert(
@@ -57,6 +76,18 @@ const BlockedListScreen = () => {
 
   const blockedCount = countData?.count || 0;
 
+  // Helper function to get profile image URL
+  const getProfileImageUrl = (user: any) => {
+    if (user.profile_picture_url) {
+      // If URL starts with http, it's already absolute, otherwise prepend baseURL
+      return user.profile_picture_url.startsWith('http') 
+        ? user.profile_picture_url 
+        : `${baseURL}${user.profile_picture_url}`;
+    }
+    // Fallback to UI Avatars for initials
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`;
+  };
+
   if (blockedUsersLoading && !blockedUsers) {
     return (
       <SafeAreaView className="flex-1 bg-black justify-center items-center">
@@ -79,16 +110,12 @@ const BlockedListScreen = () => {
       </View>
 
       <View className="px-4 mt-6">
-        <View className="flex-row items-center bg-[#1C1C1E] rounded-full p-3 border border-[#333333]">
-          <SearchIcon width={20} height={20} className="mr-2" />
-          <TextInput
-            placeholder="Search"
-            placeholderTextColor="#8A8A8E"
-            className="text-white flex-1"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-        </View>
+        <SearchInput
+          placeholder="Search blocked users..."
+          showSuggestions={false}
+          onSearchChange={setSearchQuery}
+          enableRealtimeSearch={false}
+        />
       </View>
 
       <ScrollView className="flex-1 px-4 mt-6">
@@ -98,9 +125,16 @@ const BlockedListScreen = () => {
               <View className="flex-row items-center">
                 <Image 
                   source={{ 
-                    uri: `https://randomuser.me/api/portraits/men/${30 + (blockedUser.blocked_user.id % 10)}.jpg` 
+                    uri: getProfileImageUrl(blockedUser.blocked_user)
                   }} 
                   className="w-14 h-14 rounded-full mr-4 border-2 border-white" 
+                  onError={(error) => {
+                    console.log('❌ Profile image load error for blocked user:', {
+                      userId: blockedUser.blocked_user.id,
+                      username: blockedUser.blocked_user.username,
+                      error: error.nativeEvent
+                    });
+                  }}
                 />
                 <View>
                   <Text className="text-white font-semibold text-base">

@@ -41,6 +41,7 @@ export interface BlockedUser {
     first_name: string;
     last_name: string;
     full_name: string;
+    profile_picture_url?: string;
     followers_count: string;
     is_following: boolean;
     is_live: boolean;
