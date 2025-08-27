@@ -61,13 +61,22 @@ export default function FollowingsScreen() {
     }
   );
 
-  // Combine both lists and remove duplicates
+  // Combine both lists with priority to following users data
   const allUsers = React.useMemo(() => {
-    const combined = [...followingUsers, ...discoverUsers];
-    const unique = combined.filter((user, index, self) => 
-      index === self.findIndex(u => u.id === user.id)
-    );
-    return unique;
+    const followingMap = new Map(followingUsers.map(user => [user.id, user]));
+    const discoverMap = new Map(discoverUsers.map(user => [user.id, user]));
+    
+    // Start with following users (they have priority for accurate is_following status)
+    const combined = [...followingUsers];
+    
+    // Add discover users that aren't already in following list
+    discoverUsers.forEach(user => {
+      if (!followingMap.has(user.id)) {
+        combined.push(user);
+      }
+    });
+    
+    return combined;
   }, [followingUsers, discoverUsers]);
 
   const isLoading = followingLoading || discoverLoading;
@@ -102,8 +111,9 @@ export default function FollowingsScreen() {
       } else {
         await followUser({ user_id: userId }).unwrap();
       }
-      // Refetch the data to update the UI
-      refetch();
+      // Force refetch both queries to ensure UI is updated
+      await refetchFollowing();
+      await refetchDiscover();
     } catch (error: any) {
       console.error('Follow/Unfollow error:', error);
       Alert.alert('Error', error.data?.message || 'Failed to update follow status');

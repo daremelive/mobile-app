@@ -1,0 +1,51 @@
+{
+  "common": {
+    "loading": "Carregando...",
+    "error": "Erro",
+    "success": "Sucesso",
+    "cancel": "Cancelar",
+    "confirm": "Confirmar",
+    "save": "Salvar",
+    "edit": "Editar",
+    "delete": "Excluir",
+    "share": "Compartilhar",
+    "copy": "Copiar",
+    "next": "Próximo",
+    "back": "Voltar",
+    "continue": "Continuar",
+    "done": "Concluído",
+    "close": "Fechar",
+    "retry": "Tentar novamente",
+    "refresh": "Atualizar",
+    "search": "Pesquisar",
+    "filter": "Filtrar",
+    "sort": "Classificar",
+    "view": "Visualizar",
+    "send": "Enviar",
+    "receive": "Receber",
+    "yes": "Sim",
+    "no": "Não",
+    "ok": "OK"
+  },
+  "auth": {
+    "login": "Entrar",
+    "signup": "Cadastrar",
+    "getStarted": "Começar",
+    "welcomeBack": "Bem-vindo de volta",
+    "createAccount": "Criar conta",
+    "forgotPassword": "Esqueceu a senha?",
+    "resetPassword": "Redefinir senha",
+    "email": "E-mail",
+    "password": "Senha",
+    "confirmPassword": "Confirmar senha",
+    "username": "Nome de usuário",
+    "fullName": "Nome completo",
+    "logout": "Sair"
+  },
+  "wallet": {
+    "balance": "Saldo",
+    "earnings": "Ganhos",
+    "withdrawMoney": "Sacar dinheiro",
+    "rizCoins": "Moedas Riz"
+  }
+}

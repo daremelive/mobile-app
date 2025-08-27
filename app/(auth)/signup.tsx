@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSignupMutation, useGoogleAuthMutation } from '../../src/store/authApi';
 import { useDispatch } from 'react-redux';
 import { setPendingEmail, setError, setCredentials } from '../../src/store/authSlice';
+import { markAccountCreated } from '../../src/hooks/useAuthRouting';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri, exchangeCodeAsync, TokenResponse, ResponseType } from 'expo-auth-session';
@@ -96,6 +97,10 @@ export default function SignupScreen() {
 
           const result = await googleAuth({ id_token: idToken } as any).unwrap();
           dispatch(setCredentials(result));
+          
+          // 🚀 MARK ACCOUNT CREATION - Google signup counts as account creation
+          await markAccountCreated();
+          
           if (!result.user.profile_completed) {
             router.replace('/(auth)/signup-two');
           } else {

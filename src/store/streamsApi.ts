@@ -420,6 +420,27 @@ export const streamsApi = createApi({
       }),
     }),
 
+    // Seamless promotion
+    promoteViewerToGuest: builder.mutation<{ 
+      message: string; 
+      participant: {
+        id: number;
+        user_id: number;
+        username: string;
+        participant_type: string;
+        seat_number: number;
+        camera_enabled: boolean;
+        microphone_enabled: boolean;
+      }
+    }, { streamId: string; userId: number }>({
+      query: ({ streamId, userId }) => ({
+        url: `/streams/${streamId}/promote-viewer/`,
+        method: 'POST',
+        body: { user_id: userId },
+      }),
+      invalidatesTags: (result, error, { streamId }) => [{ type: 'Stream', id: streamId }],
+    }),
+
     // Stream controls
     toggleCamera: builder.mutation<{ message: string; camera_enabled: boolean }, { streamId: string; enabled: boolean }>({
       query: ({ streamId, enabled }) => ({
@@ -506,6 +527,7 @@ export const {
   useDeclineInviteMutation,
   useRemoveGuestMutation,
   useRemoveParticipantMutation,
+  usePromoteViewerToGuestMutation,
   useToggleCameraMutation,
   useToggleMicrophoneMutation,
   useGetStreamTokenMutation,

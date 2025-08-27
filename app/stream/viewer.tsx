@@ -320,6 +320,62 @@ export default function UnifiedViewerStreamScreen() {
     }
   }, [streamDetails?.host, baseURL]);
 
+  // 🎉 Check if current user has been promoted to guest and redirect
+  useEffect(() => {
+    if (streamDetails?.participants && userData?.id) {
+      console.log('🔍 Checking user promotion status...', {
+        participants: streamDetails.participants,
+        currentUserId: userData.id
+      });
+      
+      const currentUserParticipant = streamDetails.participants.find(
+        (participant: any) => participant.user.id === userData.id
+      );
+      
+      console.log('👤 Current user participant:', currentUserParticipant);
+      
+      if (currentUserParticipant?.participant_type === 'guest') {
+        console.log('🎉 User has been promoted to guest! Redirecting to participant screen...');
+        // Show success message before redirecting
+        Alert.alert(
+          '🎉 You\'ve been promoted!',
+          'You are now a guest speaker. Redirecting to the participant screen...',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.replace({
+                  pathname: '/stream/multi/[id]',
+                  params: { id: streamId, mode: streamMode }
+                });
+              }
+            }
+          ]
+        );
+      }
+    }
+  }, [streamDetails?.participants, userData?.id, streamId, streamMode, router]);
+
+  // 🔄 Listen for promotion events via WebSocket to refetch stream details
+  useEffect(() => {
+    if (chat?.socket && userData?.id) {
+      const handlePromotionEvent = (data: any) => {
+        console.log('🔄 Received promotion event:', data);
+        if (data.event === 'user_promoted' && data.data?.user_id === userData.id) {
+          console.log('🎉 Current user was promoted! Refetching stream details...');
+          refetchStreamDetails();
+        }
+      };
+
+      // Listen for promotion events
+      chat.socket.on('promotion_event', handlePromotionEvent);
+
+      return () => {
+        chat.socket.off('promotion_event', handlePromotionEvent);
+      };
+    }
+  }, [chat?.socket, userData?.id, refetchStreamDetails]);
+
   // Update viewer profile picture URL when user data loads
   useEffect(() => {
     if (userData && baseURL) {

@@ -81,8 +81,8 @@ export default function PopularChannelsScreen() {
             </Text>
           </View>
         ) : (
-          <View className="flex-row flex-wrap justify-between">
-            {popularStreams.map((stream) => (
+          <View className="flex-row flex-wrap">
+            {popularStreams.map((stream, index) => (
               <StreamCard
                 key={stream.id}
                 id={stream.id}
@@ -92,6 +92,8 @@ export default function PopularChannelsScreen() {
                 viewer_count={stream.viewer_count}
                 status={stream.status}
                 baseURL={baseURL}
+                width="w-[47%]"
+                margin={index % 2 === 0 ? "mr-3" : ""}
               />
             ))}
           </View>

@@ -1,6 +1,7 @@
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../store/authSlice';
 import { Stream, StreamHost } from '../store/streamsApi';
+import { useGetUserStreamPrivilegesQuery } from '../api/levelsApi';
 
 export type TierLevel = 'basic' | 'premium' | 'vip' | 'vvip';
 
@@ -9,26 +10,45 @@ interface TierAccessResult {
   userTier: TierLevel | null;
   hostTier: TierLevel | null;
   reason?: string;
+  channelBasedAccess?: boolean; // NEW: indicates if access is granted due to channel privileges
 }
 
 interface TierAccessOptions {
   requireExactMatch?: boolean; // If true, user must have exact same tier as host
   allowHigherTier?: boolean;   // If true, user with higher tier can access lower tier streams
+  checkChannelAccess?: boolean; // NEW: If true, check if user has channel access for hierarchical access
 }
 
 /**
  * Custom hook for managing tier-based access control for streams
- * Provides modular tier checking functionality for viewer access restrictions
+ * Enhanced with channel-based hierarchical access
  */
 export const useTierAccessControl = () => {
   const currentUser = useSelector(selectCurrentUser);
+  const { data: privileges } = useGetUserStreamPrivilegesQuery();
 
   /**
-   * Check if the current user can access a stream based on tier levels
+   * Check if user has access to a specific channel
+   */
+  const hasChannelAccess = (channelCode: string): boolean => {
+    if (!privileges || !privileges.all_channels) {
+      return false;
+    }
+
+    const channel = privileges.all_channels.find(ch => ch.code === channelCode);
+    return channel ? channel.is_accessible : false;
+  };
+
+  /**
+   * Check if the current user can access a stream based on tier levels and channel access
    */
   const checkStreamAccess = (
     stream: Stream | null,
-    options: TierAccessOptions = { requireExactMatch: true, allowHigherTier: false }
+    options: TierAccessOptions = { 
+      requireExactMatch: true, 
+      allowHigherTier: false,
+      checkChannelAccess: true 
+    }
   ): TierAccessResult => {
     // If no user is authenticated, deny access
     if (!currentUser) {
@@ -36,7 +56,8 @@ export const useTierAccessControl = () => {
         canAccess: false,
         userTier: null,
         hostTier: null,
-        reason: 'User not authenticated'
+        reason: 'User not authenticated',
+        channelBasedAccess: false
       };
     }
 
@@ -46,7 +67,8 @@ export const useTierAccessControl = () => {
         canAccess: false,
         userTier: currentUser.vip_level,
         hostTier: null,
-        reason: 'Stream not found'
+        reason: 'Stream not found',
+        channelBasedAccess: false
       };
     }
 
@@ -64,52 +86,72 @@ export const useTierAccessControl = () => {
     const userTierLevel = tierHierarchy[userTier];
     const hostTierLevel = tierHierarchy[hostTier];
 
-    // Check access based on options
+    // First check traditional tier-based access
+    let traditionalAccess = false;
+    
     if (options.requireExactMatch && !options.allowHigherTier) {
-      // Strict mode: exact tier match required
-      const canAccess = userTier === hostTier;
+      traditionalAccess = userTier === hostTier;
+    } else if (options.allowHigherTier) {
+      traditionalAccess = userTierLevel >= hostTierLevel;
+    } else {
+      traditionalAccess = userTier === hostTier;
+    }
+
+    // If traditional access is granted, allow
+    if (traditionalAccess) {
       return {
-        canAccess,
+        canAccess: true,
         userTier,
         hostTier,
-        reason: canAccess ? undefined : `Access requires ${hostTier} tier. Your tier: ${userTier}`
+        channelBasedAccess: false
       };
     }
 
-    if (options.allowHigherTier) {
-      // Allow higher tier users to access lower tier streams
-      const canAccess = userTierLevel >= hostTierLevel;
-      return {
-        canAccess,
-        userTier,
-        hostTier,
-        reason: canAccess ? undefined : `Access requires ${hostTier} tier or higher. Your tier: ${userTier}`
-      };
+    // NEW: Check channel-based hierarchical access
+    if (options.checkChannelAccess && stream.channel) {
+      const userHasChannelAccess = hasChannelAccess(stream.channel);
+      
+      // If user has channel access and host tier is higher, grant access
+      if (userHasChannelAccess && hostTierLevel > userTierLevel) {
+        return {
+          canAccess: true,
+          userTier,
+          hostTier,
+          reason: `Channel access granted for ${stream.channel}`,
+          channelBasedAccess: true
+        };
+      }
     }
 
-    // Default behavior: exact match required
-    const canAccess = userTier === hostTier;
+    // Access denied
     return {
-      canAccess,
+      canAccess: false,
       userTier,
       hostTier,
-      reason: canAccess ? undefined : `Access requires ${hostTier} tier. Your tier: ${userTier}`
+      reason: `Access requires ${hostTier} tier or higher. Your tier: ${userTier}`,
+      channelBasedAccess: false
     };
   };
 
   /**
-   * Check access based on host information only
+   * Check access based on host information only with channel consideration
    */
   const checkHostAccess = (
     host: StreamHost | null,
-    options: TierAccessOptions = { requireExactMatch: true, allowHigherTier: false }
+    options: TierAccessOptions = { 
+      requireExactMatch: true, 
+      allowHigherTier: false,
+      checkChannelAccess: true 
+    },
+    channelCode?: string
   ): TierAccessResult => {
     if (!currentUser) {
       return {
         canAccess: false,
         userTier: null,
         hostTier: null,
-        reason: 'User not authenticated'
+        reason: 'User not authenticated',
+        channelBasedAccess: false
       };
     }
 
@@ -118,7 +160,8 @@ export const useTierAccessControl = () => {
         canAccess: false,
         userTier: currentUser.vip_level,
         hostTier: null,
-        reason: 'Host not found'
+        reason: 'Host not found',
+        channelBasedAccess: false
       };
     }
 
@@ -135,22 +178,48 @@ export const useTierAccessControl = () => {
     const userTierLevel = tierHierarchy[userTier];
     const hostTierLevel = tierHierarchy[hostTier];
 
+    // First check traditional tier-based access
+    let traditionalAccess = false;
+    
     if (options.allowHigherTier) {
-      const canAccess = userTierLevel >= hostTierLevel;
+      traditionalAccess = userTierLevel >= hostTierLevel;
+    } else {
+      traditionalAccess = userTier === hostTier;
+    }
+
+    // If traditional access is granted, allow
+    if (traditionalAccess) {
       return {
-        canAccess,
+        canAccess: true,
         userTier,
         hostTier,
-        reason: canAccess ? undefined : `Access requires ${hostTier} tier or higher. Your tier: ${userTier}`
+        channelBasedAccess: false
       };
     }
 
-    const canAccess = userTier === hostTier;
+    // NEW: Check channel-based hierarchical access if channel is provided
+    if (options.checkChannelAccess && channelCode) {
+      const userHasChannelAccess = hasChannelAccess(channelCode);
+      
+      // If user has channel access and host tier is higher, grant access
+      if (userHasChannelAccess && hostTierLevel > userTierLevel) {
+        return {
+          canAccess: true,
+          userTier,
+          hostTier,
+          reason: `Channel access granted for ${channelCode}`,
+          channelBasedAccess: true
+        };
+      }
+    }
+
+    // Access denied
     return {
-      canAccess,
+      canAccess: false,
       userTier,
       hostTier,
-      reason: canAccess ? undefined : `Access requires ${hostTier} tier. Your tier: ${userTier}`
+      reason: `Access requires ${hostTier} tier or higher. Your tier: ${userTier}`,
+      channelBasedAccess: false
     };
   };
 
@@ -199,6 +268,7 @@ export const useTierAccessControl = () => {
     getUserTier,
     compareTiers,
     getTierDisplayName,
+    hasChannelAccess, // NEW: Expose channel access check
     currentUserTier: currentUser?.vip_level || null
   };
 };

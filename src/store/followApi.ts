@@ -123,7 +123,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
 export const followApi = createApi({
   reducerPath: 'followApi',
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['Following', 'Followers', 'Users', 'Search'],
+  tagTypes: ['Following', 'Followers', 'Users', 'Search', 'UserProfile'],
   endpoints: (builder) => ({
         // Follow a user
     followUser: builder.mutation<FollowResponse, FollowRequest>({
@@ -136,8 +136,19 @@ export const followApi = createApi({
         'Following', 
         'Users', 
         'Search',
-        { type: 'Users', id: user_id }
+        { type: 'Users', id: user_id },
+        { type: 'UserProfile', id: user_id }
       ],
+      // Optimistically update the cache
+      async onQueryStarted({ user_id }, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          // Force refresh of all user-related queries
+          dispatch(followApi.util.invalidateTags(['Following', 'Users']));
+        } catch {
+          // Handle error if needed
+        }
+      },
     }),
 
     // Unfollow a user
@@ -151,8 +162,19 @@ export const followApi = createApi({
         'Following', 
         'Users', 
         'Search',
-        { type: 'Users', id: user_id }
+        { type: 'Users', id: user_id },
+        { type: 'UserProfile', id: user_id }
       ],
+      // Optimistically update the cache
+      async onQueryStarted({ user_id }, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          // Force refresh of all user-related queries
+          dispatch(followApi.util.invalidateTags(['Following', 'Users']));
+        } catch {
+          // Handle error if needed
+        }
+      },
     }),
 
     // Get list of users the current user is following
@@ -185,6 +207,8 @@ export const followApi = createApi({
       }),
       providesTags: ['Users'],
       transformResponse: (response: FollowListResponse) => response.results,
+      // Add more aggressive cache invalidation for follow status updates
+      keepUnusedDataFor: 0, // Don't cache this data for too long
     }),
 
     // Get user profile with follow status

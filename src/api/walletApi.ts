@@ -70,19 +70,17 @@ export interface WalletSummary {
 }
 
 export interface WalletAnalytics {
-  monthly_earnings: Array<{
+  total_balance: number;
+  total_coins: number;
+  total_earned: number;
+  total_withdrawn: number;
+  this_month_earned: number;
+  monthly_data: Array<{
     month: string;
-    amount: number;
-    formatted_amount: string;
+    year: number;
+    earnings: number;
   }>;
-  total_months: number;
-  average_monthly: number;
-  formatted_average_monthly: string;
-  peak_month: {
-    month: string;
-    amount: number;
-    formatted_amount: string;
-  };
+  recent_transactions: WalletTransaction[];
 }
 
 export interface WalletTransaction {

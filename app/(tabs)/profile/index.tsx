@@ -3,6 +3,7 @@ import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image, RefreshC
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTranslation } from '../../../src/hooks/useTranslation';
 
 let ImagePicker: any = null;
 try {
@@ -41,6 +42,7 @@ type MenuItem = {
 };
 
 const ProfileScreen = () => {
+  const { t } = useTranslation();
   const router = useRouter();
   const [isLogoutModalVisible, setLogoutModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -185,17 +187,17 @@ const ProfileScreen = () => {
   };
 
   const menuItems: MenuItem[] = [
-    { title: 'Account', Icon: AccountIcon, route: '/account' },
-    { title: 'Language', Icon: LanguageIcon, route: '/language' },
-    { title: 'Notification', Icon: ProfileNotificationIcon, route: '/notifications' },
-    { title: 'Blocked List', Icon: BlockedIcon, route: '/blocked-list' },
-    { title: 'Unlock level', Icon: UnlockIcon, route: '/unlock-level'},
+    { title: t('profile.account', 'Account') as string, Icon: AccountIcon, route: '/account' },
+    { title: t('common.language', 'Language') as string, Icon: LanguageIcon, route: '/language' },
+    { title: t('profile.notification', 'Notification') as string, Icon: ProfileNotificationIcon, route: '/notifications' },
+    { title: t('profile.blockedList', 'Blocked List') as string, Icon: BlockedIcon, route: '/blocked-list' },
+    { title: t('profile.unlockLevel', 'Unlock level') as string, Icon: UnlockIcon, route: '/unlock-level'},
   ];
 
   const walletItems: MenuItem[] = [
-    { title: 'Wallet', Icon: WalletIcon, route: '/wallet'},
-    { title: 'Transactions', Icon: TransactionIcon, route: '/transactions'},
-    { title: 'Payout', Icon: PayoutIcon, route: '/enter-bank-details'},
+    { title: t('wallet.wallet', 'Wallet') as string, Icon: WalletIcon, route: '/wallet'},
+    { title: t('wallet.transactions', 'Transactions') as string, Icon: TransactionIcon, route: '/transactions'},
+    { title: t('profile.payout', 'Payout') as string, Icon: PayoutIcon, route: '/enter-bank-details'},
     { title: 'Identity Verification', Icon: IdentityIcon, route: '/identity-verification'},
   ];
 
@@ -209,7 +211,7 @@ const ProfileScreen = () => {
           </View>
         </TouchableOpacity>
         <View className="flex-1 items-center">
-          <Text className="text-white text-[20px] font-semibold">Your Profile</Text>
+          <Text className="text-white text-[20px] font-semibold">{t('profile.yourProfile', 'Your Profile') as string}</Text>
         </View>
       </View>
 
@@ -291,7 +293,7 @@ const ProfileScreen = () => {
                onPress={handleShare}
              >
                <View className="flex-row items-center gap-3">
-                 <Text className="text-white text-xl font-semibold">Share Profile Link</Text>
+                 <Text className="text-white text-xl font-semibold">{t('profile.shareProfileLink', 'Share Profile Link') as string}</Text>
                  <View className="w-6 h-6 rounded-full justify-center items-center">
                    <SentIcon width={24} height={24} />
                  </View>
@@ -302,22 +304,24 @@ const ProfileScreen = () => {
 
           <View className="flex-row justify-between w-full mt-6">
             <View className="items-center">
-              <Text className="text-white text-lg font-bold">
+              <Text className="text-white text-[20px] font-bold mb-1">
                 {profileData?.following_count || currentUser?.following_count || 0}
               </Text>
-              <Text className="text-[#666]">Following</Text>
+              <Text className="text-[#666]">{t('profile.following', 'Following') as string}</Text>
             </View>
+            
             <View className="items-center">
-              <Text className="text-white text-lg font-bold">
+              <Text className="text-white text-[20px] font-bold mb-1">
                 {profileData?.followers_count || currentUser?.followers_count || 0}
               </Text>
-              <Text className="text-[#666]">Followers</Text>
+              <Text className="text-[#666]">{t('profile.followers', 'Followers') as string}</Text>
             </View>
+            
             <View className="items-center">
-              <Text className="text-white text-lg font-bold">
+              <Text className="text-white text-[20px] font-bold mb-1">
                 {profileData?.total_likes_count || currentUser?.total_likes_count || 0}
               </Text>
-              <Text className="text-[#666]">Likes</Text>
+              <Text className="text-[#666]">{t('profile.likes', 'Likes') as string}</Text>
             </View>
           </View>
 
@@ -343,15 +347,15 @@ const ProfileScreen = () => {
               <TouchableOpacity 
                 key={index} 
                 className="flex-row items-center p-4"
-              onPress={() => {
-                if (item.title === 'Wallet') {
-                  router.push('/wallet');
-                } else if (item.title === 'Transactions') {
-                  router.push('/transactions');
-                } else if (item.route) {
-                  router.push(item.route as any);
-                }
-              }}
+                onPress={() => {
+                  if (item.title === 'Wallet') {
+                    router.push('/wallet');
+                  } else if (item.title === 'Transactions') {
+                    router.push('/transactions');
+                  } else if (item.route) {
+                    router.push(item.route as any);
+                  }
+                }}
                 disabled={!item.route && item.title !== 'Wallet' && item.title !== 'Transactions'}
               >
                 <View className="w-8 h-8 p-6 rounded-full justify-center items-center mr-4 bg-[#2A2A2A]">

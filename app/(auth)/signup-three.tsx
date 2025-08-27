@@ -8,6 +8,7 @@ import ArrowLeft from '../../assets/icons/arrow-left.svg';
 import { useUpdateProfileMutation } from '../../src/store/authApi';
 import { useDispatch, useSelector } from 'react-redux';
 import { setUser, selectCurrentUser } from '../../src/store/authSlice';
+import { markAccountCreated } from '../../src/hooks/useAuthRouting';
 
 const INTERESTS = [
   'Education', 'Art & Creativity', 'Sports', 'Health', 'DIY',
@@ -69,6 +70,9 @@ export default function SignupThreeScreen() {
       // Update user data in store
       dispatch(setUser(result));
 
+      // 🚀 MARK ACCOUNT CREATION COMPLETE
+      await markAccountCreated();
+
       console.log('🏠 Navigating to home screen');
       // Navigate to home with a clean slate
       router.dismissAll();
@@ -87,6 +91,10 @@ export default function SignupThreeScreen() {
       profile_completed: currentUser?.profile_completed,
       interests: currentUser?.interests
     });
+    
+    // 🚀 MARK ACCOUNT CREATION COMPLETE (even when skipping)
+    markAccountCreated();
+    
     console.log('🏠 Navigating to home screen (skip)');
     // Navigate to home with a clean slate
     router.dismissAll();

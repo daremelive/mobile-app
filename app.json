@@ -64,7 +64,8 @@
           "microphonePermission": "Allow this app to access your microphone for live streaming audio."
         }
       ],
-      "expo-build-properties"
+      "expo-build-properties",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

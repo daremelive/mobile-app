@@ -22,6 +22,7 @@ interface StreamCardProps {
   onPress?: () => void;
   width?: string; // Tailwind width class, default "w-[48%]"
   height?: string; // Tailwind height class, default "h-[250px]"
+  margin?: string; // Tailwind margin class for custom spacing
 }
 
 const StreamCard: React.FC<StreamCardProps> = ({
@@ -34,7 +35,8 @@ const StreamCard: React.FC<StreamCardProps> = ({
   baseURL,
   onPress,
   width = 'w-[48%]',
-  height = 'h-[250px]'
+  height = 'h-[250px]',
+  margin = ''
 }) => {
   const currentUser = useSelector(selectCurrentUser);
   const { requestChannelAccess } = useChannelAccess();
@@ -52,27 +54,66 @@ const StreamCard: React.FC<StreamCardProps> = ({
     console.log('🔍 Raw host object:', host);
     console.log('User tier:', (currentUser as any)?.vip_level);
     console.log('Host tier:', host.vip_level);
+    console.log('Channel:', channel);
 
-    // First check tier access - user must have equal or higher tier than host
-    const tierAccessResult = checkHostAccess(host, { allowHigherTier: true, requireExactMatch: false });
+    // Enhanced tier access check with channel-based hierarchical access
+    const tierAccessResult = checkHostAccess(
+      host, 
+      { 
+        allowHigherTier: true, 
+        requireExactMatch: false, 
+        checkChannelAccess: true 
+      },
+      channel // Pass channel for channel-based access check
+    );
     
-    console.log('🔍 Tier access check result:', {
+    console.log('🔍 Enhanced tier access check result:', {
       userTier: (currentUser as any)?.vip_level,
       hostTier: host.vip_level,
       canAccess: tierAccessResult.canAccess,
       reason: tierAccessResult.reason,
-      userTierFromResult: tierAccessResult.userTier,
-      hostTierFromResult: tierAccessResult.hostTier
+      channelBasedAccess: tierAccessResult.channelBasedAccess,
+      channel: channel
     });
     
     if (!tierAccessResult.canAccess) {
-      // Show tier access modal immediately for lower tier users
+      // Show tier access modal immediately for users without access
       console.log('🚫 Tier access denied - showing upgrade modal');
       setTierModalVisible(true);
       return;
     }
 
-    // If tier access is granted, then check channel access
+    // If access is granted via channel-based access, show special confirmation
+    if (tierAccessResult.channelBasedAccess) {
+      console.log('✅ Channel-based access granted - proceeding to stream');
+      Alert.alert(
+        'Join Live Stream',
+        `Join ${host.username || host.first_name || 'Unknown Host'}'s stream: "${title}"?\n\n🔓 Access granted via ${channel} channel privileges`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Join',
+            onPress: () => {
+              console.log(`✅ Joining ${channel} stream: ${id} (channel-based access)`);
+              router.push({
+                pathname: '/stream/viewer',
+                params: { 
+                  streamId: id,
+                  hostUsername: host.username || host.first_name || 'Unknown Host',
+                  streamTitle: title
+                }
+              });
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // For traditional tier-based access, also check channel access for completeness
     const hasChannelAccess = requestChannelAccess(channel);
     
     if (!hasChannelAccess) {
@@ -143,7 +184,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
   return (
     <>
       <TouchableOpacity 
-        className={`${width} ${height} rounded-2xl overflow-hidden mb-4`}
+        className={`${width} ${height} rounded-2xl overflow-hidden mb-4 ${margin}`}
         onPress={handlePress}
       >
         {profileImageUrl ? (

@@ -1,0 +1,51 @@
+{
+  "common": {
+    "loading": "جاري التحميل...",
+    "error": "خطأ",
+    "success": "نجح",
+    "cancel": "إلغاء",
+    "confirm": "تأكيد",
+    "save": "حفظ",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "share": "مشاركة",
+    "copy": "نسخ",
+    "next": "التالي",
+    "back": "العودة",
+    "continue": "متابعة",
+    "done": "تم",
+    "close": "إغلاق",
+    "retry": "إعادة المحاولة",
+    "refresh": "تحديث",
+    "search": "بحث",
+    "filter": "تصفية",
+    "sort": "ترتيب",
+    "view": "عرض",
+    "send": "إرسال",
+    "receive": "استقبال",
+    "yes": "نعم",
+    "no": "لا",
+    "ok": "موافق"
+  },
+  "auth": {
+    "login": "تسجيل الدخول",
+    "signup": "إنشاء حساب",
+    "getStarted": "البدء",
+    "welcomeBack": "مرحباً بعودتك",
+    "createAccount": "إنشاء حساب",
+    "forgotPassword": "نسيت كلمة المرور؟",
+    "resetPassword": "إعادة تعيين كلمة المرور",
+    "email": "البريد الإلكتروني",
+    "password": "كلمة المرور",
+    "confirmPassword": "تأكيد كلمة المرور",
+    "username": "اسم المستخدم",
+    "fullName": "الاسم الكامل",
+    "logout": "تسجيل الخروج"
+  },
+  "wallet": {
+    "balance": "الرصيد",
+    "earnings": "الأرباح",
+    "withdrawMoney": "سحب الأموال",
+    "rizCoins": "عملات ريز"
+  }
+}

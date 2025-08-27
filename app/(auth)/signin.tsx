@@ -8,6 +8,7 @@ import EyeIcon from '../../assets/icons/eye.svg';
 import { useSigninMutation, useGoogleAuthMutation } from '../../src/store/authApi';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../../src/store/authSlice';
+import { markAccountCreated } from '../../src/hooks/useAuthRouting';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri, exchangeCodeAsync, TokenResponse, ResponseType } from 'expo-auth-session';
@@ -97,6 +98,10 @@ export default function SigninScreen() {
 
           const result = await googleAuth({ id_token: idToken } as any).unwrap();
           dispatch(setCredentials(result));
+          
+          // 🚀 MARK ACCOUNT EXISTS - Google signin means they have an account
+          await markAccountCreated();
+          
           if (!result.user.profile_completed) {
             router.replace('/(auth)/signup-two');
           } else {
@@ -145,6 +150,9 @@ export default function SigninScreen() {
 
       // Store authentication data
       dispatch(setCredentials(result));
+
+      // 🚀 MARK ACCOUNT EXISTS - Successful signin means they have an account
+      await markAccountCreated();
 
       // Check if profile completion is required
       if (!result.user.profile_completed) {

@@ -26,11 +26,11 @@ const GetCoinsScreen = () => {
   const { data: exchangeRate, isLoading: exchangeLoading, error: exchangeError, refetch: refetchExchangeRate } = useGetCoinExchangeRateQuery();
   const [purchaseCoins, { isLoading: purchasing }] = usePurchaseCoinsMutation();
 
-  // Function to calculate Naira equivalent of coins
-  const calculateNairaEquivalent = (coins: number) => {
+  // Function to calculate Riz equivalent of coins
+  const calculateRizEquivalent = (coins: number) => {
     if (!exchangeRate) return 'N/A';
-    const nairaValue = (coins * exchangeRate.rate_per_coin);
-    return `₦${Math.round(nairaValue).toLocaleString('en-NG')}`;
+    const rizValue = (coins * exchangeRate.rate_per_coin);
+    return `${Math.round(rizValue)} Riz`;
   };
 
   // Function to format package price without decimals
@@ -233,10 +233,10 @@ const GetCoinsScreen = () => {
                   {/* {pkg.bonus_coins > 0 && (
                     <Text className="text-green-400 text-xs">+{pkg.bonus_coins} bonus</Text>
                   )} */}
-                  <Text className="text-white text-base bg-[#414141] rounded-lg px-2 py-1 mt-2">{calculateNairaEquivalent(pkg.total_coins)}</Text>
+                  <Text className="text-white text-base bg-[#414141] rounded-lg px-2 py-1 mt-2">{calculateRizEquivalent(pkg.total_coins)}</Text>
                   {/* {exchangeRate && (
                     <Text className="text-gray-400 text-xs mt-1">
-                      ≈ {calculateNairaEquivalent(pkg.total_coins)}
+                      ≈ {calculateRizEquivalent(pkg.total_coins)}
                     </Text>
                   )} */}
                 </View>

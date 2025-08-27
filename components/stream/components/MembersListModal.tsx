@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Modal, TextInput, FlatList, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, TextInput, FlatList, Image, Alert, ActivityIndicator, RefreshControl, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSelector } from 'react-redux';
@@ -7,9 +7,10 @@ import {
   useInviteUsersToStreamMutation, 
   useRemoveGuestMutation,
   useRemoveParticipantMutation,
-  StreamParticipant 
+  StreamParticipant,
+  usePromoteViewerToGuestMutation
 } from '../../../src/store/streamsApi';
-import { useBlockUserMutation } from '../../../src/api/blockedApi';
+import { useBlockUserMutation, useUnblockUserMutation, useGetBlockedUsersQuery } from '../../../src/api/blockedApi';
 import { selectCurrentUser } from '../../../src/store/authSlice';
 import { messagesApi, User as MessagesUser } from '../../../src/services/messagesApi';
 
@@ -145,10 +146,13 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
                     onAction('block', user);
                     onClose();
                   }}
-                  className="flex-row items-center py-3 px-4 rounded-xl bg-yellow-600/20"
+                  className={`flex-row items-center py-3 px-4 rounded-xl ${
+                    /* We'll need to check if user is blocked in action menu too, but for now just show block */
+                    'bg-yellow-600/20'
+                  }`}
                 >
                   <Ionicons name="ban" size={20} color="#F59E0B" />
-                  <Text className="text-yellow-400 font-medium ml-3">Block User</Text>
+                  <Text className="text-yellow-400 font-medium ml-3">Block/Unblock User</Text>
                 </TouchableOpacity>
               )}
 
@@ -202,11 +206,30 @@ export const MembersListModal = ({
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [userType, setUserType] = useState<'participant' | 'viewer' | 'search'>('participant');
+  const [promotingUserId, setPromotingUserId] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [inviteUsers] = useInviteUsersToStreamMutation();
   const [removeGuest] = useRemoveGuestMutation();
   const [removeParticipant] = useRemoveParticipantMutation();
+  const [promoteViewer] = usePromoteViewerToGuestMutation();
   const [blockUser] = useBlockUserMutation();
+  const [unblockUser] = useUnblockUserMutation();
+
+  // Refresh data when modal becomes visible
+  useEffect(() => {
+    if (visible && onRefresh) {
+      onRefresh();
+    }
+  }, [visible, onRefresh]);
+
+  // Get blocked users to determine block status
+  const { data: blockedUsers = [] } = useGetBlockedUsersQuery();
+
+  // Helper function to check if a user is blocked
+  const isUserBlocked = useCallback((userId: number) => {
+    return blockedUsers.some(blocked => blocked.blocked_user.id === userId);
+  }, [blockedUsers]);
 
   // Search users when query changes
   useEffect(() => {
@@ -271,26 +294,82 @@ export const MembersListModal = ({
           break;
 
         case 'promote':
-          await inviteUsers({ 
-            streamId, 
-            userIds: [user.id] 
-          }).unwrap();
-          Alert.alert('Success', `${user.full_name} has been invited to join as a guest`);
+          setPromotingUserId(user.id);
+          try {
+            console.log('🚀 Starting promotion for user:', user.id, 'in stream:', streamId);
+            const result = await promoteViewer({ 
+              streamId, 
+              userId: user.id 
+            }).unwrap();
+            console.log('✅ Promotion successful:', result);
+            Alert.alert(
+              '🎉 Promotion Successful!', 
+              `${user.first_name || user.username} has been promoted to guest speaker and assigned to Seat ${result.participant.seat_number}.`
+            );
+            onRefresh?.(); // Refresh the audience list
+          } catch (error) {
+            console.error('❌ Promotion error:', error);
+            console.log('🔍 Error details:', JSON.stringify(error, null, 2));
+            
+            let errorMessage = 'Failed to promote user. Please try again.';
+            
+            if (error && typeof error === 'object' && 'data' in error) {
+              const apiError = error as { data: { error?: string } };
+              if (apiError.data?.error) {
+                errorMessage = apiError.data.error;
+              }
+            }
+            
+            Alert.alert('Promotion Failed', errorMessage);
+          } finally {
+            setPromotingUserId(null);
+          }
           break;
 
         case 'block':
+          const isBlocked = isUserBlocked(user.id);
+          const actionText = isBlocked ? 'Unblock' : 'Block';
+          const actionMessage = isBlocked 
+            ? `Are you sure you want to unblock ${user.full_name}? They will be able to join the stream again.`
+            : `Are you sure you want to block ${user.full_name}? They will be removed from the stream and won't be able to join again.`;
+          
           Alert.alert(
-            'Block User',
-            `Are you sure you want to block ${user.full_name}? They will be removed from the stream and won't be able to join again.`,
+            `${actionText} User`,
+            actionMessage,
             [
               { text: 'Cancel', style: 'cancel' },
               {
-                text: 'Block',
-                style: 'destructive',
+                text: actionText,
+                style: isBlocked ? 'default' : 'destructive',
                 onPress: async () => {
-                  await blockUser({ user_id: user.id }).unwrap();
-                  Alert.alert('Success', `${user.full_name} has been blocked`);
-                  onRefresh?.();
+                  try {
+                    if (isBlocked) {
+                      await unblockUser({ user_id: user.id }).unwrap();
+                      Alert.alert('Success', `${user.full_name} has been unblocked`);
+                    } else {
+                      // Block the user
+                      await blockUser({ user_id: user.id }).unwrap();
+                      
+                      // If the user is currently in the stream, kick them out
+                      const isInStream = user.participant_id !== undefined;
+                      if (isInStream && user.participant_id) {
+                        try {
+                          await removeParticipant({ 
+                            streamId, 
+                            participantId: user.participant_id.toString() 
+                          }).unwrap();
+                        } catch (kickError) {
+                          console.log('Could not kick user from stream:', kickError);
+                          // Continue with blocking even if kick fails
+                        }
+                      }
+                      
+                      Alert.alert('Success', `${user.full_name} has been blocked and removed from the stream`);
+                    }
+                    onRefresh?.();
+                  } catch (error: any) {
+                    Alert.alert('Error', error?.data?.message || `Failed to ${actionText.toLowerCase()} user. Please try again.`);
+                  }
                 }
               }
             ]
@@ -341,7 +420,22 @@ export const MembersListModal = ({
     } catch (error: any) {
       Alert.alert('Error', error?.data?.message || 'Action failed. Please try again.');
     }
-  }, [streamId, inviteUsers, removeGuest, removeParticipant, blockUser, onRefresh]);
+  }, [streamId, inviteUsers, removeGuest, removeParticipant, promoteViewer, blockUser, unblockUser, isUserBlocked, onRefresh]);
+
+  const handleRefresh = useCallback(async () => {
+    if (!onRefresh || isRefreshing) return;
+    
+    setIsRefreshing(true);
+    try {
+      // Call onRefresh and add a small delay for better UX
+      onRefresh();
+      await new Promise(resolve => setTimeout(resolve, 300));
+    } catch (error) {
+      console.error('Failed to refresh:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [onRefresh, isRefreshing]);
 
   const renderUser = useCallback(({ item, type }: { item: User; type: 'participant' | 'viewer' | 'search' }) => {
     const isParticipant = type === 'participant';
@@ -371,7 +465,7 @@ export const MembersListModal = ({
           
           <View className="flex-1 ml-3">
             <Text className="text-white text-base font-semibold">
-              {item.full_name}
+              {item.first_name || item.last_name || item.username || 'User'}
             </Text>
             <View className="flex-row items-center">
               <Text className="text-gray-400 text-sm">
@@ -389,36 +483,77 @@ export const MembersListModal = ({
           </View>
         </View>
         
-        <View className="flex-row items-center space-x-2">
+        <View className="flex-row items-center space-x-3">
           {isParticipant && currentUserRole === 'host' && (
-            <View className="bg-red-600/20 px-3 py-1 rounded-full">
-              <Text className="text-red-400 text-xs font-medium">Guest</Text>
+            <View className="bg-red-600/20 px-4 py-2 rounded-lg">
+              <Text className="text-red-400 text-sm font-medium">Guest</Text>
             </View>
           )}
           {isViewer && currentUserRole === 'host' && (
-            <TouchableOpacity 
-              onPress={() => handleAction('remove', item)}
-              className="bg-red-600/20 px-3 py-1 rounded-full flex-row items-center"
-            >
-              <Ionicons name="close" size={12} color="#EF4444" />
-              <Text className="text-red-400 text-xs font-medium ml-1">Remove</Text>
-            </TouchableOpacity>
+            <View className="flex-row space-x-4">
+              {/* Promote to Guest Button */}
+              <TouchableOpacity 
+                onPress={() => handleAction('promote', item)}
+                disabled={promotingUserId === item.id}
+                className={`px-3 py-1.5 mr-2 rounded-full flex-row items-center ${
+                  promotingUserId === item.id 
+                    ? 'bg-blue-600/10' 
+                    : 'bg-blue-600/20'
+                }`}
+              >
+                {promotingUserId === item.id ? (
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                ) : (
+                  <Ionicons 
+                    name="arrow-up-circle" 
+                    size={16} 
+                    color="#3B82F6" 
+                  />
+                )}
+                <Text className={`text-sm font-medium ml-2 ${
+                  promotingUserId === item.id ? 'text-blue-300' : 'text-blue-400'
+                }`}>
+                  {promotingUserId === item.id ? 'Promoting...' : 'Promote'}
+                </Text>
+              </TouchableOpacity>
+              
+              {/* Block/Unblock Button */}
+              <TouchableOpacity 
+                onPress={() => handleAction('block', item)}
+                className={`px-3 py-1.5 rounded-full flex-row items-center ${
+                  isUserBlocked(item.id) 
+                    ? 'bg-green-600/20' 
+                    : 'bg-red-600/20'
+                }`}
+              >
+                <Ionicons 
+                  name={isUserBlocked(item.id) ? "checkmark" : "ban"} 
+                  size={16} 
+                  color={isUserBlocked(item.id) ? "#10B981" : "#EF4444"} 
+                />
+                <Text className={`text-sm font-medium ml-2 ${
+                  isUserBlocked(item.id) ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {isUserBlocked(item.id) ? 'Unblock' : 'Block'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
           {isViewer && currentUserRole !== 'host' && (
-            <View className="bg-gray-600/30 px-3 py-1 rounded-full">
-              <Text className="text-gray-400 text-xs font-medium">Viewer</Text>
+            <View className="bg-gray-600/30 px-4 py-2 rounded-lg">
+              <Text className="text-gray-400 text-sm font-medium">Viewer</Text>
             </View>
           )}
           {isSearch && (
-            <View className="bg-blue-600/20 px-3 py-1 rounded-full">
-              <Text className="text-blue-400 text-xs font-medium">Invite</Text>
+            <View className="bg-blue-600/20 px-4 py-2 rounded-lg">
+              <Text className="text-blue-400 text-sm font-medium">Invite</Text>
             </View>
           )}
           {!isViewer && <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />}
         </View>
       </TouchableOpacity>
     );
-  }, [currentUserRole]);
+  }, [currentUserRole, isUserBlocked]);
 
   const getDisplayData = (): DisplayItem[] => {
     if (searchQuery.trim().length >= 2 && searchResults.length > 0) {
@@ -539,34 +674,47 @@ export const MembersListModal = ({
             {/* Members List */}
             <View className="flex-1">
               {displayData.length === 0 ? (
-                <View className="flex-1 items-center justify-center px-6">
-                  <Ionicons 
-                    name={
-                      searchQuery.trim().length >= 2 
-                        ? "search" 
-                        : activeTab === 'guests' 
-                          ? "people" 
-                          : "eye"
-                    } 
-                    size={48} 
-                    color="#6B7280" 
-                  />
-                  <Text className="text-gray-400 text-center mt-4 text-base">
-                    {searchQuery.trim().length >= 2 
-                      ? isSearching 
-                        ? 'Searching for users...'
-                        : 'No users found'
-                      : activeTab === 'guests'
-                        ? 'No guests in this stream yet'
-                        : 'No viewers in this stream yet'
-                    }
-                  </Text>
-                  {searchQuery.trim().length >= 2 && !isSearching && (
-                    <Text className="text-gray-500 text-center mt-2 text-sm">
-                      Try searching for a different username
+                <ScrollView
+                  contentContainerStyle={{ flex: 1 }}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={isRefreshing}
+                      onRefresh={handleRefresh}
+                      tintColor="#ffffff"
+                      titleColor="#ffffff"
+                      colors={['#ffffff']}
+                    />
+                  }
+                >
+                  <View className="flex-1 items-center justify-center px-6">
+                    <Ionicons 
+                      name={
+                        searchQuery.trim().length >= 2 
+                          ? "search" 
+                          : activeTab === 'guests' 
+                            ? "people" 
+                            : "eye"
+                      } 
+                      size={48} 
+                      color="#6B7280" 
+                    />
+                    <Text className="text-gray-400 text-center mt-4 text-base">
+                      {searchQuery.trim().length >= 2 
+                        ? isSearching 
+                          ? 'Searching for users...'
+                          : 'No users found'
+                        : activeTab === 'guests'
+                          ? 'No guests in this stream yet'
+                          : 'No viewers in this stream yet'
+                      }
                     </Text>
-                  )}
-                </View>
+                    {searchQuery.trim().length >= 2 && !isSearching && (
+                      <Text className="text-gray-500 text-center mt-2 text-sm">
+                        Try searching for a different username
+                      </Text>
+                    )}
+                  </View>
+                </ScrollView>
               ) : (
                 <FlatList
                   data={displayData}
@@ -574,6 +722,15 @@ export const MembersListModal = ({
                   keyExtractor={(item) => `${item.type}-${item.item.id}`}
                   showsVerticalScrollIndicator={false}
                   contentContainerStyle={{ paddingBottom: 20 }}
+                  refreshControl={
+                    <RefreshControl
+                      refreshing={isRefreshing}
+                      onRefresh={handleRefresh}
+                      tintColor="#ffffff"
+                      titleColor="#ffffff"
+                      colors={['#ffffff']}
+                    />
+                  }
                 />
               )}
             </View>

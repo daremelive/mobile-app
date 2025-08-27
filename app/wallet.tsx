@@ -13,12 +13,12 @@ import VerifiedIcon from '../assets/icons/verified.svg';
 import IdentityIcon from '../assets/icons/identity.svg';
 import ChevronDownIcon from '../assets/icons/chevron-down.svg';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useGetWalletSummaryQuery } from '../src/api/walletApi';
+import { useGetWalletSummaryQuery, useGetWalletAnalyticsQuery } from '../src/api/walletApi';
 
 type AnalyticsFilterOption = {
   label: string;
   value: string;
-  calculateRewards: (walletData: any) => {
+  calculateRewards: (walletData: any, analyticsData: any) => {
     totalRewards: string;
     periodRewards: string;
   };
@@ -30,64 +30,83 @@ const WalletScreen = () => {
   const [selectedAnalyticsFilter, setSelectedAnalyticsFilter] = useState('year');
   const [isAnalyticsFilterModalVisible, setAnalyticsFilterModalVisible] = useState(false);
 
-  // Fetch wallet data from backend
+    // Fetch wallet data from backend
   const { data: walletData, isLoading, error, refetch } = useGetWalletSummaryQuery();
+  const { data: walletAnalytics, isLoading: analyticsLoading, error: analyticsError } = useGetWalletAnalyticsQuery();
+
+  // Debug logging
+  console.log('💰 Wallet Screen Debug:');
+  console.log('  Loading:', isLoading, 'Analytics Loading:', analyticsLoading);
+  console.log('  Error:', error, 'Analytics Error:', analyticsError);
+  console.log('  Wallet Data:', walletData);
+  console.log('  Analytics Data:', walletAnalytics);
+  console.log('  Analytics total_earned:', walletAnalytics?.total_earned);
+  console.log('  Analytics Monthly Data:', walletAnalytics?.monthly_data);
 
   // Analytics filter options
   const analyticsFilterOptions: AnalyticsFilterOption[] = [
     {
       label: 'This Week',
       value: 'week',
-      calculateRewards: (data) => {
-        // Mock calculation - in real app, this would filter transactions by week
-        const weekMultiplier = 0.1;
-        const totalRewards = Number(data?.analytics?.total_rewards?.amount) || 0;
+      calculateRewards: (walletData, analyticsData) => {
+        // For this week, we'll use a portion of this month's earnings
+        const thisMonthEarned = Number(analyticsData?.this_month_earned) || 0;
+        const weekMultiplier = 0.25; // Roughly 1/4 of the month
+        const totalEarned = Number(analyticsData?.total_earned) || 0;
         return {
-          totalRewards: `N${totalRewards.toFixed(2)}`,
-          periodRewards: `N${(totalRewards * weekMultiplier).toFixed(2)}`
+          totalRewards: `${totalEarned.toFixed(0)} Riz`,
+          periodRewards: `${(thisMonthEarned * weekMultiplier).toFixed(0)} Riz`
         };
       }
     },
     {
       label: 'This Month',
       value: 'month',
-      calculateRewards: (data) => {
-        const monthMultiplier = 0.3;
-        const totalRewards = Number(data?.analytics?.total_rewards?.amount) || 0;
+      calculateRewards: (walletData, analyticsData) => {
+        const totalEarned = Number(analyticsData?.total_earned) || 0;
+        const thisMonthEarned = Number(analyticsData?.this_month_earned) || 0;
         return {
-          totalRewards: `N${totalRewards.toFixed(2)}`,
-          periodRewards: `N${(totalRewards * monthMultiplier).toFixed(2)}`
+          totalRewards: `${totalEarned.toFixed(0)} Riz`,
+          periodRewards: `${thisMonthEarned.toFixed(0)} Riz`
         };
       }
     },
     {
       label: 'Last 3 Months',
       value: '3months',
-      calculateRewards: (data) => {
-        const threeMonthsMultiplier = 0.7;
-        const totalRewards = Number(data?.analytics?.total_rewards?.amount) || 0;
+      calculateRewards: (walletData, analyticsData) => {
+        // Sum the last 3 months from monthly data
+        const monthlyData = analyticsData?.monthly_data || [];
+        const lastThreeMonths = monthlyData.slice(-3);
+        const threeMonthsEarnings = lastThreeMonths.reduce((sum: number, month: any) => sum + month.earnings, 0);
+        const totalEarned = Number(analyticsData?.total_earned) || 0;
         return {
-          totalRewards: `N${totalRewards.toFixed(2)}`,
-          periodRewards: `N${(totalRewards * threeMonthsMultiplier).toFixed(2)}`
+          totalRewards: `${totalEarned.toFixed(0)} Riz`,
+          periodRewards: `${threeMonthsEarnings.toFixed(0)} Riz`
         };
       }
     },
     {
       label: 'This Year',
       value: 'year',
-      calculateRewards: (data) => ({
-        totalRewards: data?.analytics?.total_rewards?.formatted || 'N0.00',
-        periodRewards: data?.analytics?.this_year_rewards?.formatted || 'N0.00'
-      })
+      calculateRewards: (walletData, analyticsData) => {
+        const totalEarned = Number(analyticsData?.total_earned) || 0;
+        // For this year, we could calculate from monthly data or use a portion
+        const yearlyEarnings = Number(analyticsData?.total_earned) || 0; // Using total for now
+        return {
+          totalRewards: `${totalEarned.toFixed(0)} Riz`,
+          periodRewards: `${yearlyEarnings.toFixed(0)} Riz`
+        };
+      }
     },
     {
       label: 'All Time',
       value: 'all',
-      calculateRewards: (data) => {
-        const totalRewards = Number(data?.analytics?.total_rewards?.amount) || 0;
+      calculateRewards: (walletData, analyticsData) => {
+        const totalEarned = Number(analyticsData?.total_earned) || 0;
         return {
-          totalRewards: `N${totalRewards.toFixed(2)}`,
-          periodRewards: `N${totalRewards.toFixed(2)}`
+          totalRewards: `${totalEarned.toFixed(0)} Riz`,
+          periodRewards: `${totalEarned.toFixed(0)} Riz`
         };
       }
     }
@@ -95,19 +114,19 @@ const WalletScreen = () => {
 
   // Calculate analytics based on selected filter
   const analyticsData = useMemo(() => {
-    if (!walletData) return { totalRewards: 'N0.00', periodRewards: 'N0.00' };
+    if (!walletData) return { totalRewards: '0 Riz', periodRewards: '0 Riz' };
     
     try {
       const selectedOption = analyticsFilterOptions.find(option => option.value === selectedAnalyticsFilter);
-      if (!selectedOption) return { totalRewards: 'N0.00', periodRewards: 'N0.00' };
+      if (!selectedOption) return { totalRewards: '0 Riz', periodRewards: '0 Riz' };
       
-      const result = selectedOption.calculateRewards(walletData);
-      return result || { totalRewards: 'N0.00', periodRewards: 'N0.00' };
+      const result = selectedOption.calculateRewards(walletData, walletAnalytics);
+      return result || { totalRewards: '0 Riz', periodRewards: '0 Riz' };
     } catch (error) {
       console.error('Analytics calculation error:', error);
-      return { totalRewards: 'N0.00', periodRewards: 'N0.00' };
+      return { totalRewards: '0 Riz', periodRewards: '0 Riz' };
     }
-  }, [walletData, selectedAnalyticsFilter]);
+  }, [walletData, selectedAnalyticsFilter, walletAnalytics]);
 
   const currentFilterLabel = analyticsFilterOptions.find(option => option.value === selectedAnalyticsFilter)?.label || 'This Year';
   const periodLabel = selectedAnalyticsFilter === 'all' ? 'All time rewards' : 
@@ -126,12 +145,68 @@ const WalletScreen = () => {
   console.log('  Selected Filter:', selectedAnalyticsFilter);
   console.log('  Calculated Analytics:', analyticsData);
 
-  const chartData = {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    datasets: [{
-      data: [100, 400, 250, 750, 300, 800],
-    }]
-  };
+  // Generate chart data from analytics monthly data with period filtering
+  const chartData = useMemo(() => {
+    if (!walletAnalytics?.monthly_data || walletAnalytics.monthly_data.length === 0) {
+      return {
+        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+        datasets: [{
+          data: [0, 0, 0, 0, 0, 0],
+        }]
+      };
+    }
+
+    const monthlyData = walletAnalytics.monthly_data;
+    
+    // Filter monthly data based on selected analytics period
+    let filteredData = monthlyData;
+    
+    switch (selectedAnalyticsFilter) {
+      case 'week':
+        // For "This Week", show only the current month data (since we don't have weekly granularity)
+        filteredData = monthlyData.slice(-1); // Last month only
+        break;
+        
+      case 'month':
+        // For "This Month", show only the current month data
+        filteredData = monthlyData.slice(-1); // Last month only
+        break;
+        
+      case '3months':
+        // For "Last 3 Months", show last 3 months
+        filteredData = monthlyData.slice(-3);
+        break;
+        
+      case 'year':
+        // For "This Year", show last 12 months (full year view)
+        filteredData = monthlyData.slice(-12);
+        break;
+        
+      case 'all':
+      default:
+        // For "All Time", show all available data
+        filteredData = monthlyData;
+        break;
+    }
+    
+    // Backend already sends month abbreviations (Jan, Feb, etc.), no need to parse as date
+    const labels = filteredData.map(item => item.month);
+    const data = filteredData.map(item => item.earnings || 0);
+
+    console.log('📊 Chart Data Debug:', {
+      selectedFilter: selectedAnalyticsFilter,
+      totalMonthlyData: monthlyData.length,
+      filteredDataLength: filteredData.length,
+      labels,
+      data,
+      rawFilteredData: filteredData
+    });
+
+    return {
+      labels,
+      datasets: [{ data }]
+    };
+  }, [walletAnalytics?.monthly_data, selectedAnalyticsFilter]);
 
   const chartConfig = {
     backgroundGradientFrom: '#090909',
@@ -171,7 +246,7 @@ const WalletScreen = () => {
                 <Text className="text-red-400 text-lg">Error loading balance</Text>
               ) : (
                 <Text className="text-white text-3xl font-bold">
-                  {walletData?.formatted_balance || 'N0.00'}
+                  {walletData?.balance ? `${Number(walletData.balance).toFixed(0)} Naira` : '0 Naira'}
                 </Text>
               )}
               <WalletIcon width={50} height={50} className="ml-2" />
@@ -256,7 +331,7 @@ const WalletScreen = () => {
               <View className="flex-row justify-between mb-4">
                 <View className="bg-[#1A1A1A] rounded-2xl p-5 w-[48%]">
                   <Text className="text-gray-500 text-sm text-center">Total rewards</Text>
-                  {isLoading ? (
+                  {isLoading || analyticsLoading ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text className="text-white text-xl font-bold text-center">
@@ -266,7 +341,7 @@ const WalletScreen = () => {
                 </View>
                 <View className="bg-[#1A1A1A] rounded-2xl p-5 w-[48%]">
                   <Text className="text-gray-500 text-sm text-center">{periodLabel}</Text>
-                  {isLoading ? (
+                  {isLoading || analyticsLoading ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text className="text-white text-xl font-bold text-center">
@@ -275,21 +350,32 @@ const WalletScreen = () => {
                   )}
                 </View>
               </View>
-              <LineChart
-                data={chartData}
-                width={screenWidth - 0}
-                height={220}
-                chartConfig={chartConfig}
-                bezier
-                withVerticalLines={false}
-                withHorizontalLines={true}
-                withVerticalLabels={true}
-                withHorizontalLabels={true}
-                style={{
-                  marginVertical: 8,
-                  borderRadius: 16,
-                }}
-              />
+              {analyticsLoading ? (
+                <View className="h-[220px] justify-center items-center">
+                  <ActivityIndicator size="large" color="#FF0000" />
+                  <Text className="text-gray-400 mt-2">Loading chart data...</Text>
+                </View>
+              ) : analyticsError ? (
+                <View className="h-[220px] justify-center items-center">
+                  <Text className="text-red-400 text-center">Failed to load chart data</Text>
+                </View>
+              ) : (
+                <LineChart
+                  data={chartData}
+                  width={screenWidth - 0}
+                  height={220}
+                  chartConfig={chartConfig}
+                  bezier
+                  withVerticalLines={false}
+                  withHorizontalLines={true}
+                  withVerticalLabels={true}
+                  withHorizontalLabels={true}
+                  style={{
+                    marginVertical: 8,
+                    borderRadius: 16,
+                  }}
+                />
+              )}
           </View>
         </View>
       </ScrollView>

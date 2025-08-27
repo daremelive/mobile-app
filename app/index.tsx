@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { markOnboardingSeen } from '../src/hooks/useAuthRouting';
 
 const FLOATING_ICONS = [
   { style: 'top-0 right-1/4' },
@@ -30,6 +31,13 @@ const styles = StyleSheet.create({
 });
 
 export default function OnboardingScreen() {
+  const handleGetStarted = async () => {
+    // Mark that user has seen onboarding
+    await markOnboardingSeen();
+    // Navigate to signup
+    router.push('/(auth)/signup');
+  };
+
   return (
     <View className="flex-1">
       <StatusBar style="light" />
@@ -77,7 +85,7 @@ export default function OnboardingScreen() {
             >
               <TouchableOpacity 
                 className="w-full h-full items-center justify-center"
-                onPress={() => router.push('/(auth)/signup')}
+                onPress={handleGetStarted}
               >
                 <Text className="text-white text-[17px] font-semibold">Get Started</Text>
               </TouchableOpacity>

@@ -26,6 +26,7 @@ import { useGetPopularStreamsQuery, useGetFollowingLiveStreamsQuery, useSearchQu
 import { useFollowUserMutation, useUnfollowUserMutation } from '../../../src/store/followApi';
 import { useGetBlockedUsersQuery } from '../../../src/api/blockedApi';
 import { useNotificationContext } from '../../../src/context/NotificationContext';
+import { useTranslation } from '../../../src/hooks/useTranslation';
 import ClockIcon from '../../../assets/icons/clock.svg';
 import CancelIcon from '../../../assets/icons/cancel.svg';
 import StarsIcon from '../../../assets/icons/stars.svg';
@@ -40,6 +41,7 @@ import StreamCard from '../../../components/stream/StreamCard';
 const categories = ['All', 'Video', 'Game', 'Truth/Dare', 'Banter'];
 
 export default function HomeScreen() {
+  const { t, currentLanguage } = useTranslation();
   const [selectedCategory, setSelectedCategory] = React.useState('All');
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isSearching, setIsSearching] = React.useState(false);
@@ -240,10 +242,14 @@ export default function HomeScreen() {
           <View className="mb-6 flex-row items-center justify-between">
             <View className="flex-1">
               <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-2xl mb-1">
-                Connect with your
+                {t('home.connectWith', 'Connect with your') as string}
               </Text>
               <Text style={{ fontFamily: fonts.bold }} className="text-[#C42720] text-2xl">
-                Favorite Streamers!
+                {t('home.favoriteStreamers', 'Favorite Streamers!') as string}
+              </Text>
+              {/* Debug info to verify translations */}
+              <Text className="text-gray-400 text-xs mt-1">
+                {t('common.language', 'Language') as string}: {currentLanguage}
               </Text>
             </View>
             
@@ -476,6 +482,7 @@ export default function HomeScreen() {
                     baseURL={baseURL}
                     width="w-56"
                     height="h-80"
+                    margin="mr-3"
                   />
                 ))
               )}

@@ -6,9 +6,11 @@ import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import WalletIcon from '../assets/icons/wallet.svg';
 import Checkbox from '../components/Checkbox';
 import { useGetWalletSummaryQuery, useWithdrawMoneyMutation } from '../src/api/walletApi';
+import { useTranslation } from '../src/hooks/useTranslation';
 
 const WithdrawMoneyScreen = () => {
   const router = useRouter();
+  const { t } = useTranslation();
   const [amount, setAmount] = useState('');
   const [isConfirmed, setIsConfirmed] = useState(false);
 
@@ -18,13 +20,13 @@ const WithdrawMoneyScreen = () => {
 
   const handleWithdraw = async () => {
     if (!isConfirmed || !amount) {
-      Alert.alert('Error', 'Please enter an amount and confirm the action');
+      Alert.alert(t('common.error') as string, t('wallet.pleaseEnterAmountAndConfirm', 'Please enter an amount and confirm the action') as string);
       return;
     }
 
     const numericAmount = parseFloat(amount);
     if (isNaN(numericAmount) || numericAmount <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      Alert.alert(t('common.error') as string, t('wallet.pleaseEnterValidAmount', 'Please enter a valid amount') as string);
       return;
     }
 
@@ -33,11 +35,11 @@ const WithdrawMoneyScreen = () => {
       
       if (result.status === 'success') {
         Alert.alert(
-          'Success',
+          t('common.success') as string,
           result.message,
           [
             {
-              text: 'OK',
+              text: t('common.ok') as string,
               onPress: () => {
                 setAmount('');
                 setIsConfirmed(false);
@@ -47,12 +49,12 @@ const WithdrawMoneyScreen = () => {
           ]
         );
       } else {
-        Alert.alert('Error', result.message);
+        Alert.alert(t('common.error') as string, result.message);
       }
     } catch (error: any) {
       console.error('Withdrawal error:', error);
-      const errorMessage = error.data?.message || 'Failed to process withdrawal. Please try again.';
-      Alert.alert('Error', errorMessage);
+      const errorMessage = error.data?.message || t('wallet.withdrawalError') as string;
+      Alert.alert(t('common.error') as string, errorMessage);
     }
   };
 
@@ -66,21 +68,21 @@ const WithdrawMoneyScreen = () => {
           </View>
         </TouchableOpacity>
         <View className="flex-1 items-center">
-          <Text className="text-white text-[20px] font-semibold">Withdrawal</Text>
+          <Text className="text-white text-[20px] font-semibold">{t('wallet.withdrawMoney') as string}</Text>
         </View>
       </View>
 
       <View className="px-4 mt-6">
         <View className="bg-[#FF0000] rounded-2xl p-6">
-          <Text className="text-white text-sm mb-1">Wallet Balance</Text>
+          <Text className="text-white text-sm mb-1">{t('wallet.balance') as string}</Text>
           <View className="flex-row items-center justify-between">
             {isLoadingWallet ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : walletError ? (
-              <Text className="text-red-400 text-lg">Error loading balance</Text>
+              <Text className="text-red-400 text-lg">{t('wallet.errorLoadingBalance', 'Error loading balance') as string}</Text>
             ) : (
               <Text className="text-white text-2xl font-bold">
-                {walletData?.formatted_balance || 'N0.00'}
+                {walletData?.balance ? `${Number(walletData.balance).toFixed(0)} ${t('currency.riz') as string}` : `0 ${t('currency.riz') as string}`}
               </Text>
             )}
             <WalletIcon width={50} height={50} className="ml-2" />
@@ -89,9 +91,9 @@ const WithdrawMoneyScreen = () => {
         </View>
 
         <View className="mt-8">
-          <Text className="text-white text-base mb-2">Amount</Text>
+          <Text className="text-white text-base mb-2">{t('wallet.amount') as string}</Text>
           <TextInput
-            placeholder="Enter amount"
+            placeholder={t('wallet.enterAmount') as string}
             placeholderTextColor="#666"
             value={amount}
             onChangeText={setAmount}
@@ -108,7 +110,7 @@ const WithdrawMoneyScreen = () => {
             checked={isConfirmed}
             onChange={setIsConfirmed}
           />
-          <Text className="text-white text-base ml-2">Confirm this action</Text>
+          <Text className="text-white text-base ml-2">{t('wallet.confirmAction', 'Confirm this action') as string}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity 
@@ -120,7 +122,7 @@ const WithdrawMoneyScreen = () => {
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <Text className="text-white text-center text-base font-semibold">
-              Withdraw Money
+              {t('wallet.withdrawMoney') as string}
             </Text>
           )}
         </TouchableOpacity>

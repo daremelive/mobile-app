@@ -1,0 +1,51 @@
+{
+  "common": {
+    "loading": "लोड हो रहा है...",
+    "error": "त्रुटि",
+    "success": "सफलता",
+    "cancel": "रद्द करें",
+    "confirm": "पुष्टि करें",
+    "save": "सहेजें",
+    "edit": "संपादित करें",
+    "delete": "मिटाएं",
+    "share": "साझा करें",
+    "copy": "कॉपी करें",
+    "next": "अगला",
+    "back": "वापस",
+    "continue": "जारी रखें",
+    "done": "हो गया",
+    "close": "बंद करें",
+    "retry": "पुनः प्रयास करें",
+    "refresh": "रीफ्रेश करें",
+    "search": "खोजें",
+    "filter": "फ़िल्टर",
+    "sort": "क्रमबद्ध करें",
+    "view": "देखें",
+    "send": "भेजें",
+    "receive": "प्राप्त करें",
+    "yes": "हाँ",
+    "no": "नहीं",
+    "ok": "ठीक है"
+  },
+  "auth": {
+    "login": "लॉगिन",
+    "signup": "साइनअप",
+    "getStarted": "शुरू करें",
+    "welcomeBack": "वापस स्वागत है",
+    "createAccount": "खाता बनाएं",
+    "forgotPassword": "पासवर्ड भूल गए?",
+    "resetPassword": "पासवर्ड रीसेट करें",
+    "email": "ईमेल",
+    "password": "पासवर्ड",
+    "confirmPassword": "पासवर्ड की पुष्टि करें",
+    "username": "उपयोगकर्ता नाम",
+    "fullName": "पूरा नाम",
+    "logout": "लॉगआउट"
+  },
+  "wallet": {
+    "balance": "शेष राशि",
+    "earnings": "कमाई",
+    "withdrawMoney": "पैसे निकालें",
+    "rizCoins": "रिज सिक्के"
+  }
+}

@@ -760,6 +760,7 @@ function UnifiedHostStreamScreen() {
           currentUserRole="host"
           onRefresh={() => {
             // Trigger refresh of stream data
+            actions.refetchStreamDetails();
           }}
         />
       </View>
