@@ -4,7 +4,7 @@ import IPDetector from '../utils/ipDetector';
 
 // Dynamic base query that handles IP detection
 const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = 'http://172.20.10.2:8000/api/wallet/'; // Updated fallback IP
+  let baseUrl = 'https://daremelive.pythonanywhere.com/api/wallet/'; // Production fallback
   
   if (__DEV__) {
     try {
@@ -12,7 +12,7 @@ const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
       baseUrl = `${detectedUrl}wallet/`;
       console.log('🔗 [WalletAPI] Using detected URL:', baseUrl);
     } catch (error) {
-      console.error('❌ [WalletAPI] IP detection failed, using fallback:', error);
+      console.error('❌ [WalletAPI] IP detection failed, using production fallback:', error);
     }
   }
   
