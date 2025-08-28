@@ -37,7 +37,25 @@ const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
     },
   });
 
-  return baseQuery(args, api, extraOptions);
+  const result = await baseQuery(args, api, extraOptions);
+
+  // 🔍 ENHANCED ERROR LOGGING FOR PRODUCTION DEBUGGING
+  if (result.error) {
+    console.error('🚨 [API ERROR] Stream API call failed:', {
+      url: `${baseUrl}${typeof args === 'string' ? args : args.url}`,
+      method: typeof args === 'object' ? args.method : 'GET',
+      status: result.error.status,
+      error: result.error,
+      errorData: result.error.data,
+    });
+    
+    // Log the full error response for debugging
+    if (result.error.data) {
+      console.error('🚨 [API ERROR] Full error response:', JSON.stringify(result.error.data, null, 2));
+    }
+  }
+
+  return result;
 };
 
 // Types for Stream functionality

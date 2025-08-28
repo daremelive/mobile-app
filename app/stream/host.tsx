@@ -286,6 +286,21 @@ function UnifiedHostStreamScreen() {
             originalError: error?.originalStatus,
           });
 
+          // 🔍 ENHANCED ERROR LOGGING FOR DEBUGGING
+          console.log('🔍 [DETAILED ERROR DEBUG] Full error object:', JSON.stringify(error, null, 2));
+          console.log('🔍 [DETAILED ERROR DEBUG] Error keys:', Object.keys(error || {}));
+          console.log('🔍 [DETAILED ERROR DEBUG] Error data keys:', Object.keys(error?.data || {}));
+          
+          // Check for nested error data
+          if (error?.data) {
+            console.log('🔍 [DETAILED ERROR DEBUG] Full error.data:', JSON.stringify(error.data, null, 2));
+          }
+          
+          // Check for response text/html errors
+          if (error?.data && typeof error.data === 'string') {
+            console.log('🔍 [DETAILED ERROR DEBUG] Raw error data (string):', error.data.substring(0, 500));
+          }
+
           // Determine specific error message
           let errorMessage = 'Failed to create stream. Please try again.';
           
@@ -293,6 +308,8 @@ function UnifiedHostStreamScreen() {
             errorMessage = error.data.error;
           } else if (error?.data?.detail) {
             errorMessage = error.data.detail;
+          } else if (error?.data?.message) {
+            errorMessage = error.data.message;
           } else if (error?.message) {
             errorMessage = error.message;
           } else if (error?.status === 401) {
@@ -301,11 +318,16 @@ function UnifiedHostStreamScreen() {
             errorMessage = 'Your account doesn\'t have permission to create streams. Please upgrade your tier level.';
           } else if (error?.status === 400) {
             errorMessage = 'Invalid stream data. Please check your settings and try again.';
+          } else if (error?.status === 500) {
+            errorMessage = 'Server error occurred. Please try again later.';
           }
 
+          // Add more detailed error message for debugging
+          const debugInfo = `Status: ${error?.status}, Data: ${JSON.stringify(error?.data).substring(0, 100)}`;
+          
           Alert.alert(
             'Stream Creation Failed',
-            errorMessage,
+            `${errorMessage}\n\nDebug Info: ${debugInfo}`,
             [
               { text: 'Go Back', onPress: () => router.back() },
               { text: 'Retry', onPress: () => createStreamFromTitleScreen() }
