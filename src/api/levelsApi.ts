@@ -1,37 +1,22 @@
 import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
-import IPDetector from '../utils/ipDetector';
-import { AppConfig } from '../config/env';
+import { API_BASE_URL } from '../config/env';
 
-const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = `${AppConfig.PRODUCTION_API_URL}/levels/`;
-  
-  if (__DEV__) {
+// Create base query for levels endpoints
+const baseQuery = fetchBaseQuery({
+  baseUrl: `${API_BASE_URL}/levels/`,
+  prepareHeaders: async (headers) => {
     try {
-      const detectedUrl = await IPDetector.getAPIBaseURL();
-      baseUrl = `${detectedUrl}levels/`;
-    } catch (error) {
-      // Silent fallback to production URL
-    }
-  }
-  
-  const baseQuery = fetchBaseQuery({
-    baseUrl,
-    prepareHeaders: async (headers) => {
-      try {
-        const token = await SecureStore.getItemAsync('accessToken');
-        if (token) {
-          headers.set('authorization', `Bearer ${token}`);
-        }
-      } catch (error) {
-        // Silent error handling
+      const token = await SecureStore.getItemAsync('accessToken');
+      if (token) {
+        headers.set('authorization', `Bearer ${token}`);
       }
-      return headers;
-    },
-  });
-  
-  return baseQuery(args, api, extraOptions);
-};
+    } catch (error) {
+      // Silent error handling
+    }
+    return headers;
+  },
+});
 
 export interface LevelTier {
   id: number;
@@ -115,7 +100,7 @@ export interface StreamPrivileges {
 
 export const levelsApi = createApi({
   reducerPath: 'levelsApi',
-  baseQuery: dynamicBaseQuery,
+  baseQuery: baseQuery,
   tagTypes: ['UserLevel', 'LevelTiers', 'CoinTransactions', 'StreamPrivileges'],
   endpoints: (builder) => ({
     getUserLevelSummary: builder.query<UserLevelSummary, void>({

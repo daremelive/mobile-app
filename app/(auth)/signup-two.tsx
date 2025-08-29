@@ -91,8 +91,8 @@ export default function SignupTwoScreen() {
       newErrors.username = 'Username is required';
     } else if (username.length < 3) {
       newErrors.username = 'Username must be at least 3 characters';
-    } else if (!/^[a-z0-9]+$/.test(username)) {
-      newErrors.username = 'Username must contain only lowercase letters and numbers';
+    } else if (!/^[a-z0-9_]+$/.test(username)) {
+      newErrors.username = 'Username must contain only lowercase letters, numbers, and underscores';
     }
 
     if (!phoneNumber.trim()) {
@@ -201,13 +201,13 @@ export default function SignupTwoScreen() {
                 ref={usernameRef}
                 value={username}
                 onChangeText={(text) => {
-                  // Convert to lowercase and remove any uppercase letters or special characters
-                  const lowercaseText = text.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  // Convert to lowercase and remove any uppercase letters or special characters except underscores
+                  const lowercaseText = text.toLowerCase().replace(/[^a-z0-9_]/g, '');
                   setUsername(lowercaseText);
                   if (errors.username) setErrors(prev => ({ ...prev, username: '' }));
                 }}
                 onFocus={() => scrollToInput(usernameRef)}
-                placeholder="e.g joedo123"
+                placeholder="e.g jane_doe or john123"
                 placeholderTextColor="#6B7280"
                 className={`bg-[#1C1C1E] text-white px-4 py-3.5 rounded-full border h-[52px] ${
                   errors.username ? 'border-red-500' : 'border-[#2C2C2E]'

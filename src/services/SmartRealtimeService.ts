@@ -2,7 +2,8 @@
  * Professional Real-time Service without WebSockets
  * Optimized for award-winning user experience
  */
-import React from 'react';
+import * as React from 'react';
+import { API_BASE_URL } from '../config/env';
 
 interface RealtimeConfig {
   streamId: string;
@@ -115,22 +116,40 @@ export class SmartRealtimeService {
    */
   private async fetchUpdates() {
     try {
+      // Create timeout controller for React Native compatibility
+      const controller1 = new AbortController();
+      const timeoutId1 = setTimeout(() => controller1.abort(), 15000);
+      
       // Fetch only new messages since last known message
       const messagesResponse = await fetch(
-        `/api/streams/${this.config.streamId}/messages/?since=${this.lastMessageId || 0}&limit=10`,
-        { headers: this.getAuthHeaders() }
+        `${API_BASE_URL}/api/streams/${this.config.streamId}/messages/?since=${this.lastMessageId || 0}&limit=10`,
+        { 
+          headers: this.getAuthHeaders(),
+          signal: controller1.signal
+        }
       );
+      
+      clearTimeout(timeoutId1);
       
       if (messagesResponse.ok) {
         const newMessages = await messagesResponse.json();
         this.processNewMessages(newMessages);
       }
 
+      // Create timeout controller for React Native compatibility
+      const controller2 = new AbortController();
+      const timeoutId2 = setTimeout(() => controller2.abort(), 15000);
+      
       // Fetch lightweight stream stats (viewer count, participant count)
       const statsResponse = await fetch(
-        `/api/streams/${this.config.streamId}/stats/`,
-        { headers: this.getAuthHeaders() }
+        `${API_BASE_URL}/api/streams/${this.config.streamId}/stats/`,
+        { 
+          headers: this.getAuthHeaders(),
+          signal: controller2.signal
+        }
       );
+      
+      clearTimeout(timeoutId2);
       
       if (statsResponse.ok) {
         const stats = await statsResponse.json();

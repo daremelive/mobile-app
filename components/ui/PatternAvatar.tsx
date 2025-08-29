@@ -39,7 +39,7 @@ const PatternAvatar: React.FC<PatternAvatarProps> = ({
       return firstName.substring(0, 2).toUpperCase();
     }
     if (username && username.length >= 2) {
-      const clean = username.replace(/[^a-zA-Z0-9]/g, '');
+      const clean = username.replace(/[^a-zA-Z0-9_]/g, '');
       return clean.substring(0, 2).toUpperCase();
     }
     return 'U';

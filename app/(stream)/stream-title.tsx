@@ -1,21 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
   Text, 
   TextInput, 
   TouchableOpacity, 
+  ScrollView, 
+  Animated, 
+  Keyboard, 
   KeyboardAvoidingView, 
   Platform, 
-  Animated,
+  ActivityIndicator,
+  Modal,
+  Dimensions,
   Image,
   StatusBar,
   SafeAreaView
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { API_BASE_URL } from '../../src/config/env';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../../src/store/authSlice';
 import { Ionicons } from '@expo/vector-icons';
-import IPDetector from '../../src/utils/ipDetector';
 
 export default function StreamTitleScreen() {
   const router = useRouter();
@@ -54,33 +60,18 @@ export default function StreamTitleScreen() {
         useNativeDriver: true,
       })
     ]).start(() => {
-      // Navigate based on stream mode
-      if (streamMode === 'single') {
-        // Navigate to single.tsx with stream parameters
-        router.push({
-          pathname: '/stream/single',
-          params: {
-            mode: streamMode,
-            channel: streamChannel,
-            title: title.trim(),
-            // Add a flag to indicate this came from the title screen
-            fromTitleScreen: 'true'
-          }
-        });
-      } else {
-        // Navigate to unified host screen with stream parameters
-        router.push({
-          pathname: '/stream/host',
-          params: {
-            mode: streamMode,
-            channel: streamChannel,
-            maxSeats: maxSeats.toString(),
-            title: title.trim(),
-            // Add a flag to indicate this came from the title screen
-            fromTitleScreen: 'true'
-          }
-        });
-      }
+      // Navigate to unified host screen for both single and multi streams
+      router.push({
+        pathname: '/stream/host',
+        params: {
+          mode: streamMode,
+          channel: streamChannel,
+          maxSeats: streamMode === 'single' ? '1' : maxSeats.toString(),
+          title: title.trim(),
+          // Add a flag to indicate this came from the title screen
+          fromTitleScreen: 'true'
+        }
+      });
     });
   };
 
@@ -91,11 +82,7 @@ export default function StreamTitleScreen() {
 
   // Entrance animation
   useEffect(() => {
-    IPDetector.getAPIBaseURL().then(url => {
-      setApiBaseUrl(url);
-    }).catch(error => {
-      console.error('Stream title - IP detector error:', error);
-    });
+    setApiBaseUrl(API_BASE_URL);
 
     Animated.parallel([
       Animated.timing(fadeInAnimation, {

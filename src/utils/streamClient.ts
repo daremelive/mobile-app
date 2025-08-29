@@ -68,21 +68,31 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
     client = new StreamVideoClient({
       apiKey,
       options: {
-        timeout: 15000, // Increased timeout for production reliability
+        timeout: __DEV__ ? 15000 : 30000, // Extended timeout for production
         logger: (logLevel, message, extraData) => {
           if (logLevel === 'error' || logLevel === 'warn') {
             console.log(`GetStream ${logLevel}:`, message, extraData ? JSON.stringify(extraData) : '');
           }
         },
+        // Production-specific optimizations
+        ...(!__DEV__ && {
+          rtcConfiguration: {
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:global.stun.twilio.com:3478' }
+            ]
+          }
+        })
       },
     });
     console.log('🔧 StreamVideoClient initialized with apiKey');
 
-    // Connect user with token - add extended timeout for network issues
+    // Connect user with token - add extended timeout for production
     console.log('🔗 Connecting to GetStream servers...');
     const connectionPromise = client.connectUser(streamUser, token);
+    const productionTimeout = __DEV__ ? 15000 : 30000; // 30s for production
     const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('GetStream connection timeout after 15 seconds')), 15000)
+      setTimeout(() => reject(new Error(`GetStream connection timeout after ${productionTimeout/1000} seconds`)), productionTimeout)
     );
     
     await Promise.race([connectionPromise, timeoutPromise]);
@@ -112,6 +122,8 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
       throw new Error(`GetStream connection failed: Connection timeout. Please check your network connection and try again.`);
     } else if (error.message?.includes('credentials')) {
       throw new Error(`GetStream connection failed: Invalid credentials. Please contact support.`);
+    } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+      throw new Error(`GetStream connection failed: Network error. Please check your internet connection and try again.`);
     } else {
       throw new Error(`GetStream connection failed: ${error.message}. Please check your network connection and try again.`);
     }

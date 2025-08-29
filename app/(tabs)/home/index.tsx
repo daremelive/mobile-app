@@ -24,7 +24,7 @@ import UniversalSearch from '../../../components/UniversalSearch';
 import { useGetFollowingQuery } from '../../../src/store/followApi';
 import { useGetPopularStreamsQuery, useGetFollowingLiveStreamsQuery, useSearchQuery } from '../../../src/store/streamsApi';
 import { useFollowUserMutation, useUnfollowUserMutation } from '../../../src/store/followApi';
-import { useGetBlockedUsersQuery } from '../../../src/api/blockedApi';
+import { useGetAllBlockedUsersQuery } from '../../../src/api/blockedApi';
 import { useNotificationContext } from '../../../src/context/NotificationContext';
 import { useTranslation } from '../../../src/hooks/useTranslation';
 import ClockIcon from '../../../assets/icons/clock.svg';
@@ -32,7 +32,7 @@ import CancelIcon from '../../../assets/icons/cancel.svg';
 import StarsIcon from '../../../assets/icons/stars.svg';
 import CheckIcon from '../../../assets/icons/check.svg';
 import EyeIcon from '../../../assets/icons/eye.svg';
-import ipDetector from '../../../src/utils/ipDetector';
+import { MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../../../src/config/env';
 import useChannelAccess from '../../../src/hooks/useChannelAccess';
 import ChannelAccessModal from '../../../components/modals/ChannelAccessModal';
 import ProfileAvatar from '../../../components/ui/ProfileAvatar';
@@ -46,31 +46,13 @@ export default function HomeScreen() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [isSearching, setIsSearching] = React.useState(false);
   
-  const [baseURL, setBaseURL] = React.useState<string>('');
   const { requestChannelAccess, accessModal, closeAccessModal, currentCoins } = useChannelAccess();
-
-  // Initialize base URL with IP detection
-  React.useEffect(() => {
-    const initializeBaseURL = async () => {
-      try {
-        const detection = await ipDetector.detectIP();
-        const url = `http://${detection.ip}:8000`;
-        setBaseURL(url);
-        console.log('🔗 Home Base URL initialized:', url);
-      } catch (error) {
-        console.error('❌ Failed to detect IP in home:', error);
-        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
-      }
-    };
-    
-    initializeBaseURL();
-  }, []);
 
   // Get following users with live status
   const { data: followingUsers = [], isLoading: followingLoading, error: followingError } = useGetFollowingQuery({ search: '' });
   
   // Get blocked users to filter them out (with error handling)
-  const { data: blockedUsers = [] } = useGetBlockedUsersQuery(undefined, {
+  const { data: blockedUsers = [] } = useGetAllBlockedUsersQuery(undefined, {
     // Don't fail the entire following section if blocked users can't be fetched
     refetchOnMountOrArgChange: false,
     refetchOnFocus: false,
@@ -80,8 +62,8 @@ export default function HomeScreen() {
   const filteredFollowingUsers = React.useMemo(() => {
     if (!followingUsers || !Array.isArray(followingUsers)) return [];
     
-    // Get blocked user IDs for efficient filtering
-    const blockedUserIds = new Set(blockedUsers.map(blocked => blocked.blocked_user.id));
+    // Get blocked user IDs for efficient filtering (handle undefined blockedUsers)
+    const blockedUserIds = new Set((blockedUsers || []).map((blocked: any) => blocked.blocked_user.id));
     
     // Filter out blocked users
     const filtered = followingUsers.filter(user => !blockedUserIds.has(user.id));
@@ -278,7 +260,7 @@ export default function HomeScreen() {
           <UniversalSearch
             mode="embedded"
             onJoinStream={handleJoinStream}
-            baseURL={baseURL}
+            baseURL={MEDIA_BASE_URL}
             placeholder="Search for streamers, content..."
             className="mb-6"
             onClose={() => setIsSearching(false)}
@@ -378,10 +360,8 @@ export default function HomeScreen() {
                       <Image
                         source={{ 
                           uri: user.profile_picture_url 
-                            ? (user.profile_picture_url.startsWith('http') 
-                                ? user.profile_picture_url 
-                                : `${baseURL}${user.profile_picture_url}`)
-                            : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
+                            ? buildProfilePictureURL(user.profile_picture_url)
+                            : buildAvatarFallbackURL(user.full_name || user.username)
                         }}
                         className={`w-16 h-16 rounded-full border-2 ${user.is_live ? 'border-[#C42720]' : 'border-gray-600'}`}
                       />
@@ -479,7 +459,6 @@ export default function HomeScreen() {
                     channel={stream.channel}
                     viewer_count={stream.viewer_count}
                     status={stream.status}
-                    baseURL={baseURL}
                     width="w-56"
                     height="h-80"
                     margin="mr-3"

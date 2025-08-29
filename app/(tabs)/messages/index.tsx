@@ -15,7 +15,7 @@ import { selectCurrentUser } from '../../../src/store/authSlice';
 import { setUser } from '../../../src/store/authSlice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fonts } from '../../../constants/Fonts';
-import ipDetector from '../../../src/utils/ipDetector';
+import { MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../../../src/config/env';
 
 // Chat icon SVG
 const chatIcon = `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -28,29 +28,17 @@ export default function MessagesScreen() {
   const currentUser = useSelector(selectCurrentUser);
   
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Helper function to get server base URL for images
-  const getServerBaseUrl = useCallback(async () => {
-    const detection = await ipDetector.detectIP();
-    return `http://${detection.ip}:8000`;
-  }, []);
 
-  // Helper function to build avatar URL
-  const buildAvatarUrl = useCallback(async (user: any) => {
-    if (!user) return `https://ui-avatars.com/api/?name=U&background=C42720&color=fff&size=100`;
+  // Helper function to build avatar URL using centralized config
+  const buildAvatarUrl = useCallback((user: any) => {
+    if (!user) return buildAvatarFallbackURL('U');
     
     if (user.profile_picture_url) {
-      if (user.profile_picture_url.startsWith('http')) {
-        return user.profile_picture_url;
-      } else {
-        const serverBaseUrl = await getServerBaseUrl();
-        return `${serverBaseUrl}${user.profile_picture_url}`;
-      }
+      return buildProfilePictureURL(user.profile_picture_url);
     }
     
-    const name = encodeURIComponent(user.first_name || user.username || 'U');
-    return `https://ui-avatars.com/api/?name=${name}&background=C42720&color=fff&size=100`;
-  }, [getServerBaseUrl]);
+    return buildAvatarFallbackURL(user.first_name || user.username || 'U');
+  }, []);
 
   // State for dynamic avatar URLs
   const [avatarUrls, setAvatarUrls] = useState<{[key: string]: string}>({});
@@ -79,13 +67,13 @@ export default function MessagesScreen() {
   
   // Update avatar URLs when data changes
   useEffect(() => {
-    const updateAvatarUrls = async () => {
+    const updateAvatarUrls = () => {
       const urls: {[key: string]: string} = {};
       
       // Update URLs for following users
       if (followingUsers) {
         for (const user of followingUsers) {
-          urls[`following_${user.id}`] = await buildAvatarUrl(user);
+          urls[`following_${user.id}`] = buildAvatarUrl(user);
         }
       }
       
@@ -94,7 +82,7 @@ export default function MessagesScreen() {
         for (const conversation of conversations) {
           const otherUser = getOtherParticipant(conversation);
           if (otherUser) {
-            urls[`conversation_${otherUser.id}`] = await buildAvatarUrl(otherUser);
+            urls[`conversation_${otherUser.id}`] = buildAvatarUrl(otherUser);
           }
         }
       }
@@ -102,7 +90,7 @@ export default function MessagesScreen() {
       // Update URLs for search results
       if (users) {
         for (const user of users) {
-          urls[`user_${user.id}`] = await buildAvatarUrl(user);
+          urls[`user_${user.id}`] = buildAvatarUrl(user);
         }
       }
       
@@ -248,7 +236,7 @@ export default function MessagesScreen() {
         message: conversation.last_message || 'No messages yet',
         time: conversation.last_message_time ? formatTime(conversation.last_message_time) : '',
         unread: conversation.unread_count || 0,
-        avatar: avatarUrls[`conversation_${otherUser?.id}`] || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser?.first_name || otherUser?.username || 'U')}&background=C42720&color=fff&size=100`,
+        avatar: avatarUrls[`conversation_${otherUser?.id}`] || buildAvatarFallbackURL(otherUser?.first_name || otherUser?.username || 'U'),
         isOnline: otherUser?.is_online || false,
         lastMessageStatus: conversation.last_message_status,
         lastMessageIsFromCurrentUser: conversation.last_message_sender?.id === currentUser?.id
@@ -362,7 +350,7 @@ export default function MessagesScreen() {
                 >
                   <Image
                     source={{ 
-                      uri: avatarUrls[`following_${user.id}`] || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
+                      uri: avatarUrls[`following_${user.id}`] || buildAvatarFallbackURL(user.full_name || user.username)
                     }}
                     className="w-16 h-16 rounded-full border-2 border-[#C42720]"
                   />
@@ -510,7 +498,7 @@ export default function MessagesScreen() {
                         <View className="relative mr-4">
                           <Image
                             source={{ 
-                              uri: avatarUrls[`user_${otherUser?.id}`] || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser?.first_name || otherUser?.username || 'U')}&background=C42720&color=fff&size=100`
+                              uri: avatarUrls[`user_${otherUser?.id}`] || buildAvatarFallbackURL(otherUser?.first_name || otherUser?.username || 'U')
                             }}
                             className="w-12 h-12 rounded-full"
                           />
@@ -569,7 +557,7 @@ export default function MessagesScreen() {
                         <View className="relative mr-4">
                           <Image
                             source={{ 
-                              uri: avatarUrls[`user_${user.id}`] || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.first_name || user.username || 'U')}&background=C42720&color=fff&size=100`
+                              uri: avatarUrls[`user_${user.id}`] || buildAvatarFallbackURL(user.first_name || user.username || 'U')
                             }}
                             className="w-14 h-14 rounded-full"
                           />

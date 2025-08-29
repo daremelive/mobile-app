@@ -198,7 +198,7 @@ const ProfileScreen = () => {
     { title: t('wallet.wallet', 'Wallet') as string, Icon: WalletIcon, route: '/wallet'},
     { title: t('wallet.transactions', 'Transactions') as string, Icon: TransactionIcon, route: '/transactions'},
     { title: t('profile.payout', 'Payout') as string, Icon: PayoutIcon, route: '/enter-bank-details'},
-    { title: 'Identity Verification', Icon: IdentityIcon, route: '/identity-verification'},
+    { title: 'Identity Verification', Icon: IdentityIcon, route: undefined, comingSoon: true },
   ];
 
   return (
@@ -344,10 +344,14 @@ const ProfileScreen = () => {
 
           <View className="bg-[#1A1A1A] w-full rounded-lg mt-4">
             {walletItems.map((item, index) => (
-              <TouchableOpacity 
-                key={index} 
-                className="flex-row items-center p-4"
+              <TouchableOpacity
+                key={index}
+                className={`flex-row items-center p-4 ${item.comingSoon ? 'opacity-50' : ''}`}
                 onPress={() => {
+                  if (item.comingSoon) {
+                    Alert.alert('Coming Soon', 'Identity Verification will be available in a future update.');
+                    return;
+                  }
                   if (item.title === 'Wallet') {
                     router.push('/wallet');
                   } else if (item.title === 'Transactions') {
@@ -356,12 +360,17 @@ const ProfileScreen = () => {
                     router.push(item.route as any);
                   }
                 }}
-                disabled={!item.route && item.title !== 'Wallet' && item.title !== 'Transactions'}
+                disabled={!!item.comingSoon}
               >
                 <View className="w-8 h-8 p-6 rounded-full justify-center items-center mr-4 bg-[#2A2A2A]">
                   <item.Icon width={20} height={20}/>
                 </View>
                 <Text className="text-white text-base flex-1">{item.title}</Text>
+                {item.comingSoon && (
+                  <View className="bg-gray-700 px-3 py-1 rounded-full ml-2">
+                    <Text className="text-xs text-white font-semibold">Coming Soon</Text>
+                  </View>
+                )}
                 <ChevronRightIcon width={24} height={24} fill="#666" style={{ transform: [{ rotate: '-90deg' }] }} />
               </TouchableOpacity>
             ))}

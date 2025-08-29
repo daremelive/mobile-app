@@ -5,6 +5,7 @@ import { BlurView } from 'expo-blur';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../../src/store/authSlice';
 import { StreamHost } from '../../src/store/streamsApi';
+import { MEDIA_BASE_URL, buildProfilePictureURL } from '../../src/config/env';
 import EyeIcon from '../../assets/icons/eye.svg';
 import ProfileAvatar from '../ui/ProfileAvatar';
 import useChannelAccess from '../../src/hooks/useChannelAccess';
@@ -18,7 +19,6 @@ interface StreamCardProps {
   channel: string;
   viewer_count?: number;
   status?: string;
-  baseURL: string;
   onPress?: () => void;
   width?: string; // Tailwind width class, default "w-[48%]"
   height?: string; // Tailwind height class, default "h-[250px]"
@@ -32,7 +32,6 @@ const StreamCard: React.FC<StreamCardProps> = ({
   channel,
   viewer_count = 0,
   status,
-  baseURL,
   onPress,
   width = 'w-[48%]',
   height = 'h-[250px]',
@@ -178,7 +177,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
   const profileImageUrl = host.profile_picture_url?.startsWith('http') 
     ? host.profile_picture_url 
     : host.profile_picture_url 
-      ? `${baseURL}${host.profile_picture_url}`
+      ? buildProfilePictureURL(host.profile_picture_url)
       : null;
 
   return (
@@ -238,7 +237,6 @@ const StreamCard: React.FC<StreamCardProps> = ({
               lastName={host.last_name}
               size="full"
               className="absolute inset-0"
-              baseURL={baseURL}
             />
             
             {/* Viewer count, live status, and tier badge */}

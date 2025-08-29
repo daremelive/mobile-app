@@ -1,37 +1,22 @@
 import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
-import IPDetector from '../utils/ipDetector';
-import { AppConfig } from '../config/env';
+import { API_BASE_URL } from '../config/env';
 
-const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = `${AppConfig.PRODUCTION_API_URL}/blocked/`;
-  
-  if (__DEV__) {
+// Create base query for blocked users endpoints
+const baseQuery = fetchBaseQuery({
+  baseUrl: `${API_BASE_URL}/blocked/`,
+  prepareHeaders: async (headers) => {
     try {
-      baseUrl = await IPDetector.getAPIBaseURL('blocked');
-    } catch (error) {
-      // Silent fallback to production URL
-    }
-  }
-  
-  // Create a temporary baseQuery with the detected URL
-  const baseQuery = fetchBaseQuery({
-    baseUrl,
-    prepareHeaders: async (headers) => {
-      try {
-        const token = await SecureStore.getItemAsync('accessToken');
-        if (token) {
-          headers.set('authorization', `Bearer ${token}`);
-        }
-      } catch (error) {
-        console.error('❌ [BlockedAPI] Error getting auth token:', error);
+      const token = await SecureStore.getItemAsync('accessToken');
+      if (token) {
+        headers.set('authorization', `Bearer ${token}`);
       }
-      return headers;
-    },
-  });
-  
-  return baseQuery(args, api, extraOptions);
-};
+    } catch (error) {
+      console.error('❌ [BlockedAPI] Error getting auth token:', error);
+    }
+    return headers;
+  },
+});
 
 export interface BlockedUser {
   id: number;
@@ -58,55 +43,56 @@ export interface BlockedUsersResponse {
 
 export const blockedApi = createApi({
   reducerPath: 'blockedApi',
-  baseQuery: dynamicBaseQuery,
-  tagTypes: ['BlockedUsers'],
+  baseQuery: baseQuery,
+  tagTypes: ['BlockedUser'],
   endpoints: (builder) => ({
-    // Get blocked users list
-    getBlockedUsers: builder.query<BlockedUser[], string | void>({
-      query: (search) => ({
-        url: '',
-        params: search ? { search } : {},
+    searchBlockedUsers: builder.query<BlockedUser[], string>({
+      query: (search: string) => ({
+        url: `search/?search=${encodeURIComponent(search)}`,
+        method: 'GET',
       }),
-      transformResponse: (response: BlockedUsersResponse) => response.results,
-      providesTags: ['BlockedUsers'],
+      transformResponse: (response: BlockedUsersResponse) => response.results || [],
+      providesTags: ['BlockedUser'],
+    }),
+    
+    // Get all blocked users
+    getAllBlockedUsers: builder.query<BlockedUser[], void>({
+      query: () => '',
+      transformResponse: (response: BlockedUsersResponse) => response.results || [],
+      providesTags: ['BlockedUser'],
     }),
 
     // Get blocked users count
     getBlockedUsersCount: builder.query<{ count: number }, void>({
       query: () => 'count/',
-      providesTags: ['BlockedUsers'],
+      providesTags: ['BlockedUser'],
     }),
-
+    
     // Block a user
-    blockUser: builder.mutation<
-      { message: string; blocked: boolean },
-      { user_id: number }
-    >({
-      query: (data) => ({
+    blockUser: builder.mutation<any, { user_id: number; reason?: string }>({
+      query: (data: { user_id: number; reason?: string }) => ({
         url: 'block/',
         method: 'POST',
         body: data,
       }),
-      invalidatesTags: ['BlockedUsers'],
+      invalidatesTags: ['BlockedUser'],
     }),
-
+    
     // Unblock a user
-    unblockUser: builder.mutation<
-      { message: string; blocked: boolean },
-      { user_id: number }
-    >({
-      query: (data) => ({
+    unblockUser: builder.mutation<any, { user_id: number }>({
+      query: (data: { user_id: number }) => ({
         url: 'unblock/',
         method: 'POST',
         body: data,
       }),
-      invalidatesTags: ['BlockedUsers'],
+      invalidatesTags: ['BlockedUser'],
     }),
   }),
 });
 
 export const {
-  useGetBlockedUsersQuery,
+  useSearchBlockedUsersQuery,
+  useGetAllBlockedUsersQuery,
   useGetBlockedUsersCountQuery,
   useBlockUserMutation,
   useUnblockUserMutation,

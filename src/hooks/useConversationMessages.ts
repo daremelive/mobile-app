@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../store/authSlice';
 import * as SecureStore from 'expo-secure-store';
-import ipDetector from '../utils/ipDetector';
+import { API_BASE_URL } from '../config/env';
 
 interface Message {
   id: number;
@@ -32,9 +32,8 @@ export const useConversationMessages = (conversationId: string) => {
   const currentUser = useSelector(selectCurrentUser);
 
   const getBaseUrl = async () => {
-    const url = await ipDetector.getAPIBaseURL();
-    console.log('🔗 Using API Base URL:', url);
-    return url;
+    console.log('🔗 Using API Base URL:', API_BASE_URL);
+    return API_BASE_URL;
   };
 
   const fetchConversation = useCallback(async () => {
@@ -57,12 +56,19 @@ export const useConversationMessages = (conversationId: string) => {
         fullUrl: `${baseUrl}messaging/conversations/${conversationId}/`
       });
       
+      // Create timeout controller for React Native compatibility
+      const controller1 = new AbortController();
+      const timeoutId1 = setTimeout(() => controller1.abort(), 15000);
+      
       const response = await fetch(`${baseUrl}messaging/conversations/${conversationId}/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal: controller1.signal,
       });
+      
+      clearTimeout(timeoutId1);
 
       console.log('🔍 Conversation fetch response:', {
         status: response.status,
@@ -123,12 +129,19 @@ export const useConversationMessages = (conversationId: string) => {
         fullUrl: `${baseUrl}messaging/conversations/${conversationId}/messages/`
       });
       
+      // Create timeout controller for React Native compatibility
+      const controller2 = new AbortController();
+      const timeoutId2 = setTimeout(() => controller2.abort(), 15000);
+      
       const response = await fetch(`${baseUrl}messaging/conversations/${conversationId}/messages/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal: controller2.signal,
       });
+      
+      clearTimeout(timeoutId2);
 
       console.log('📨 Messages fetch response:', {
         status: response.status,
@@ -188,6 +201,10 @@ export const useConversationMessages = (conversationId: string) => {
         currentUserId: currentUser.id
       });
       
+      // Create timeout controller for React Native compatibility
+      const controller3 = new AbortController();
+      const timeoutId3 = setTimeout(() => controller3.abort(), 15000);
+      
       // First, get the conversation details to find the recipient
       const conversationResponse = await fetch(`${baseUrl}messaging/conversations/${conversationId}/`, {
         method: 'GET',
@@ -195,7 +212,10 @@ export const useConversationMessages = (conversationId: string) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal: controller3.signal,
       });
+      
+      clearTimeout(timeoutId3);
 
       console.log('🗣️ Conversation response status:', conversationResponse.status);
 
@@ -218,6 +238,10 @@ export const useConversationMessages = (conversationId: string) => {
 
       console.log('👤 Sending message to recipient:', recipient.id);
 
+      // Create timeout controller for React Native compatibility
+      const controller4 = new AbortController();
+      const timeoutId4 = setTimeout(() => controller4.abort(), 15000);
+      
       // Now send the message
       const response = await fetch(`${baseUrl}messaging/send/`, {
         method: 'POST',
@@ -225,11 +249,14 @@ export const useConversationMessages = (conversationId: string) => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal: controller4.signal,
         body: JSON.stringify({
           recipient_id: recipient.id,
           content: text.trim(),
         }),
       });
+      
+      clearTimeout(timeoutId4);
 
       console.log('📤 Send message response status:', response.status);
 

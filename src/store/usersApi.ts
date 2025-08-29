@@ -1,33 +1,20 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { RootState } from './index';
-import IPDetector from '../utils/ipDetector';
-import { AppConfig } from '../config/env';
+import { API_BASE_URL } from '../config/env';
 
-const dynamicBaseQuery = async (args: any, api: any, extraOptions: any) => {
-  let baseUrl = AppConfig.PRODUCTION_API_URL;
-  
-  try {
-    if (IPDetector) {
-      baseUrl = await IPDetector.getAPIBaseURL();
+// Create base query
+const baseQuery = fetchBaseQuery({
+  baseUrl: API_BASE_URL,
+  timeout: 15000, // 15 second timeout for faster failure detection
+  prepareHeaders: (headers, { getState }) => {
+    const token = (getState() as RootState).auth.accessToken;
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`);
     }
-  } catch (error) {
-    // Use fallback silently
-  }
-
-  // Create a temporary baseQuery with the detected URL
-  const baseQuery = fetchBaseQuery({
-    baseUrl,
-    prepareHeaders: (headers, { getState }) => {
-      const token = (getState() as RootState).auth.accessToken;
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  });
-
-  return baseQuery(args, api, extraOptions);
-};
+    headers.set('content-type', 'application/json');
+    return headers;
+  },
+});
 
 // User profile interface
 export interface UserProfile {
@@ -60,7 +47,7 @@ export interface UserProfile {
 
 export const usersApi = createApi({
   reducerPath: 'usersApi',
-  baseQuery: dynamicBaseQuery,
+  baseQuery: baseQuery,
   tagTypes: ['UserProfile', 'Users'],
   endpoints: (builder) => ({
     // Get user profile by ID
@@ -159,5 +146,5 @@ export const {
   useBlockUserMutation,
   useUnblockUserMutation,
   useReportUserMutation,
-  useGetBlockedUsersQuery,
+  useGetBlockedUsersQuery, // Note: This is maintained for backward compatibility but use blockedApi instead
 } = usersApi;

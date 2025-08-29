@@ -5,37 +5,13 @@ import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import SearchIcon from '../assets/icons/search-icon.svg';
 import { useGetPopularStreamsQuery } from '../src/store/streamsApi';
-import ipDetector from '../src/utils/ipDetector';
+import { MEDIA_BASE_URL } from '../src/config/env';
 import useChannelAccess from '../src/hooks/useChannelAccess';
 import ChannelAccessModal from '../components/modals/ChannelAccessModal';
 import StreamCard from '../components/stream/StreamCard';
 
 export default function PopularChannelsScreen() {
-  const [baseURL, setBaseURL] = React.useState<string>('');
   const { requestChannelAccess, accessModal, closeAccessModal, currentCoins } = useChannelAccess();
-  
-  // Initialize base URL with IP detection
-  React.useEffect(() => {
-    const initializeBaseURL = async () => {
-      try {
-        const detection = await ipDetector.detectIP();
-        let url;
-        // Check if it's production domain or local IP
-        if (detection.ip === 'daremelive.pythonanywhere.com') {
-          url = `https://${detection.ip}`;
-        } else {
-          url = `http://${detection.ip}:8000`;
-        }
-        setBaseURL(url);
-        console.log('🔗 Popular Channels Base URL initialized:', url);
-      } catch (error) {
-        console.error('❌ Failed to detect IP in popular channels:', error);
-        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
-      }
-    };
-    
-    initializeBaseURL();
-  }, []);
 
   const { data: popularStreams = [], isLoading, refetch } = useGetPopularStreamsQuery(undefined, {
     pollingInterval: 0, // Disabled to prevent screen blinking
@@ -91,7 +67,6 @@ export default function PopularChannelsScreen() {
                 channel={stream.channel}
                 viewer_count={stream.viewer_count}
                 status={stream.status}
-                baseURL={baseURL}
                 width="w-[47%]"
                 margin={index % 2 === 0 ? "mr-3" : ""}
               />

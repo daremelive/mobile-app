@@ -5,7 +5,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
 import { StreamHeader, StreamChatOverlay, StreamInputBar, MultiParticipantInputBar, StreamControls, useStreamState, useHybridStreamChat, useGiftAnimations, useEndStream, EndStreamModal, MembersListModal } from '../../components/stream';
 import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer } from '@stream-io/video-react-native-sdk';
-import ipDetector from '../../src/utils/ipDetector';
+import { API_BASE_URL, MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../../src/config/env';
 import { useGetProfileQuery } from '../../src/store/authApi';
 import { useCreateStreamMutation, useStreamActionMutation, streamsApi } from '../../src/store/streamsApi';
 import GiftAnimation from '../../components/animations/GiftAnimation';
@@ -80,7 +80,7 @@ function UnifiedHostStreamScreen() {
     hostId: streamDetails?.host?.id?.toString() || userData?.id?.toString(),
     profilePicture: '',
     useStreamChat: true,
-    baseURL: state.baseURL,
+    baseURL: API_BASE_URL,
   });
 
   const initialHeartbeatSent = useRef(false);
@@ -125,7 +125,7 @@ function UnifiedHostStreamScreen() {
 
   const giftAnimations = useGiftAnimations({
     messages: allMessages || [],
-    baseURL: state.baseURL || '',
+    baseURL: MEDIA_BASE_URL,
   });
   
   React.useEffect(() => {
@@ -155,7 +155,7 @@ function UnifiedHostStreamScreen() {
       try {
         
         // Get user's streams to check if any are stuck live
-        const response = await fetch(`${state.baseURL}/streams/my-streams/`, {
+        const response = await fetch(`${API_BASE_URL}/streams/my-streams/`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
@@ -191,7 +191,7 @@ function UnifiedHostStreamScreen() {
     };
 
     cleanupOrphanedStreams();
-  }, [userData?.id, state.baseURL, accessToken, streamAction, dispatch, streamId]);
+  }, [userData?.id, accessToken, streamAction, dispatch, streamId]);
 
   const messages = allMessages || []; // Use combined real-time + chat messages
 
@@ -286,21 +286,6 @@ function UnifiedHostStreamScreen() {
             originalError: error?.originalStatus,
           });
 
-          // 🔍 ENHANCED ERROR LOGGING FOR DEBUGGING
-          console.log('🔍 [DETAILED ERROR DEBUG] Full error object:', JSON.stringify(error, null, 2));
-          console.log('🔍 [DETAILED ERROR DEBUG] Error keys:', Object.keys(error || {}));
-          console.log('🔍 [DETAILED ERROR DEBUG] Error data keys:', Object.keys(error?.data || {}));
-          
-          // Check for nested error data
-          if (error?.data) {
-            console.log('🔍 [DETAILED ERROR DEBUG] Full error.data:', JSON.stringify(error.data, null, 2));
-          }
-          
-          // Check for response text/html errors
-          if (error?.data && typeof error.data === 'string') {
-            console.log('🔍 [DETAILED ERROR DEBUG] Raw error data (string):', error.data.substring(0, 500));
-          }
-
           // Determine specific error message
           let errorMessage = 'Failed to create stream. Please try again.';
           
@@ -308,8 +293,6 @@ function UnifiedHostStreamScreen() {
             errorMessage = error.data.error;
           } else if (error?.data?.detail) {
             errorMessage = error.data.detail;
-          } else if (error?.data?.message) {
-            errorMessage = error.data.message;
           } else if (error?.message) {
             errorMessage = error.message;
           } else if (error?.status === 401) {
@@ -318,16 +301,11 @@ function UnifiedHostStreamScreen() {
             errorMessage = 'Your account doesn\'t have permission to create streams. Please upgrade your tier level.';
           } else if (error?.status === 400) {
             errorMessage = 'Invalid stream data. Please check your settings and try again.';
-          } else if (error?.status === 500) {
-            errorMessage = 'Server error occurred. Please try again later.';
           }
 
-          // Add more detailed error message for debugging
-          const debugInfo = `Status: ${error?.status}, Data: ${JSON.stringify(error?.data).substring(0, 100)}`;
-          
           Alert.alert(
             'Stream Creation Failed',
-            `${errorMessage}\n\nDebug Info: ${debugInfo}`,
+            errorMessage,
             [
               { text: 'Go Back', onPress: () => router.back() },
               { text: 'Retry', onPress: () => createStreamFromTitleScreen() }
@@ -344,9 +322,7 @@ function UnifiedHostStreamScreen() {
 
   const handleShare = async () => {
     try {
-      const baseURL = await ipDetector.getAPIBaseURL();
-      const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-      const shareUrl = `${webURL}/stream/${streamId}?utm_source=mobile_share&utm_medium=social&host=${userData?.username}`;
+      const shareUrl = `${MEDIA_BASE_URL}/stream/${streamId}?utm_source=mobile_share&utm_medium=social&host=${userData?.username}`;
       
       const modeText = streamMode === 'multi' ? 'multi-live stream' : 'live stream';
       const channelText = streamMode === 'multi' ? `\n\nChannel: ${channel}` : '';
@@ -361,7 +337,7 @@ function UnifiedHostStreamScreen() {
     }
   };
 
-  const getProfilePictureUrl = async () => {
+  const getProfilePictureUrl = () => {
     if (userData?.profile_picture_url) {
       return userData.profile_picture_url;
     }
@@ -370,20 +346,15 @@ function UnifiedHostStreamScreen() {
       if (userData.profile_picture.startsWith('http')) {
         return userData.profile_picture;
       }
-      try {
-        const baseURL = await ipDetector.getAPIBaseURL();
-        const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-        return `${webURL}${userData.profile_picture}`;
-      } catch (error) {
-        return `https://daremelive.pythonanywhere.com${userData.profile_picture}`;
-      }
+      return buildProfilePictureURL(userData.profile_picture);
     }
     
-    return null;
+    const name = userData?.first_name || userData?.username || 'User';
+    return buildAvatarFallbackURL(name);
   };
 
   useEffect(() => {
-    getProfilePictureUrl().then(setProfilePictureUrl);
+    setProfilePictureUrl(getProfilePictureUrl());
   }, [userData?.profile_picture, userData?.profile_picture_url]);
 
   // Initialize stream when user data and stream ID are available  
@@ -703,7 +674,7 @@ function UnifiedHostStreamScreen() {
           keyboardHeight={chat.keyboardHeight}
           isKeyboardVisible={chat.isKeyboardVisible}
           inputBarHeight={72}
-          baseURL={state.baseURL}
+          baseURL={MEDIA_BASE_URL}
           hostId={streamDetails?.host?.id || userData?.id}
         />
 

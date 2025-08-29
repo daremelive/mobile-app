@@ -5,7 +5,8 @@ import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import SearchInput from '../components/SearchInput';
 import { 
-  useGetBlockedUsersQuery,
+  useSearchBlockedUsersQuery,
+  useGetAllBlockedUsersQuery,
   useGetBlockedUsersCountQuery,
   useUnblockUserMutation,
 } from '../src/api/blockedApi';
@@ -33,8 +34,19 @@ const BlockedListScreen = () => {
     initializeBaseURL();
   }, []);
 
-  // RTK Query hooks
-  const { data: blockedUsers, isLoading: blockedUsersLoading, refetch, error } = useGetBlockedUsersQuery(searchQuery || undefined);
+  // RTK Query hooks - conditional based on search
+  const { data: allBlockedUsers, isLoading: allLoading, refetch: refetchAll, error: allError } = useGetAllBlockedUsersQuery(undefined, {
+    skip: !!searchQuery
+  });
+  const { data: searchResults, isLoading: searchLoading, refetch: refetchSearch, error: searchError } = useSearchBlockedUsersQuery(searchQuery || '', {
+    skip: !searchQuery
+  });
+  
+  // Use search results when searching, otherwise use all results
+  const blockedUsers = searchQuery ? searchResults : allBlockedUsers;
+  const blockedUsersLoading = searchQuery ? searchLoading : allLoading;
+  const refetch = searchQuery ? refetchSearch : refetchAll;
+  const error = searchQuery ? searchError : allError;
   const { data: countData } = useGetBlockedUsersCountQuery();
   const [unblockUser] = useUnblockUserMutation();
 
@@ -120,7 +132,7 @@ const BlockedListScreen = () => {
 
       <ScrollView className="flex-1 px-4 mt-6">
         {blockedUsers && blockedUsers.length > 0 ? (
-          blockedUsers.map(blockedUser => (
+          blockedUsers?.map((blockedUser: any) => (
             <View key={blockedUser.id} className="flex-row justify-between items-center mb-6">
               <View className="flex-row items-center">
                 <Image 

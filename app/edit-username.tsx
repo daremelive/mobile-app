@@ -22,9 +22,25 @@ const EditUsernameScreen = () => {
     }
   }, [currentUser]);
 
+  const handleUsernameChange = (text: string) => {
+    // Convert to lowercase and allow only letters, numbers, and underscores
+    const filteredText = text.toLowerCase().replace(/[^a-z0-9_]/g, '');
+    setUsername(filteredText);
+  };
+
   const handleSave = async () => {
     if (!username.trim()) {
       Alert.alert('Error', 'Please enter a username');
+      return;
+    }
+
+    if (username.length < 3) {
+      Alert.alert('Error', 'Username must be at least 3 characters');
+      return;
+    }
+
+    if (!/^[a-z0-9_]+$/.test(username)) {
+      Alert.alert('Error', 'Username must contain only lowercase letters, numbers, and underscores');
       return;
     }
 
@@ -69,7 +85,11 @@ const EditUsernameScreen = () => {
           <TextInput
             className="flex-1 text-white py-3 text-base"
             value={username}
-            onChangeText={setUsername}
+            onChangeText={handleUsernameChange}
+            placeholder="e.g jane_doe or john123"
+            placeholderTextColor="#666"
+            autoCapitalize="none"
+            autoCorrect={false}
           />
           <TouchableOpacity onPress={() => setUsername('')}>
             <CancelIcon width={20} height={20} fill="#666" />

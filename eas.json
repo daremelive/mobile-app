@@ -15,7 +15,9 @@
       "autoIncrement": false,
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://daremelive.pythonanywhere.com/api",
-        "EXPO_PUBLIC_WS_BASE_URL": "wss://daremelive.pythonanywhere.com"
+        "EXPO_PUBLIC_WS_BASE_URL": "wss://daremelive.pythonanywhere.com",
+        "EXPO_PUBLIC_PRODUCTION_API_URL": "https://daremelive.pythonanywhere.com/api",
+        "NODE_ENV": "production"
       },
       "ios": {
         "distribution": "store"

@@ -1,28 +1,26 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableWithoutFeedback, Keyboard } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { View, Alert, ActivityIndicator, SafeAreaView, Text, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Platform, ScrollView, StatusBar, Share } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
-import { 
+import {
   StreamHeader, 
-  StreamChatOverlay, 
-  ViewerInputBar, 
-  useStreamState, 
-  useStreamChat, 
-  useHybridStreamChat, 
+  StreamChatOverlay,
+  StreamInputBar,
+  useStreamState,
+  useHybridStreamChat,
+  StreamControlButton,
   useGiftAnimations,
-  useFollowSystem,
-  GiftModal,
-  CoinPurchaseModal,
-  LeaveConfirmationModal
+  MultiParticipantInputBar
 } from '../../components/stream';
-import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer } from '@stream-io/video-react-native-sdk';
-import ipDetector from '../../src/utils/ipDetector';
+import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer, CallContent } from '@stream-io/video-react-native-sdk';
+import { MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../../src/config/env';
+import { useGetStreamQuery, useStreamActionMutation, useLikeStreamMutation, useLeaveStreamMutation, useSendGiftMutation, useGetStreamTokenMutation } from '../../src/store/streamsApi';
 import { useGetProfileQuery } from '../../src/store/authApi';
-import { useGetStreamQuery, useJoinStreamMutation, useLeaveStreamMutation, useGetGiftsQuery, useSendGiftMutation, useLikeStreamMutation } from '../../src/store/streamsApi';
-import { useGetWalletSummaryQuery, useGetCoinPackagesQuery, usePurchaseCoinsMutation } from '../../src/api/walletApi';
-import { createStreamClient, createStreamUser } from '../../src/utils/streamClient';
 import GiftAnimation from '../../components/animations/GiftAnimation';
+import { useLocalizedTranslation } from '../../src/hooks/useLocalizedTranslation';
+import { useCoinPurchase } from '../../src/hooks/useCoinPurchase';
+import logger from '../../src/utils/logger';
 
 // Component that uses call state hooks - must be inside StreamCall
 function StreamContent({ 
@@ -133,18 +131,9 @@ export default function UnifiedViewerStreamScreen() {
   const [hostProfilePictureUrl, setHostProfilePictureUrl] = useState<string>('');
   const [viewerProfilePictureUrl, setViewerProfilePictureUrl] = useState<string>('');
 
-  const [baseURL, setBaseURL] = useState<string>('');
   const initializationTimeoutRef = useRef<number | null>(null);
 
   const [realtimeMessages, setRealtimeMessages] = useState<any[]>([]);
-
-  useEffect(() => {
-    const initBaseURL = async () => {
-      const url = await ipDetector.getAPIBaseURL();
-      setBaseURL(url);
-    };
-    initBaseURL();
-  }, []);
 
   const { data: freshUserData } = useGetProfileQuery();
   const userData = freshUserData || currentUser;
@@ -309,16 +298,16 @@ export default function UnifiedViewerStreamScreen() {
 
   // Update host profile picture URL when stream details load
   useEffect(() => {
-    if (streamDetails?.host && baseURL) {
-      const url = getProfilePictureUrl(streamDetails.host, baseURL);
+    if (streamDetails?.host) {
+      const url = buildProfilePictureURL(streamDetails.host.profile_picture_url);
       if (url) {
         setHostProfilePictureUrl(url);
       } else {
-        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(streamDetails.host.full_name || streamDetails.host.username)}&background=C42720&color=fff&size=100`;
+        const fallbackUrl = buildAvatarFallbackURL(streamDetails.host.full_name || streamDetails.host.username);
         setHostProfilePictureUrl(fallbackUrl);
       }
     }
-  }, [streamDetails?.host, baseURL]);
+  }, [streamDetails?.host]);
 
   // 🎉 Check if current user has been promoted to guest and redirect
   useEffect(() => {
@@ -378,16 +367,16 @@ export default function UnifiedViewerStreamScreen() {
 
   // Update viewer profile picture URL when user data loads
   useEffect(() => {
-    if (userData && baseURL) {
-      const url = getProfilePictureUrl(userData, baseURL);
+    if (userData) {
+      const url = buildProfilePictureURL(userData.profile_picture_url);
       if (url) {
         setViewerProfilePictureUrl(url);
       } else {
-        const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.full_name || userData.username)}&background=C42720&color=fff&size=100`;
+        const fallbackUrl = buildAvatarFallbackURL(userData.full_name || userData.username);
         setViewerProfilePictureUrl(fallbackUrl);
       }
     }
-  }, [userData, baseURL]);
+  }, [userData]);
 
   useEffect(() => {
     if (shouldOpenGiftModalAfterPurchase && !coinPurchaseModalVisible) {
@@ -615,7 +604,7 @@ export default function UnifiedViewerStreamScreen() {
       return;
     }
 
-    const apiBaseURL = await ipDetector.getAPIBaseURL();
+    const apiBaseURL = MEDIA_BASE_URL;
     
     if (joinAttemptCount >= 3) {
       Alert.alert(
@@ -765,8 +754,7 @@ export default function UnifiedViewerStreamScreen() {
   };
 
   const handleShare = async () => {
-    const apiBaseURL = await ipDetector.getAPIBaseURL();
-    const shareUrl = `${apiBaseURL}/stream/${streamId}`;
+    const shareUrl = `${MEDIA_BASE_URL}/stream/${streamId}`;
     
     try {
       await Share.share({
@@ -852,7 +840,7 @@ export default function UnifiedViewerStreamScreen() {
                 handleLike={handleLike}
                 isLiked={isLiked}
                 likeCount={likeCount}
-                baseURL={baseURL}
+                baseURL={MEDIA_BASE_URL}
                 followSystem={followSystem}
                 userData={userData}
                 hostProfilePictureUrl={hostProfilePictureUrl}
@@ -886,7 +874,7 @@ export default function UnifiedViewerStreamScreen() {
           keyboardHeight={chat.keyboardHeight || 0}
           isKeyboardVisible={chat.isKeyboardVisible || false}
           inputBarHeight={72}
-          baseURL={baseURL || ''}
+          baseURL={MEDIA_BASE_URL || ''}
           hostId={streamDetails?.host?.id || null}
         />
 
@@ -912,7 +900,7 @@ export default function UnifiedViewerStreamScreen() {
           walletBalance={walletSummary?.coins || 0}
           isRefreshing={giftsLoading}
           onRefresh={refetchGifts}
-          baseURL={baseURL}
+          baseURL={MEDIA_BASE_URL}
         />
 
         <CoinPurchaseModal

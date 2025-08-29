@@ -1,13 +1,10 @@
-import IPDetector from './ipDetector';
+import { API_BASE_URL } from '../config/env';
 
 /**
- * Utility for generating dynamic image URLs based on detected server IP
+ * Utility for generating dynamic image URLs using centralized configuration
  */
 class ImageURLGenerator {
   private static instance: ImageURLGenerator;
-  private cachedBaseURL: string | null = null;
-  private cacheTimestamp = 0;
-  private readonly CACHE_DURATION = 60000; // 1 minute cache
 
   static getInstance(): ImageURLGenerator {
     if (!ImageURLGenerator.instance) {
@@ -17,94 +14,53 @@ class ImageURLGenerator {
   }
 
   /**
-   * Get the base URL for the server
+   * Get the base URL for the server (instant - no async needed)
    */
-  async getBaseURL(): Promise<string> {
-    const now = Date.now();
-    
-    // Return cached result if still valid
-    if (this.cachedBaseURL && (now - this.cacheTimestamp) < this.CACHE_DURATION) {
-      return this.cachedBaseURL;
-    }
-
-    try {
-      const detection = await IPDetector.detectIP();
-      // Check if it's production domain or local IP
-      if (detection.ip === 'daremelive.pythonanywhere.com') {
-        this.cachedBaseURL = `https://${detection.ip}`;
-      } else {
-        this.cachedBaseURL = `http://${detection.ip}:8000`;
-      }
-      this.cacheTimestamp = now;
-      return this.cachedBaseURL;
-    } catch (error) {
-      console.warn('❌ [ImageURLGenerator] Failed to detect IP, using fallback');
-      // Use production domain as fallback
-      this.cachedBaseURL = 'https://daremelive.pythonanywhere.com';
-      this.cacheTimestamp = now;
-      return this.cachedBaseURL;
-    }
+  getBaseURL(): string {
+    return API_BASE_URL;
   }
 
   /**
-   * Generate full image URL for profile pictures and other images
+   * Generate full image URL for profile pictures and other images (now synchronous!)
    */
-  async getImageURL(imagePath: string | undefined | null): Promise<string | null> {
+  getImageURL(imagePath: string | undefined | null): string | null {
     if (!imagePath) return null;
     
-    try {
-      const baseURL = await this.getBaseURL();
-      
-      // Handle different image path formats
-      if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-        // Already a full URL
-        return imagePath;
-      } else if (imagePath.startsWith('/media/')) {
-        // Absolute media path
-        return `${baseURL}${imagePath}`;
-      } else if (imagePath.startsWith('/')) {
-        // Absolute path
-        return `${baseURL}${imagePath}`;
-      } else {
-        // Relative path
-        return `${baseURL}/${imagePath}`;
-      }
-    } catch (error) {
-      console.warn('❌ [ImageURLGenerator] Failed to generate image URL:', error);
-      return null;
+    const baseURL = this.getBaseURL();
+    
+    // Handle different image path formats
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      // Already a full URL
+      return imagePath;
+    } else if (imagePath.startsWith('/media/')) {
+      // Absolute media path
+      return `${baseURL}${imagePath}`;
+    } else if (imagePath.startsWith('/')) {
+      // Absolute path
+      return `${baseURL}${imagePath}`;
+    } else {
+      // Relative path
+      return `${baseURL}/${imagePath}`;
     }
   }
 
   /**
-   * Generate media URL for gifts and other media files
+   * Generate media URL for gifts and other media files (now synchronous!)
    */
-  async getMediaURL(mediaPath: string | undefined | null): Promise<string | null> {
+  getMediaURL(mediaPath: string | undefined | null): string | null {
     if (!mediaPath) return null;
     
-    try {
-      const baseURL = await this.getBaseURL();
-      
-      if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
-        return mediaPath;
-      } else if (mediaPath.startsWith('/media/')) {
-        return `${baseURL}${mediaPath}`;
-      } else if (mediaPath.startsWith('/')) {
-        return `${baseURL}/media${mediaPath}`;
-      } else {
-        return `${baseURL}/media/${mediaPath}`;
-      }
-    } catch (error) {
-      console.warn('❌ [ImageURLGenerator] Failed to generate media URL:', error);
-      return null;
+    const baseURL = this.getBaseURL();
+    
+    if (mediaPath.startsWith('http://') || mediaPath.startsWith('https://')) {
+      return mediaPath;
+    } else if (mediaPath.startsWith('/media/')) {
+      return `${baseURL}${mediaPath}`;
+    } else if (mediaPath.startsWith('/')) {
+      return `${baseURL}/media${mediaPath}`;
+    } else {
+      return `${baseURL}/media/${mediaPath}`;
     }
-  }
-
-  /**
-   * Clear the cached base URL (force re-detection)
-   */
-  clearCache(): void {
-    this.cachedBaseURL = null;
-    this.cacheTimestamp = 0;
   }
 }
 

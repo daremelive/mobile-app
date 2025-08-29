@@ -1,35 +1,22 @@
 import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
-import IPDetector from '../utils/ipDetector';
-import { AppConfig } from '../config/env';
+import { API_BASE_URL } from '../config/env';
 
-const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = `${AppConfig.PRODUCTION_API_URL}/notifications/`;
-  
-  try {
-    baseUrl = await IPDetector.getAPIBaseURL('notifications');
-  } catch (error) {
-    // Silent fallback to production URL
-  }
-  
-  // Create a temporary baseQuery with the detected URL
-  const baseQuery = fetchBaseQuery({
-    baseUrl,
-    prepareHeaders: async (headers) => {
-      try {
-        const token = await SecureStore.getItemAsync('accessToken');
-        if (token) {
-          headers.set('authorization', `Bearer ${token}`);
-        }
-      } catch (error) {
-        console.error('❌ [NotificationAPI] Error getting auth token:', error);
+// Create base query for notification endpoints
+const baseQuery = fetchBaseQuery({
+  baseUrl: `${API_BASE_URL}/notifications/`,
+  prepareHeaders: async (headers) => {
+    try {
+      const token = await SecureStore.getItemAsync('accessToken');
+      if (token) {
+        headers.set('authorization', `Bearer ${token}`);
       }
-      return headers;
-    },
-  });
-  
-  return baseQuery(args, api, extraOptions);
-};
+    } catch (error) {
+      console.error('❌ [NotificationAPI] Error getting auth token:', error);
+    }
+    return headers;
+  },
+});
 
 export interface NotificationSetting {
   id: number;
@@ -93,7 +80,7 @@ export interface Notification {
 
 export const notificationApi = createApi({
   reducerPath: 'notificationApi',
-  baseQuery: dynamicBaseQuery,
+  baseQuery: baseQuery,
   tagTypes: ['NotificationSettings', 'AccountNotificationSettings', 'Notifications', 'InboxNotifications', 'NotificationStats'],
   endpoints: (builder) => ({
     // Get user's notification settings
@@ -107,7 +94,7 @@ export const notificationApi = createApi({
       NotificationSetting,
       Partial<Omit<NotificationSetting, 'id' | 'user' | 'created_at' | 'updated_at'>>
     >({
-      query: (data) => ({
+      query: (data: Partial<Omit<NotificationSetting, 'id' | 'user' | 'created_at' | 'updated_at'>>) => ({
         url: 'settings/',
         method: 'PATCH',
         body: data,
@@ -130,7 +117,10 @@ export const notificationApi = createApi({
         data: Partial<Omit<AccountNotificationSetting, 'id' | 'user' | 'following_user' | 'created_at' | 'updated_at'>>;
       }
     >({
-      query: ({ following_user_id, data }) => ({
+      query: ({ following_user_id, data }: { 
+        following_user_id: number;
+        data: Partial<Omit<AccountNotificationSetting, 'id' | 'user' | 'following_user' | 'created_at' | 'updated_at'>>;
+      }) => ({
         url: `account-settings/update/`,
         method: 'PATCH',
         body: { 
@@ -151,7 +141,7 @@ export const notificationApi = createApi({
       },
       { page?: number; page_size?: number } | void
     >({
-      query: (params) => ({
+      query: (params: { page?: number; page_size?: number } | void) => ({
         url: 'list/',
         params: params || {},
       }),
@@ -160,7 +150,7 @@ export const notificationApi = createApi({
 
     // Mark notification as read
     markNotificationAsRead: builder.mutation<Notification, number>({
-      query: (notificationId) => ({
+      query: (notificationId: number) => ({
         url: `${notificationId}/mark-read/`,
         method: 'POST',
       }),
@@ -187,7 +177,7 @@ export const notificationApi = createApi({
 
     // Clear a specific inbox notification
     clearInboxNotification: builder.mutation<{ message: string }, number>({
-      query: (notificationId) => ({
+      query: (notificationId: number) => ({
         url: `inbox/${notificationId}/clear/`,
         method: 'DELETE',
       }),
@@ -203,7 +193,7 @@ export const notificationApi = createApi({
       }, 
       { page?: number; page_size?: number } | void
     >({
-      query: (params) => ({
+      query: (params: { page?: number; page_size?: number } | void) => ({
         url: 'inbox/',
         method: 'GET',
         params: params || {},
@@ -213,7 +203,7 @@ export const notificationApi = createApi({
 
     // Mark inbox notification as read
     markInboxNotificationAsRead: builder.mutation<{ message: string; notification_id: number }, number>({
-      query: (notificationId) => ({
+      query: (notificationId: number) => ({
         url: `inbox/${notificationId}/read/`,
         method: 'PATCH',
       }),

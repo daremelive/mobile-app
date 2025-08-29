@@ -10,11 +10,26 @@
       "com.googleusercontent.apps.158183037990-6lh53kvkqcak52djlbgh3dis8lekjso2"
     ],
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
+    "primaryColor": "#ffffff",
+    "backgroundColor": "#ffffff",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000",
+      "imageWidth": 200
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mobile.daremelive",
-      "buildNumber": "27",
+      "buildNumber": "33",
+      "icon": "./assets/images/icon.png",
+      "splash": {
+        "image": "./assets/images/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#000000",
+        "imageWidth": 200
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "This app needs access to camera for live streaming.",
@@ -23,9 +38,16 @@
       }
     },
     "android": {
+      "icon": "./assets/images/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
+      },
+      "splash": {
+        "image": "./assets/images/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#000000",
+        "imageWidth": 200
       },
       "edgeToEdgeEnabled": true,
       "package": "com.mobile.app",
@@ -36,21 +58,12 @@
       ]
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
-        }
-      ],
+      "expo-splash-screen",
       "expo-web-browser",
       [
         "expo-image-picker",
@@ -65,7 +78,20 @@
           "microphonePermission": "Allow this app to access your microphone for live streaming audio."
         }
       ],
-      "expo-build-properties",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useHermes": true,
+            "flipper": false,
+            "newArchEnabled": false
+          },
+          "android": {
+            "useHermes": true,
+            "newArchEnabled": false
+          }
+        }
+      ],
       "expo-secure-store"
     ],
     "experiments": {

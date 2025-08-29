@@ -1,9 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import { API_CONFIG } from '../config/messaging';
-
-const getApiBaseUrl = async (): Promise<string> => {
-  return await API_CONFIG.getApiBaseUrl();
-};
+import { API_BASE_URL } from '../config/env';
 
 interface User {
   id: number;
@@ -71,7 +67,6 @@ class MessagesApi {
 
   private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
     const token = await this.getAuthToken();
-    const apiBaseUrl = await getApiBaseUrl();
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -82,10 +77,17 @@ class MessagesApi {
       headers.Authorization = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+    // Create timeout controller for React Native compatibility
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

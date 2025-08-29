@@ -15,6 +15,8 @@ config.transformer = {
 config.server = {
   ...config.server,
   unstable_serverRoot: __dirname,
+  // Disable web server completely
+  enableVisualizer: false,
 };
 
 // Add refresh configuration
@@ -28,13 +30,14 @@ config.resolver = {
   ...resolver,
   assetExts: resolver.assetExts.filter((ext) => ext !== "svg"),
   sourceExts: [...resolver.sourceExts, "svg"],
-  platforms: ["ios", "android", "native", "web"],
-  alias: {
-    // Provide web-compatible fallbacks for native WebRTC components
-    ...(process.env.EXPO_TARGET === 'web' && {
-      '@stream-io/react-native-webrtc': '@stream-io/react-native-webrtc/lib/web',
-    }),
-  },
+  platforms: ["ios", "android", "native"], // Removed "web" platform
+  // Block web-specific modules that cause issues
+  resolverMainFields: ['react-native', 'browser', 'main'],
+  blockList: [
+    // Block web-specific files from WebRTC packages
+    /.*\/node_modules\/@stream-io\/react-native-webrtc\/.*\.web\..*/,
+    /.*\/node_modules\/@stream-io\/video-react-native-sdk\/.*\.web\..*/,
+  ],
 };
 
 module.exports = withNativeWind(config, { input: "./global.css" });

@@ -1,35 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
 import type { RootState } from './index';
-import { AppConfig } from '../config/env';
-
-const getBaseUrl = () => {
-  if (__DEV__) {
-    const { manifest } = require('expo-constants').default;
-    
-    if (manifest?.debuggerHost) {
-      const ip = manifest.debuggerHost.split(':')[0];
-      const url = `http://${ip}:8000/api`;
-      return url;
-    }
-    
-    try {
-      if (typeof window !== 'undefined' && window.location?.hostname) {
-        const ip = window.location.hostname;
-        if (ip !== 'localhost' && ip !== '127.0.0.1') {
-          const url = `http://${ip}:8000/api`;
-          return url;
-        }
-      }
-    } catch (e) {
-      // Ignore errors in React Native environment
-    }
-  }
-  
-  return AppConfig.PRODUCTION_API_URL;
-};
-
-const BASE_URL = getBaseUrl();
+import { API_BASE_URL } from '../config/env';
 
 // Silent operation - no logging
 
@@ -127,16 +99,13 @@ export interface PasswordResetConfirmRequest {
   new_password_confirm: string;
 }
 
-// Create API with base query that includes token
+// Create base query
 const baseQuery = fetchBaseQuery({
-  baseUrl: BASE_URL,
-  prepareHeaders: (headers, { getState, endpoint }) => {
+  baseUrl: API_BASE_URL,
+  timeout: 15000, // 15 second timeout for faster failure detection
+  prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;
-    
-    // Don't send auth headers for public endpoints
-    const publicEndpoints = ['signup', 'signin', 'verifyOTP', 'requestPasswordReset', 'confirmPasswordReset'];
-    
-    if (token && !publicEndpoints.includes(endpoint)) {
+    if (token) {
       headers.set('authorization', `Bearer ${token}`);
     }
     headers.set('content-type', 'application/json');

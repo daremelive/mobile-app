@@ -1,39 +1,23 @@
 import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
-import IPDetector from '../utils/ipDetector';
+import { API_BASE_URL } from '../config/env';
 
-// Dynamic base query that handles IP detection
-const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = 'https://daremelive.pythonanywhere.com/api/wallet/'; // Production fallback
-  
-  if (__DEV__) {
+// Create base query for wallet endpoints
+const baseQuery = fetchBaseQuery({
+  baseUrl: `${API_BASE_URL}/wallet/`,
+  timeout: 30000, // 30 second timeout
+  prepareHeaders: async (headers) => {
     try {
-      const detectedUrl = await IPDetector.getAPIBaseURL();
-      baseUrl = `${detectedUrl}wallet/`;
-      console.log('🔗 [WalletAPI] Using detected URL:', baseUrl);
-    } catch (error) {
-      console.error('❌ [WalletAPI] IP detection failed, using production fallback:', error);
-    }
-  }
-  
-  // Create a temporary baseQuery with the detected URL
-  const baseQuery = fetchBaseQuery({
-    baseUrl,
-    prepareHeaders: async (headers) => {
-      try {
-        const token = await SecureStore.getItemAsync('accessToken');
-        if (token) {
-          headers.set('authorization', `Bearer ${token}`);
-        }
-      } catch (error) {
-        console.error('❌ [WalletAPI] Error getting auth token:', error);
+      const token = await SecureStore.getItemAsync('accessToken');
+      if (token) {
+        headers.set('authorization', `Bearer ${token}`);
       }
-      return headers;
-    },
-  });
-  
-  return baseQuery(args, api, extraOptions);
-};
+    } catch (error) {
+      console.error('❌ [WalletAPI] Error getting auth token:', error);
+    }
+    return headers;
+  },
+});
 
 // Types
 export interface CoinPackage {
@@ -162,7 +146,7 @@ export interface TestResponse {
 
 export const walletApi = createApi({
   reducerPath: 'walletApi',
-  baseQuery: dynamicBaseQuery,
+  baseQuery: baseQuery,
   tagTypes: ['Wallet', 'CoinPackages', 'Transactions', 'ExchangeRate'],
   endpoints: (builder) => ({
     // Get user wallet summary

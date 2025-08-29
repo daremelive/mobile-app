@@ -93,11 +93,19 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     const initializeBaseURL = async () => {
       try {
         const detection = await ipDetector.detectIP();
-        const url = `http://${detection.ip}:8000`;
-        setBaseURL(url);
+        
+        // Force production URL in production builds
+        if (!__DEV__ || detection.ip === 'daremelive.pythonanywhere.com') {
+          setBaseURL('https://daremelive.pythonanywhere.com');
+          console.log('🌐 Using production URL for streaming');
+        } else {
+          const url = `http://${detection.ip}:8000`;
+          setBaseURL(url);
+          console.log('🔧 Using development URL:', url);
+        }
       } catch (error) {
-        console.error('❌ Failed to detect IP:', error);
-        setBaseURL('http://172.20.10.2:8000');
+        console.error('❌ Failed to detect IP, using production fallback:', error);
+        setBaseURL('https://daremelive.pythonanywhere.com');
       }
     };
     
@@ -172,12 +180,14 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     setIsConnecting(true);
 
     try {
-      // Set a timeout for the entire initialization
-      const initTimeout = setTimeout(() => {
-        console.log('Stream initialization timeout - proceeding anyway');
+      // Set a timeout for the entire initialization - extended for production
+      const connectionTimeout = __DEV__ ? 20000 : 45000; // 45 seconds for production
+      const initTimeoutRef = setTimeout(() => {
+        console.log('⚠️ Stream initialization timeout - forcing reset');
         setIsConnecting(false);
         setIsOperationInProgress(false);
-      }, 15000); // 15 second timeout
+        setVideoLoadError('Connection timeout. Please check your internet and try again.');
+      }, connectionTimeout);
 
       const client = await createStreamClient(currentUser);
       setStreamClient(client);
@@ -251,19 +261,32 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       
       setCall(newCall);
       setHasJoined(true);
-      clearTimeout(initTimeout);
+      clearTimeout(initTimeoutRef);
 
       // For hosts: try to start the stream but don't block on it
       if (userRole === 'host') {
-        // Don't await this - let it happen in background
-        streamAction({
+        // Don't await this - let it happen in background with extended timeout for production
+        const streamStartPromise = streamAction({
           streamId,
           action: { action: 'start' }
-        }).unwrap().then(() => {
+        }).unwrap();
+        
+        // Add timeout specifically for stream start action in production
+        const streamStartTimeout = __DEV__ ? 10000 : 25000; // 25s for production
+        Promise.race([
+          streamStartPromise,
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Stream start timeout')), streamStartTimeout)
+          )
+        ]).then(() => {
+          console.log('✅ Stream start action completed successfully');
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         }).catch((startError: any) => {
-          console.log('Stream start action failed (non-fatal):', startError);
-          // Don't fail the entire initialization if start action fails
+          console.log('❌ Stream start action failed:', startError);
+          // Show user-friendly error but don't fail the entire initialization
+          if (startError.message?.includes('timeout')) {
+            setVideoLoadError('Stream is taking longer than expected to start. You may continue, but viewers might need to refresh.');
+          }
         });
       }
 
@@ -278,7 +301,27 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       }
     } catch (error: any) {
       console.error('❌ Stream initialization error:', error);
-      setVideoLoadError(error.message || 'Failed to join stream');
+      
+      clearTimeout(initTimeoutRef); // Clear timeout on error too
+      setIsConnecting(false);
+      setIsOperationInProgress(false);
+      
+      // Provide production-specific error messages
+      if (error.message?.includes('timeout')) {
+        setVideoLoadError(__DEV__ 
+          ? 'Connection timeout. Please check your development server is running.'
+          : 'Connection timeout. Please check your internet connection and try again.'
+        );
+      } else if (error.message?.includes('credentials') || error.message?.includes('401')) {
+        setVideoLoadError('Authentication failed. Please log out and log back in.');
+      } else if (error.message?.includes('GetStream')) {
+        setVideoLoadError('Video service temporarily unavailable. Please try again in a moment.');
+      } else {
+        setVideoLoadError(__DEV__
+          ? `Development error: ${error.message}`
+          : 'Unable to start stream. Please check your connection and try again.'
+        );
+      }
     } finally {
       setIsConnecting(false);
       setIsOperationInProgress(false);

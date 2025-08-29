@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LineChart } from 'react-native-chart-kit';
@@ -296,16 +296,20 @@ const WalletScreen = () => {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity className="bg-[#262626] rounded-2xl p-4 w-[48%]"
-            onPress={() => router.push('/identity-verification')}
+            <TouchableOpacity
+              className="bg-[#262626] rounded-2xl p-4 w-[48%] opacity-50"
+              onPress={() => {
+                Alert.alert('Coming Soon', 'Identity Verification will be available in a future update.');
+              }}
+              disabled
             >
               <View className="gap-1">
                 <View className="flex-row items-center gap-1 justify-between">
                   <View className="w-14 h-14 bg-[#3D3E3F] rounded-full justify-center items-center mb-2">
                     <IdentityIcon width={24} height={24} />
                   </View>
-                  <View className="bg-[#FF0000] rounded-full px-4 py-1 mt-1">
-                    <Text className="text-white text-base">Verified</Text>
+                  <View className="bg-gray-700 rounded-full px-4 py-1 mt-1">
+                    <Text className="text-white text-base font-semibold">Coming Soon</Text>
                   </View>
                 </View>
                 <Text className="text-white text-base font-semibold">Identity Verification</Text>

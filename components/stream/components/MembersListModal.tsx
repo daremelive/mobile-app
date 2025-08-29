@@ -10,7 +10,7 @@ import {
   StreamParticipant,
   usePromoteViewerToGuestMutation
 } from '../../../src/store/streamsApi';
-import { useBlockUserMutation, useUnblockUserMutation, useGetBlockedUsersQuery } from '../../../src/api/blockedApi';
+import { useBlockUserMutation, useUnblockUserMutation, useGetAllBlockedUsersQuery } from '../../../src/api/blockedApi';
 import { selectCurrentUser } from '../../../src/store/authSlice';
 import { messagesApi, User as MessagesUser } from '../../../src/services/messagesApi';
 
@@ -224,11 +224,11 @@ export const MembersListModal = ({
   }, [visible, onRefresh]);
 
   // Get blocked users to determine block status
-  const { data: blockedUsers = [] } = useGetBlockedUsersQuery();
+  const { data: blockedUsers = [] } = useGetAllBlockedUsersQuery();
 
   // Helper function to check if a user is blocked
   const isUserBlocked = useCallback((userId: number) => {
-    return blockedUsers.some(blocked => blocked.blocked_user.id === userId);
+    return (blockedUsers || []).some((blocked: any) => blocked.blocked_user.id === userId);
   }, [blockedUsers]);
 
   // Search users when query changes

@@ -1,62 +1,19 @@
-import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
+import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { RootState } from './index';
-import Constants from 'expo-constants';
-import IPDetector from '../utils/ipDetector';
-import { AppConfig } from '../config/env';
+import { API_BASE_URL } from '../config/env';
 
-const dynamicBaseQuery: BaseQueryFn = async (args, api, extraOptions) => {
-  let baseUrl = AppConfig.PRODUCTION_API_URL;
-  
-  try {
-    if (__DEV__) {
-      baseUrl = await IPDetector.getAPIBaseURL();
-    } else {
-      const envApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || Constants.expoConfig?.extra?.EXPO_PUBLIC_API_BASE_URL;
-      
-      if (envApiBaseUrl) {
-        // Use environment variable from EAS build configuration
-        baseUrl = envApiBaseUrl.endsWith('/api/') ? envApiBaseUrl : `${envApiBaseUrl}/api/`;
-        // Silent operation - no logging
-      } else {
-        // Silent fallback - no logging
-      }
+// Direct base query without wrapper - much faster
+const baseQuery = fetchBaseQuery({
+  baseUrl: API_BASE_URL,
+  timeout: 15000, // Reduced timeout for faster failure detection
+  prepareHeaders: (headers, { getState }) => {
+    const token = (getState() as RootState).auth.accessToken;
+    if (token) {
+      headers.set('authorization', `Bearer ${token}`);
     }
-  } catch (error) {
-    // Silent error handling - no logging
-  }
-
-  // Create a temporary baseQuery with the detected URL
-  const baseQuery = fetchBaseQuery({
-    baseUrl,
-    prepareHeaders: (headers, { getState }) => {
-      const token = (getState() as RootState).auth.accessToken;
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-      return headers;
-    },
-  });
-
-  const result = await baseQuery(args, api, extraOptions);
-
-  // 🔍 ENHANCED ERROR LOGGING FOR PRODUCTION DEBUGGING
-  if (result.error) {
-    console.error('🚨 [API ERROR] Stream API call failed:', {
-      url: `${baseUrl}${typeof args === 'string' ? args : args.url}`,
-      method: typeof args === 'object' ? args.method : 'GET',
-      status: result.error.status,
-      error: result.error,
-      errorData: result.error.data,
-    });
-    
-    // Log the full error response for debugging
-    if (result.error.data) {
-      console.error('🚨 [API ERROR] Full error response:', JSON.stringify(result.error.data, null, 2));
-    }
-  }
-
-  return result;
-};
+    return headers;
+  },
+});
 
 // Types for Stream functionality
 export interface StreamHost {
@@ -203,8 +160,8 @@ export interface GetStreamTokenResponse {
 
 export const streamsApi = createApi({
   reducerPath: 'streamsApi',
-  baseQuery: dynamicBaseQuery,
-  tagTypes: ['Stream', 'StreamMessage', 'Gift', 'Search', 'Users'],
+  baseQuery: baseQuery,
+  tagTypes: ['Stream', 'UserStreams', 'FollowingStreams', 'PopularStreams', 'StreamMessage', 'Search', 'Users'],
   endpoints: (builder) => ({
     // Get all streams
     getStreams: builder.query<Stream[], { status?: string; channel?: string; search?: string }>({
@@ -257,9 +214,12 @@ export const streamsApi = createApi({
           throw new Error('Invalid streamId provided to getStream');
         }
         
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(streamId)) {
-          throw new Error(`Invalid UUID format for streamId: ${streamId}`);
+        // Only run expensive UUID validation in development
+        if (__DEV__) {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!uuidRegex.test(streamId)) {
+            throw new Error(`Invalid UUID format for streamId: ${streamId}`);
+          }
         }
         
         return {
@@ -307,10 +267,12 @@ export const streamsApi = createApi({
           throw new Error('Invalid streamId provided to streamAction');
         }
         
-        // Additional UUID format validation
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(streamId)) {
-          throw new Error(`Invalid UUID format for streamId: ${streamId}`);
+        // Only run expensive UUID validation in development
+        if (__DEV__) {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!uuidRegex.test(streamId)) {
+            throw new Error(`Invalid UUID format for streamId: ${streamId}`);
+          }
         }
         
         return {
@@ -364,9 +326,12 @@ export const streamsApi = createApi({
           throw new Error('Invalid streamId provided to getStreamMessages');
         }
         
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (!uuidRegex.test(streamId)) {
-          throw new Error(`Invalid UUID format for streamId: ${streamId}`);
+        // Only run expensive UUID validation in development
+        if (__DEV__) {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!uuidRegex.test(streamId)) {
+            throw new Error(`Invalid UUID format for streamId: ${streamId}`);
+          }
         }
         
         return {

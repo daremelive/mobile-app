@@ -29,7 +29,7 @@ import {
   useFollowUserMutation, 
   useUnfollowUserMutation 
 } from '../src/store/followApi';
-import { useGetBlockedUsersQuery } from '../src/api/blockedApi';
+import { useGetAllBlockedUsersQuery } from '../src/api/blockedApi';
 
 const SEARCH_SUGGESTIONS = ['Marriage', 'Banter with Friends', 'Live Gaming', 'World Politics', 'Hot Gist'];
 
@@ -276,7 +276,7 @@ const SearchResults = React.memo(({
   });
 
   // Get blocked users to filter them out from search results
-  const { data: blockedUsers = [] } = useGetBlockedUsersQuery(undefined, {
+  const { data: blockedUsers = [] } = useGetAllBlockedUsersQuery(undefined, {
     refetchOnMountOrArgChange: false,
     refetchOnFocus: false,
   });
@@ -285,7 +285,7 @@ const SearchResults = React.memo(({
   const filteredSearchResults = React.useMemo(() => {
     if (!searchResults || !searchResults.results) return searchResults;
 
-    const blockedUserIds = new Set(blockedUsers.map(blocked => blocked.blocked_user.id));
+    const blockedUserIds = new Set((blockedUsers || []).map((blocked: any) => blocked.blocked_user.id));
     
     const filteredUsers = (searchResults.results.users || []).filter(user => !blockedUserIds.has(user.id));
     
@@ -380,7 +380,6 @@ const SearchResults = React.memo(({
                     channel={stream.channel}
                     viewer_count={stream.viewer_count}
                     status={stream.status}
-                    baseURL={baseURL}
                   />
                 ))}
               </View>
@@ -397,7 +396,6 @@ const SearchResults = React.memo(({
                   channel={stream.channel}
                   viewer_count={stream.viewer_count}
                   status={stream.status}
-                  baseURL={baseURL}
                 />
               ))}
             </View>
