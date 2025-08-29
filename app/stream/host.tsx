@@ -10,6 +10,7 @@ import { useGetProfileQuery } from '../../src/store/authApi';
 import { useCreateStreamMutation, useStreamActionMutation, streamsApi } from '../../src/store/streamsApi';
 import GiftAnimation from '../../components/animations/GiftAnimation';
 import { useStreamHeartbeat } from '../../src/hooks/useStreamHeartbeat';
+import { diagnoseStreamingIssues } from '../../src/utils/streamingDiagnostics';
 
 function UnifiedHostStreamScreen() {
   const params = useLocalSearchParams();
@@ -147,6 +148,18 @@ function UnifiedHostStreamScreen() {
     streamId, 
     false // Always disabled
   );
+
+  // TEMPORARY: Production streaming diagnostics
+  useEffect(() => {
+    if (!__DEV__) {
+      console.log('🔧 Running production streaming diagnostics...');
+      diagnoseStreamingIssues().then(results => {
+        console.log('📊 Diagnostic results:', results);
+      }).catch(error => {
+        console.error('❌ Diagnostic failed:', error);
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (!userData?.id) return;

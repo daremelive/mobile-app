@@ -178,6 +178,15 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
 
     setIsOperationInProgress(true);
     setIsConnecting(true);
+    
+    // Enhanced production debugging
+    console.log('🚀 [StreamState] Starting stream initialization', {
+      environment: __DEV__ ? 'development' : 'production',
+      streamId,
+      userRole,
+      userId: currentUser?.id,
+      username: currentUser?.username
+    });
 
     try {
       // Set a timeout for the entire initialization - extended for production
@@ -189,7 +198,9 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
         setVideoLoadError('Connection timeout. Please check your internet and try again.');
       }, connectionTimeout);
 
+      console.log('🎯 [StreamState] Creating GetStream client...');
       const client = await createStreamClient(currentUser);
+      console.log('✅ [StreamState] GetStream client created successfully');
       setStreamClient(client);
 
       const callId = `stream_${streamId}`;
@@ -261,6 +272,7 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       
       setCall(newCall);
       setHasJoined(true);
+      console.log('✅ [StreamState] Stream call joined successfully');
       clearTimeout(initTimeoutRef);
 
       // For hosts: try to start the stream but don't block on it
