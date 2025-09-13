@@ -3,6 +3,7 @@ import { Alert, Platform, Keyboard, AppState } from 'react-native';
 import { Camera } from 'expo-camera';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser } from '../../../src/store/authSlice';
+import { debugLog, logGetStreamStep } from '../../../src/utils/productionStreamDebug';
 import { 
   useGetStreamQuery, 
   useJoinStreamMutation, 
@@ -147,6 +148,9 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     return () => subscription?.remove();
   }, [appState]);
   
+  // Use ref to track initialization state more reliably
+  const initializationInProgress = useRef(false);
+  
   // Reset connection state when call is disconnected
   const resetConnectionState = useCallback(() => {
     setCall(null);
@@ -155,29 +159,64 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     setIsConnecting(false);
     setVideoLoadError(null);
     setIsOperationInProgress(false);
+    initializationInProgress.current = false;
   }, []);
 
   // Stream initialization - simplified version with better timeout handling
   const initializeStream = useCallback(async () => {
+    console.log('🔍 [StreamState] initializeStream called - entry point');
+    console.log('🔍 [StreamState] Current state:', {
+      currentUserId: currentUser?.id,
+      userRole,
+      hasStreamDetails: !!streamDetails,
+      streamLoading,
+      streamError: !!streamError,
+      isOperationInProgress,
+      initInProgress: initializationInProgress.current,
+      hasJoined,
+      hasCall: !!call
+    });
+    
     // Allow host to initialize even if streamDetails hasn't loaded yet; others wait
-    if (!currentUser?.id) return;
-    if (userRole !== 'host' && !streamDetails) return; // viewers/participants still need details
-    if (isOperationInProgress) return;
+    if (!currentUser?.id) {
+      console.log('🔍 [StreamState] No current user - exiting');
+      return;
+    }
+    
+    if (userRole !== 'host') {
+      // Viewers need stream details to load first
+      if (streamLoading) {
+        console.log('🔍 [StreamState] Stream details still loading for viewer - waiting...');
+        return;
+      }
+      if (!streamDetails) {
+        console.log('🔍 [StreamState] No stream details available for viewer - exiting');
+        return;
+      }
+    }
+    
+    if (isOperationInProgress || initializationInProgress.current) {
+      console.log('🔄 Initialization already in progress - skipping duplicate call');
+      return;
+    }
 
     // If hasJoined is true but no call exists, reset state first
     if (hasJoined && !call) {
-      console.log('Detected stale hasJoined state, resetting...');
+      console.log('🔍 [StreamState] Detected stale hasJoined state, resetting...');
       resetConnectionState();
       return;
     }
 
     if (hasJoined && call) {
+      console.log('🔍 [StreamState] Already properly connected - exiting');
       // Already properly connected
       return;
     }
 
+    console.log('🔍 [StreamState] Setting initialization flags');
     setIsOperationInProgress(true);
     setIsConnecting(true);
+    initializationInProgress.current = true;
     
     // Enhanced production debugging
     console.log('🚀 [StreamState] Starting stream initialization', {
@@ -188,24 +227,35 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       username: currentUser?.username
     });
 
+    let initTimeoutRef: number | null = null;
+    
     try {
       // Set a timeout for the entire initialization - extended for production
       const connectionTimeout = __DEV__ ? 20000 : 45000; // 45 seconds for production
-      const initTimeoutRef = setTimeout(() => {
+      
+      initTimeoutRef = setTimeout(() => {
         console.log('⚠️ Stream initialization timeout - forcing reset');
         setIsConnecting(false);
         setIsOperationInProgress(false);
+        initializationInProgress.current = false;
         setVideoLoadError('Connection timeout. Please check your internet and try again.');
       }, connectionTimeout);
 
       console.log('🎯 [StreamState] Creating GetStream client...');
+      logGetStreamStep('CLIENT_CREATE_START', true, { userId: currentUser?.id, userRole });
+      
       const client = await createStreamClient(currentUser);
+      
+      console.log('🔍 [StreamState] GetStream client created successfully');
+      logGetStreamStep('CLIENT_CREATE_SUCCESS', true, { hasClient: !!client });
       console.log('✅ [StreamState] GetStream client created successfully');
       setStreamClient(client);
 
       const callId = `stream_${streamId}`;
-      // Use the same call type as existing multi implementation ('default') for consistency
-      const newCall = client.call('default', callId);
+      // Use 'livestream' call type for proper video streaming
+      const newCall = client.call('livestream', callId);
+      
+      console.log('🎯 [StreamState] Created livestream call with ID:', callId, 'for role:', userRole);
       
       // Add call event listeners to detect disconnections
       newCall.on('call.session_participant_left', (event) => {
@@ -218,41 +268,117 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
           resetConnectionState();
         } else {
           console.log('Another participant left, maintaining host connection');
-          // Immediately refetch stream details to update viewer count
-          refetchStreamDetails();
+          // Safely refetch stream details to update viewer count
+          try {
+            refetchStreamDetails();
+          } catch (error) {
+            console.log('⚠️ Could not refetch stream details (query may be inactive):', error);
+          }
         }
       });
       
       newCall.on('call.session_participant_joined', (event) => {
         console.log('Participant joined event detected:', event);
-        // Immediately refetch stream details to update viewer count
-        refetchStreamDetails();
+        // Safely refetch stream details to update viewer count
+        try {
+          refetchStreamDetails();
+        } catch (error) {
+          console.log('⚠️ Could not refetch stream details (query may be inactive):', error);
+        }
       });
       
       newCall.on('call.ended', () => {
         console.log('Call ended event detected');
-        resetConnectionState();
+        
+        // In production, don't immediately reset on call.ended - network hiccups can trigger this
+        if (__DEV__) {
+          resetConnectionState();
+        } else {
+          console.log('⚠️ Production: Call ended detected but not resetting state to prevent false disconnections');
+          // Add production-specific handling for immediate call endings
+          setTimeout(() => {
+            if (!call) { // Only reset if no call exists after delay
+              console.log('Delayed reset after call ended in production');
+              resetConnectionState();
+            } else {
+              // Force reset the UI loading state even if call exists
+              console.log('🔧 Production: Forcing UI state reset while maintaining call');
+              setIsConnecting(false);
+              setIsOperationInProgress(false);
+            }
+          }, 2000); // Reduced to 2 seconds for faster UI response
+        }
       });
 
       if (userRole === 'host') {
-        await newCall.join({ create: true });
+        console.log('🎥 Host joining livestream call...');
+        await newCall.join({ 
+          create: true,
+          ring: false,
+          notify: false
+        });
         // Request and enable media for host with timeout
         try {
           const mediaTimeout = setTimeout(() => {
             console.log('Media enable timeout - continuing with stream');
+            // Force reset connecting state if media times out
+            setIsConnecting(false);
+            setIsOperationInProgress(false);
           }, 8000); // 8 second media timeout
           
           const camPerm = await Camera.requestCameraPermissionsAsync();
           const micPerm = await Camera.requestMicrophonePermissionsAsync();
           
+          console.log('📷 Camera permission:', camPerm.status, '🎤 Mic permission:', micPerm.status);
+          
           if (camPerm.status === 'granted') {
-            await Promise.race([
-              newCall.camera.enable(),
-              new Promise((_, reject) => setTimeout(() => reject(new Error('Camera timeout')), 5000))
-            ]).catch((err) => {
-              console.log('Camera enable failed or timed out:', err.message);
-            });
+            console.log('🎥 Enabling camera for host...');
+            try {
+              // Enable camera first
+              await Promise.race([
+                newCall.camera.enable(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Camera timeout')), 5000))
+              ]);
+              
+              console.log('✅ Camera enabled successfully');
+              
+              // Wait for camera to fully initialize
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              // Check if camera is actually enabled and streaming
+              const cameraState = await newCall.camera.state;
+              console.log('📹 Camera state after enable:', {
+                isEnabled: cameraState.status === 'enabled',
+                status: cameraState.status,
+                direction: cameraState.direction
+              });
+              
+              // Force enable video track for publishing to remote participants
+              try {
+                await newCall.camera.enable();
+                console.log('🔄 Re-enabled camera to ensure publishing');
+                
+                // For livestream calls, we need to "go live" to start broadcasting
+                if (userRole === 'host') {
+                  try {
+                    await newCall.goLive();
+                    console.log('📡 Host went live - broadcasting to viewers');
+                  } catch (goLiveErr: any) {
+                    console.log('⚠️ Could not go live (may not be available in this SDK version):', goLiveErr.message);
+                  }
+                }
+                
+              } catch (reEnableErr) {
+                console.log('⚠️ Camera re-enable attempt failed:', reEnableErr);
+              }
+              
+            } catch (err: any) {
+              console.log('❌ Camera enable failed:', err.message);
+            }
+          } else {
+            console.log('⚠️ Camera permission denied - continuing without camera');
           }
+          
           if (micPerm.status === 'granted') {
             await Promise.race([
               newCall.microphone.enable(),
@@ -260,20 +386,48 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
             ]).catch((err) => {
               console.log('Microphone enable failed or timed out:', err.message);
             });
+          } else {
+            console.log('⚠️ Microphone permission denied - continuing without mic');
           }
           
           clearTimeout(mediaTimeout);
+          
+          // Ensure UI state is updated after permissions
+          console.log('🎯 Media setup complete - updating UI state');
+          setIsConnecting(false);
+          setIsOperationInProgress(false);
+          
         } catch (permErr) {
           console.log('Media permission/enable error (non-fatal):', permErr);
+          // Always reset UI state even on permission errors
+          setIsConnecting(false);
+          setIsOperationInProgress(false);
         }
       } else {
-        await newCall.join();
+        console.log('🔍 [StreamState] Viewer branch - starting call join...');
+        console.log('🎥 Viewer joining livestream call...');
+        
+        await newCall.join({ 
+          create: false,
+          ring: false,
+          notify: false
+        });
+        
+        console.log('🔍 [StreamState] Viewer call join completed successfully');
+        
+        // Immediately set viewer states to prevent endless connecting
+        console.log('✅ Viewer joined call successfully - updating states');
+        setIsConnecting(false);
+        setIsOperationInProgress(false);
+        console.log('🔍 [StreamState] Viewer states updated after join');
       }
       
+      console.log('🔍 [StreamState] Setting final call and joined states');
+      clearTimeout(initTimeoutRef!); // Clear timeout on success
       setCall(newCall);
       setHasJoined(true);
+      console.log('🔍 [StreamState] Final states set - hasJoined: true, call set');
       console.log('✅ [StreamState] Stream call joined successfully');
-      clearTimeout(initTimeoutRef);
 
       // For hosts: try to start the stream but don't block on it
       if (userRole === 'host') {
@@ -292,9 +446,16 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
           )
         ]).then(() => {
           console.log('✅ Stream start action completed successfully');
+          // Ensure UI state is reset on successful stream start
+          setIsConnecting(false);
+          setIsOperationInProgress(false);
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         }).catch((startError: any) => {
           console.log('❌ Stream start action failed:', startError);
+          // Always reset UI state on stream start completion (success or failure)
+          setIsConnecting(false);
+          setIsOperationInProgress(false);
+          
           // Show user-friendly error but don't fail the entire initialization
           if (startError.message?.includes('timeout')) {
             setVideoLoadError('Stream is taking longer than expected to start. You may continue, but viewers might need to refresh.');
@@ -303,20 +464,24 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       }
 
       if (userRole !== 'host') {
-        // Don't await this either - non-blocking join
+        // Don't await this either - non-blocking join - run in background
+        console.log('🔗 [Viewer] Starting backend join stream API call (non-blocking)...');
         joinStream({
           streamId,
           data: { participant_type: userRole === 'participant' ? 'guest' : 'viewer' }
-        }).unwrap().catch((e) => {
-          console.log('Join stream failed (non-fatal):', e);
+        }).unwrap().then(() => {
+          console.log('✅ [Viewer] Backend join stream completed successfully');
+        }).catch((e) => {
+          console.log('⚠️ [Viewer] Join stream API failed (non-fatal):', e);
         });
       }
     } catch (error: any) {
       console.error('❌ Stream initialization error:', error);
       
-      clearTimeout(initTimeoutRef); // Clear timeout on error too
+      if (initTimeoutRef) clearTimeout(initTimeoutRef); // Clear timeout on error too
       setIsConnecting(false);
       setIsOperationInProgress(false);
+      initializationInProgress.current = false;
       
       // Provide production-specific error messages
       if (error.message?.includes('timeout')) {
@@ -337,8 +502,9 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
     } finally {
       setIsConnecting(false);
       setIsOperationInProgress(false);
+      initializationInProgress.current = false;
     }
-  }, [currentUser?.id, streamDetails?.id, isOperationInProgress, hasJoined, streamId, userRole]);
+  }, [currentUser?.id, streamDetails?.id, isOperationInProgress, hasJoined, streamId, userRole, streamLoading]);
   
   // Leave stream
   const handleLeaveStream = useCallback(async () => {
@@ -407,17 +573,36 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
 
       // Leave backend stream
       if (hasJoined) {
-        await leaveStream(streamId).unwrap();
+        try {
+          await leaveStream(streamId).unwrap();
+        } catch (leaveError: any) {
+          // Silently handle expected "not in stream" errors that occur during normal cleanup
+          if (leaveError?.data?.error === 'You are not in this stream') {
+            console.log('[StreamState] ℹ️ User already left stream or stream ended - continuing cleanup');
+          } else {
+            console.error('[StreamState] ❌ Unexpected leave stream error:', leaveError);
+          }
+        }
       }
 
       // Leave GetStream call
       if (call) {
-        await call.leave();
+        try {
+          await call.leave();
+        } catch (callLeaveError: any) {
+          // Silently handle expected call leave errors during cleanup
+          console.log('[StreamState] ℹ️ Call leave completed with expected cleanup response');
+        }
       }
 
       // Disconnect client
       if (streamClient) {
-        await streamClient.disconnectUser();
+        try {
+          await streamClient.disconnectUser();
+        } catch (disconnectError: any) {
+          // Silently handle expected disconnect errors during cleanup
+          console.log('[StreamState] ℹ️ Stream client disconnect completed');
+        }
       }
 
       // Reset state
@@ -428,7 +613,7 @@ export const useStreamState = ({ streamId, userRole }: UseStreamStateProps) => {
       setVideoLoadError(null);
       
     } catch (error: any) {
-      console.error('❌ Leave stream error:', error);
+      console.error('[StreamState] ❌ Unexpected error during stream cleanup:', error);
     } finally {
       setIsOperationInProgress(false);
     }
