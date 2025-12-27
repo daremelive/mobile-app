@@ -1,92 +1,363 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { View, Alert, ActivityIndicator, SafeAreaView, Text, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Platform, ScrollView, StatusBar, Share } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { View, Alert, ActivityIndicator, SafeAreaView, Text, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Share } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
 import {
-  StreamHeader, 
+  StreamHeader,
   StreamChatOverlay,
-  StreamInputBar,
   useStreamState,
   useHybridStreamChat,
-  StreamControlButton,
   useGiftAnimations,
-  MultiParticipantInputBar
+  useFollowSystem,
+  ViewerInputBar,
+  GiftModal,
+  CoinPurchaseModal,
+  LeaveConfirmationModal
 } from '../../components/stream';
-import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer, CallContent } from '@stream-io/video-react-native-sdk';
+import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer, CallContent, useCall } from '@stream-io/video-react-native-sdk';
+import {
+  StreamMode,
+  RealtimeMessages
+} from '../../types/stream';
 import { MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../../src/config/env';
-import { useGetStreamQuery, useStreamActionMutation, useLikeStreamMutation, useLeaveStreamMutation, useSendGiftMutation, useGetStreamTokenMutation } from '../../src/store/streamsApi';
+import { useGetStreamQuery, useLikeStreamMutation, useLeaveStreamMutation, useSendGiftMutation, useJoinStreamMutation, useGetGiftsQuery } from '../../src/store/streamsApi';
+import { useGetWalletSummaryQuery, usePurchaseCoinsMutation, useGetCoinPackagesQuery } from '../../src/api/walletApi';
 import { useGetProfileQuery } from '../../src/store/authApi';
 import GiftAnimation from '../../components/animations/GiftAnimation';
-import { useLocalizedTranslation } from '../../src/hooks/useLocalizedTranslation';
-import { useCoinPurchase } from '../../src/hooks/useCoinPurchase';
-import logger from '../../src/utils/logger';
 
 // Component that uses call state hooks - must be inside StreamCall
-function StreamContent({ 
-  streamDetails, 
-  streamMessages, 
-  chat, 
-  giftAnimations, 
-  hasJoined, 
-  isConnecting, 
-  videoLoadError, 
-  joinAttemptCount, 
-  openGiftModal, 
-  handleLeaveModal, 
-  handleShare,
-  handleLike,
-  isLiked,
-  likeCount,
-  baseURL,
-  followSystem,
-  userData,
-  hostProfilePictureUrl
+function StreamContent({
+  streamDetails,
+  giftAnimations,
+  hasJoined,
+  isConnecting,
+  videoLoadError,
+  joinAttemptCount,
+  connectionState,
+  refetchStreamQuery
 }: any) {
-  const { useParticipantCount, useRemoteParticipants } = useCallStateHooks();
+  const { useParticipantCount, useRemoteParticipants, useParticipants, useLocalParticipant } = useCallStateHooks();
   const participantCount = useParticipantCount() || 0;
   const remoteParticipants = useRemoteParticipants();
-  
-  const hostParticipant = remoteParticipants?.find(p => p.videoStream) || remoteParticipants?.[0];
-  
+  const allParticipants = useParticipants();
+  const localParticipant = useLocalParticipant();
+  const call = useCall();
+
+  // STABILITY FIX: Keep track of last known remote participants
+  // This prevents the video from disappearing when SDK temporarily clears participants
+  const lastKnownParticipantsRef = React.useRef<any[]>([]);
+
+  // Update ref only when we have valid participants
+  React.useEffect(() => {
+    if (remoteParticipants && remoteParticipants.length > 0) {
+      lastKnownParticipantsRef.current = remoteParticipants;
+    }
+  }, [remoteParticipants]);
+
+  // Use current remote participants, or fall back to last known if temporarily empty
+  const stableRemoteParticipants = (remoteParticipants && remoteParticipants.length > 0)
+    ? remoteParticipants
+    : lastKnownParticipantsRef.current;
+
+  // Helper function to render a participant tile with video or audio-only fallback
+  const renderParticipantTile = (participant: any, label: string, forceVideo: boolean = false) => {
+    // Check multiple ways if participant has video
+    const hasVideoStream = !!participant.videoStream;
+    const hasPublishedVideo = participant.publishedTracks?.some((t: any) => t.kind === 'video');
+    const hasPublishedTracks = (participant.publishedTracks?.length || 0) > 0;
+    const isRemoteParticipant = !participant.isLocalParticipant;
+
+    // ALWAYS try VideoRenderer for remote participants - let the SDK handle it
+    // The SDK knows better than us whether video is available
+    const shouldTryVideo = forceVideo || isRemoteParticipant || hasVideoStream || hasPublishedVideo || hasPublishedTracks;
+
+    // ALWAYS use VideoRenderer for remote participants - it handles video/audio gracefully
+    if (shouldTryVideo) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#1a1a1a' }} key={`viewer-video-container-${participant.sessionId}`}>
+          <VideoRenderer
+            participant={participant}
+            objectFit="cover"
+            style={{ flex: 1 }}
+          />
+        </View>
+      );
+    } else {
+      // Audio-only fallback (Zoom/Meet style)
+      return (
+        <View className="flex-1 bg-gray-800 items-center justify-center" key={`viewer-audio-${participant.sessionId}`}>
+          <View className="w-16 h-16 rounded-full bg-gray-700 items-center justify-center mb-2">
+            <Text className="text-white text-2xl">🎙️</Text>
+          </View>
+          <Text className="text-white text-lg font-semibold">
+            {participant.name || label}
+          </Text>
+          <Text className="text-gray-400 text-sm mt-1">Audio Only</Text>
+        </View>
+      );
+    }
+  };
+
+  // For viewers, look for participants with video streams (the host)
+  // Try multiple approaches to find the host's video stream
+  const hostParticipant = useMemo(() => {
+    // Method 1: Look for non-local participants with active video streams
+    let host = allParticipants?.find(p => !p.isLocalParticipant && p.videoStream);
+
+    if (host) {
+      return host;
+    }
+
+    // Method 2: Look for remote participants with video streams
+    host = remoteParticipants?.find(p => p.videoStream);
+
+    if (host) {
+      return host;
+    }
+
+    // Method 3: Look for any participant with video stream
+    host = allParticipants?.find(p => p.videoStream);
+
+    if (host) {
+      return host;
+    }
+
+    // Method 4: Check for any published tracks (Stream.io might take time to propagate)
+    // Handle both number and array for publishedTracks
+    host = allParticipants?.find(p => {
+      if (p.isLocalParticipant) return false;
+      const ptValue = p.publishedTracks;
+      const ptCount = typeof ptValue === 'number' ? ptValue : (Array.isArray(ptValue) ? ptValue.length : 0);
+      return ptCount > 0;
+    });
+
+    if (host) {
+      return host;
+    }
+
+    // Method 5: Fallback to first non-local participant (even without video yet)
+    host = allParticipants?.find(p => !p.isLocalParticipant);
+
+    if (host) {
+      return host;
+    }
+
+    // Method 6: Final fallback to any remote participant
+    host = stableRemoteParticipants?.[0];
+
+    return host;
+  }, [allParticipants, stableRemoteParticipants]);
+
+  // STABLE: Memoize active participants to prevent flickering during SDK state updates
+  // Use stableRemoteParticipants which preserves last known state
+  const activeParticipants = useMemo(() => {
+    // For viewers, ALL remote participants are "active" (host + promoted co-hosts)
+    // stableRemoteParticipants already excludes local participant and keeps last known state
+    return stableRemoteParticipants || [];
+  }, [stableRemoteParticipants]);
+
+  // Force call state refresh if no video after reasonable time
+  useEffect(() => {
+    if (hasJoined && !hostParticipant?.videoStream && participantCount > 1) {
+      const timeout = setTimeout(() => {
+        // State check timeout - could trigger refresh logic here if needed
+      }, 10000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [hasJoined, hostParticipant?.videoStream, participantCount]);
+
   return (
     <View className="flex-1">
       <View className="flex-1 relative">
-        {isConnecting ? (
+        {connectionState.isRateLimited ? (
+          <View className="flex-1 items-center justify-center px-6">
+            <View className="bg-red-500/20 border border-red-500 rounded-lg p-6 max-w-sm">
+              <Text className="text-red-400 text-lg font-semibold mb-2 text-center">
+                Service Temporarily Unavailable
+              </Text>
+              <Text className="text-white text-center mb-4">
+                Too many connection attempts. Please wait a moment before trying again.
+              </Text>
+              <Text className="text-gray-300 text-sm text-center mb-4">
+                Next attempt available: {new Date(connectionState.nextAllowedConnection).toLocaleTimeString()}
+              </Text>
+              <TouchableOpacity
+                className="bg-red-600 py-3 px-6 rounded-lg"
+                onPress={() => {
+                  // Refresh stream details to retry
+                  refetchStreamQuery();
+                }}
+              >
+                <Text className="text-white text-center font-semibold">Retry Connection</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : isConnecting ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color="#C42720" />
             <Text className="text-white mt-4">Connecting to stream...</Text>
             <Text className="text-gray-400 text-sm mt-2">
               Attempt {joinAttemptCount} of 3
             </Text>
+            {connectionState.consecutiveFailures > 0 && (
+              <Text className="text-yellow-400 text-xs mt-1">
+                Connection issues detected. Retrying...
+              </Text>
+            )}
           </View>
         ) : videoLoadError ? (
           <View className="flex-1 items-center justify-center">
             <Text className="text-white text-lg mb-4">{videoLoadError}</Text>
             <Text className="text-gray-400 mb-4">Please try refreshing or check your connection</Text>
           </View>
-        ) : hostParticipant ? (
-          <View style={{ flex: 1 }}>
-            <VideoRenderer
-              participant={hostParticipant}
-            />
-          </View>
-        ) : (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-white text-lg">Waiting for host to start video...</Text>
-            <Text className="text-gray-400 text-sm mt-2">
-              {streamDetails?.status === 'live' ? 'Stream is live' : 'Stream not started yet'}
-            </Text>
-            <Text className="text-gray-400 text-xs mt-1">
-              Participants: {participantCount} | Remote: {remoteParticipants?.length || 0}
-            </Text>
-            {__DEV__ && hostParticipant && (
-              <Text className="text-red-400 text-xs mt-1">
-                Debug: Host found but no video stream detected
-              </Text>
-            )}
-          </View>
-        )}
+        ) : (() => {
+          if (activeParticipants.length > 1) {
+            // Multi-participant grid view - show ALL active participants (Zoom/Meet style)
+            const displayParticipants = activeParticipants;
+
+            return (
+              <View style={{ flex: 1 }}>
+
+                {/* Multi-participant grid layout */}
+                <View className="flex-1">
+                  {displayParticipants.length === 2 ? (
+                    // Two participants - vertical split
+                    <View className="flex-1">
+                      <View className="flex-1">
+                        {renderParticipantTile(displayParticipants[0], 'Participant 1')}
+                        <View className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1">
+                          <Text className="text-white text-xs font-medium">
+                            {displayParticipants[0].name || 'Participant 1'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="flex-1">
+                        {renderParticipantTile(displayParticipants[1], 'Participant 2')}
+                        <View className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1">
+                          <Text className="text-white text-xs font-medium">
+                            {displayParticipants[1].name || 'Participant 2'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ) : displayParticipants.length === 3 ? (
+                    // Three participants - one large, two small
+                    <View className="flex-1">
+                      <View className="flex-2">
+                        {renderParticipantTile(displayParticipants[0], 'Host')}
+                        <View className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1">
+                          <Text className="text-white text-xs font-medium">
+                            {displayParticipants[0].name || 'Host'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View className="flex-1 flex-row">
+                        <View className="flex-1">
+                          {renderParticipantTile(displayParticipants[1], 'Guest 1')}
+                          <View className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5">
+                            <Text className="text-white text-xs">
+                              {displayParticipants[1].name || 'Guest 1'}
+                            </Text>
+                          </View>
+                        </View>
+                        <View className="flex-1">
+                          {renderParticipantTile(displayParticipants[2], 'Guest 2')}
+                          <View className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5">
+                            <Text className="text-white text-xs">
+                              {displayParticipants[2].name || 'Guest 2'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  ) : (
+                    // Four or more participants - 2x2 grid
+                    <View className="flex-1">
+                      <View className="flex-1 flex-row">
+                        <View className="flex-1">
+                          {renderParticipantTile(displayParticipants[0], 'Participant 1')}
+                          <View className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5">
+                            <Text className="text-white text-xs">
+                              {displayParticipants[0].name || 'Participant 1'}
+                            </Text>
+                          </View>
+                        </View>
+                        <View className="flex-1">
+                          {renderParticipantTile(displayParticipants[1], 'Participant 2')}
+                          <View className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5">
+                            <Text className="text-white text-xs">
+                              {displayParticipants[1].name || 'Participant 2'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                      <View className="flex-1 flex-row">
+                        <View className="flex-1">
+                          {renderParticipantTile(displayParticipants[2], 'Participant 3')}
+                          <View className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5">
+                            <Text className="text-white text-xs">
+                              {displayParticipants[2].name || 'Participant 3'}
+                            </Text>
+                          </View>
+                        </View>
+                        <View className="flex-1">
+                          {displayParticipants[3] ? renderParticipantTile(displayParticipants[3], 'Participant 4') : renderParticipantTile(displayParticipants[0], 'Participant 4')}
+                          <View className="absolute bottom-1 left-1 bg-black/60 rounded px-1 py-0.5">
+                            <Text className="text-white text-xs">
+                              {(displayParticipants[3] || displayParticipants[0]).name || 'Participant 4'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              </View>
+            );
+          } else if (activeParticipants.length === 1) {
+            // Single participant view (typically host only)
+            const participant = activeParticipants[0];
+            return (
+              <View style={{ flex: 1 }}>
+                {renderParticipantTile(participant, participant.name || 'Host')}
+              </View>
+            );
+          } else if (hostParticipant) {
+            // Fallback: Try to show host participant if available
+            return (
+              <View style={{ flex: 1 }}>
+                {renderParticipantTile(hostParticipant, hostParticipant.name || 'Host')}
+              </View>
+            );
+          } else if (participantCount > 0) {
+            // Fallback to CallContent
+            return (
+              <View style={{ flex: 1 }}>
+                <CallContent />
+              </View>
+            );
+          } else {
+            // No participants
+            return (
+              <View className="flex-1 items-center justify-center">
+                <Text className="text-white text-lg">Waiting for host to start video...</Text>
+                <Text className="text-gray-400 text-sm mt-2">
+                  {streamDetails?.status === 'live' ? 'Stream is live' : 'Stream not started yet'}
+                </Text>
+                <Text className="text-gray-400 text-xs mt-1">
+                  Participants: {participantCount} | Remote: {remoteParticipants?.length || 0}
+                </Text>
+                {__DEV__ && hostParticipant && (
+                  <Text className="text-red-400 text-xs mt-1">
+                    Debug: Host found but no video stream detected
+                  </Text>
+                )}
+              </View>
+            );
+          }
+        })()}
 
         {giftAnimations.activeGiftAnimations.map((animation: any) => (
           <GiftAnimation
@@ -107,15 +378,9 @@ export default function UnifiedViewerStreamScreen() {
   const router = useRouter();
   const currentUser = useSelector(selectCurrentUser) as any;
   const accessToken = useSelector(selectAccessToken);
-  
+
   const streamId = params.streamId as string;
-  
-  const [hasJoined, setHasJoined] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isOperationInProgress, setIsOperationInProgress] = useState(false);
-  const [streamClient, setStreamClient] = useState<any>(null);
-  const [call, setCall] = useState<any>(null);
-  const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
+
   const [joinAttemptCount, setJoinAttemptCount] = useState(0);
   const [giftModalVisible, setGiftModalVisible] = useState(false);
   const [coinPurchaseModalVisible, setCoinPurchaseModalVisible] = useState(false);
@@ -123,17 +388,21 @@ export default function UnifiedViewerStreamScreen() {
   const [shouldOpenGiftModalAfterPurchase, setShouldOpenGiftModalAfterPurchase] = useState(false);
   const [sendingGift, setSendingGift] = useState(false);
   const [selectedGiftId, setSelectedGiftId] = useState<number | null>(null);
+  const [isParticipant, setIsParticipant] = useState(false);
   const [isPurchasing, setIsPurchasing] = useState(false);
-  
+
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
-  
+
   const [hostProfilePictureUrl, setHostProfilePictureUrl] = useState<string>('');
   const [viewerProfilePictureUrl, setViewerProfilePictureUrl] = useState<string>('');
 
   const initializationTimeoutRef = useRef<number | null>(null);
 
-  const [realtimeMessages, setRealtimeMessages] = useState<any[]>([]);
+  const [realtimeMessages, setRealtimeMessages] = useState<RealtimeMessages>([]);
+
+  // App state for smart polling
+  const [appState, setAppState] = useState(AppState.currentState);
 
   const { data: freshUserData } = useGetProfileQuery();
   const userData = freshUserData || currentUser;
@@ -145,38 +414,59 @@ export default function UnifiedViewerStreamScreen() {
   const [purchaseCoins] = usePurchaseCoinsMutation();
 
   const modeFromParams = (params.mode as string) || '';
-  const [streamMode, setStreamMode] = useState<'single' | 'multi'>(
+  const [streamMode, setStreamMode] = useState<StreamMode>(
     modeFromParams === 'multi' ? 'multi' : 'single'
   );
 
-  const { 
-    data: streamDetails, 
-    isLoading: streamLoading, 
-    error: streamError,
-    refetch: refetchStreamDetails 
-  } = useGetStreamQuery(streamId, { skip: !streamId });
-
-  const { 
-    data: walletSummary, 
+  const {
+    data: walletSummary,
     isLoading: walletLoading,
-    refetch: refetchWallet 
+    refetch: refetchWallet
   } = useGetWalletSummaryQuery();
 
-  const { 
-    data: gifts = [], 
+  const {
+    data: gifts = [],
     isLoading: giftsLoading,
-    refetch: refetchGifts 
+    refetch: refetchGifts
   } = useGetGiftsQuery();
 
-  const { 
-    data: coinPackages = [], 
+  const {
+    data: coinPackages = [],
     isLoading: coinPackagesLoading,
-    refetch: refetchCoinPackages 
+    refetch: refetchCoinPackages
   } = useGetCoinPackagesQuery();
 
-  const { state, actions, messages: streamMessages } = useStreamState({ 
-    streamId: streamId, 
+  const {
+    streamClient,
+    call,
+    hasJoined,
+    isConnecting,
+    isOperationInProgress,
+    videoLoadError,
+    connectionState,
+    // Actions with renamed variables to avoid conflicts
+    initializeStream: hookInitializeStream,
+    handleLeaveStream: hookHandleLeaveStream,
+    handleSendMessage: hookHandleSendMessage,
+    setVideoLoadError: hookSetVideoLoadError,
+    refetchMessages,
+    resetConnectionState,
+    refetchStreamDetails,
+  } = useStreamState({
+    streamId: streamId,
     userRole: 'viewer' // FORCE viewer role - viewers should never end streams
+  });
+
+  // Get stream details, loading state, and error from RTK Query
+  const {
+    data: streamDetails,
+    isLoading: streamLoading,
+    error: streamError,
+    refetch: refetchStreamQuery
+  } = useGetStreamQuery(streamId, {
+    pollingInterval: 10000, // Poll every 10 seconds to detect promotion changes
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
   });
 
   const chat = useHybridStreamChat({
@@ -188,50 +478,57 @@ export default function UnifiedViewerStreamScreen() {
     hostId: streamDetails?.host?.id?.toString(),
     profilePicture: viewerProfilePictureUrl,
     useStreamChat: true,
-    baseURL: baseURL,
+    baseURL: MEDIA_BASE_URL,
   });
 
   const allMessages = React.useMemo(() => {
     const streamChatMessages = Array.isArray(chat.messages) ? chat.messages : [];
     const safeRealtimeMessages = Array.isArray(realtimeMessages) ? realtimeMessages : [];
-    
-    const allCombined = [...streamChatMessages, ...safeRealtimeMessages];
-    const combined = [...streamChatMessages, ...safeRealtimeMessages];
-    
+
+    // Transform RealtimeMessage to match the expected interface
+    const transformedRealtimeMessages = safeRealtimeMessages.map((msg: any) => ({
+      ...msg,
+      timestamp: msg.created_at || msg.timestamp, // Add timestamp field from created_at
+    }));
+
+    const combined = [...streamChatMessages, ...transformedRealtimeMessages];
+
     const uniqueMessages = combined.filter((message, index, array) => {
       if (!message || !message.message) return false;
       if (!message.id) return true;
       return index === array.findIndex(m => m?.id === message.id);
     });
-    
+
     return uniqueMessages.sort((a, b) => {
       const getTimestamp = (msg: any) => {
-        if (!msg?.timestamp) return 0;
-        
-        if (typeof msg.timestamp === 'string') {
-          const date = new Date(msg.timestamp);
+        // Check for both timestamp and created_at properties
+        const timeValue = msg?.timestamp || msg?.created_at;
+        if (!timeValue) return 0;
+
+        if (typeof timeValue === 'string') {
+          const date = new Date(timeValue);
           return isNaN(date.getTime()) ? 0 : date.getTime();
         }
-        
-        if (typeof msg.timestamp === 'number') {
-          if (msg.timestamp > 946684800) {
-            return msg.timestamp * 1000;
+
+        if (typeof timeValue === 'number') {
+          if (timeValue > 946684800) {
+            return timeValue * 1000;
           }
-          return msg.timestamp;
+          return timeValue;
         }
-        
+
         return 0;
       };
-      
+
       const timeA = getTimestamp(a);
       const timeB = getTimestamp(b);
       return timeA - timeB;
     });
   }, [chat.messages, realtimeMessages]);
 
-  const giftAnimations = useGiftAnimations({ 
+  const giftAnimations = useGiftAnimations({
     messages: allMessages,
-    baseURL: baseURL
+    baseURL: MEDIA_BASE_URL
   });
 
   const followSystem = useFollowSystem({
@@ -249,7 +546,7 @@ export default function UnifiedViewerStreamScreen() {
       const fullUrl = `${webURL}${profilePath}`;
       return fullUrl;
     }
-    
+
     if (user?.profile_picture) {
       if (user.profile_picture.startsWith('http')) {
         return user.profile_picture;
@@ -260,7 +557,7 @@ export default function UnifiedViewerStreamScreen() {
       const fullUrl = `${webURL}${profilePath}`;
       return fullUrl;
     }
-    
+
     return null;
   };
 
@@ -269,7 +566,7 @@ export default function UnifiedViewerStreamScreen() {
     image_url: gift.icon_url,
     coin_cost: gift.cost
   })) : [];
-  
+
   const safeCoinPackages = Array.isArray(coinPackages) ? coinPackages.map((pkg, index) => ({
     id: pkg.id,
     name: pkg.formatted_price || `${pkg.coins} Riz`,
@@ -312,19 +609,11 @@ export default function UnifiedViewerStreamScreen() {
   // 🎉 Check if current user has been promoted to guest and redirect
   useEffect(() => {
     if (streamDetails?.participants && userData?.id) {
-      console.log('🔍 Checking user promotion status...', {
-        participants: streamDetails.participants,
-        currentUserId: userData.id
-      });
-      
       const currentUserParticipant = streamDetails.participants.find(
-        (participant: any) => participant.user.id === userData.id
+        (participant: any) => participant.user?.id === userData.id
       );
-      
-      console.log('👤 Current user participant:', currentUserParticipant);
-      
+
       if (currentUserParticipant?.participant_type === 'guest') {
-        console.log('🎉 User has been promoted to guest! Redirecting to participant screen...');
         // Show success message before redirecting
         Alert.alert(
           '🎉 You\'ve been promoted!',
@@ -335,7 +624,11 @@ export default function UnifiedViewerStreamScreen() {
               onPress: () => {
                 router.replace({
                   pathname: '/stream/multi/[id]',
-                  params: { id: streamId, mode: streamMode }
+                  params: {
+                    id: streamId,
+                    mode: streamMode,
+                    promoted: 'true' // Flag to indicate this user was just promoted
+                  }
                 });
               }
             }
@@ -346,12 +639,13 @@ export default function UnifiedViewerStreamScreen() {
   }, [streamDetails?.participants, userData?.id, streamId, streamMode, router]);
 
   // 🔄 Listen for promotion events via WebSocket to refetch stream details
+  // Note: Removed socket-based promotion events as they're no longer supported
+  // in the current Stream Chat implementation
+  /*
   useEffect(() => {
     if (chat?.socket && userData?.id) {
       const handlePromotionEvent = (data: any) => {
-        console.log('🔄 Received promotion event:', data);
         if (data.event === 'user_promoted' && data.data?.user_id === userData.id) {
-          console.log('🎉 Current user was promoted! Refetching stream details...');
           refetchStreamDetails();
         }
       };
@@ -364,6 +658,7 @@ export default function UnifiedViewerStreamScreen() {
       };
     }
   }, [chat?.socket, userData?.id, refetchStreamDetails]);
+  */
 
   // Update viewer profile picture URL when user data loads
   useEffect(() => {
@@ -385,7 +680,7 @@ export default function UnifiedViewerStreamScreen() {
     }
   }, [shouldOpenGiftModalAfterPurchase, coinPurchaseModalVisible]);
 
-  const messages = streamMessages || [];
+  const messages = chat.messages || [];
 
   const openGiftModal = () => {
     setGiftModalVisible(true);
@@ -399,7 +694,7 @@ export default function UnifiedViewerStreamScreen() {
       try {
         await chat.sendMessage(message.trim());
       } catch (error) {
-        console.error('[ViewerScreen] ❌ Stream Chat send failed:', error);
+        // Message send failed - handled by UI
       }
     } else {
     }
@@ -408,15 +703,14 @@ export default function UnifiedViewerStreamScreen() {
   // Like handler
   const handleLike = async () => {
     if (isLiked) return; // Prevent multiple likes
-    
+
     setIsLiked(true);
     setLikeCount(prev => prev + 1);
-    
+
     // Send like to backend API
     try {
       await likeStream(streamId).unwrap();
     } catch (error) {
-      console.error('Failed to send like:', error);
       // Revert on error
       setIsLiked(false);
       setLikeCount(prev => prev - 1);
@@ -432,8 +726,8 @@ export default function UnifiedViewerStreamScreen() {
         `You need ${coinsNeeded} more coins to send "${gift.name}".\n\nYour balance: ${walletSummary?.coins || 0} coins\nGift cost: ${gift.cost} coins`,
         [
           { text: 'Maybe Later', style: 'cancel' },
-          { 
-            text: '🛒 Get Coins', 
+          {
+            text: '🛒 Get Coins',
             style: 'default',
             onPress: () => {
               setGiftModalVisible(false);
@@ -464,7 +758,7 @@ export default function UnifiedViewerStreamScreen() {
 
       // Close gift modal
       setGiftModalVisible(false);
-      
+
       try {
         if (chat.chatProvider === 'stream-chat' && chat.sendGiftEvent) {
           const giftEventData = {
@@ -475,17 +769,17 @@ export default function UnifiedViewerStreamScreen() {
             gift: gift,
             sender_id: userData?.id?.toString(),
             sender_username: userData?.username || 'Anonymous',
-            sender_full_name: userData?.first_name && userData?.last_name 
+            sender_full_name: userData?.first_name && userData?.last_name
               ? `${userData.first_name} ${userData.last_name}`
               : userData?.full_name || userData?.username || 'Anonymous',
             sender_profile_picture: userData?.profile_picture_url || userData?.profile_picture,
             stream_id: streamId,
             timestamp: new Date().toISOString(),
           };
-          
+
           // Send the gift event to all participants
           await chat.sendGiftEvent(giftEventData);
-          
+
           // ALSO send as a chat message so it appears in the chat feed like TikTok
           await chat.sendMessage(`sent ${gift.name}`, {
             customType: 'gift',
@@ -495,32 +789,30 @@ export default function UnifiedViewerStreamScreen() {
             gift_cost: gift.cost,
             gift: gift,
           });
-          
+
         } else {
-          console.error('❌ [StreamChat Gift] Stream Chat not available or sendGiftEvent not available');
+          // Stream Chat not available
         }
       } catch (chatError) {
-        console.error('❌ [StreamChat Gift] Failed to send gift event:', chatError);
+        // Failed to send gift event
       }
-      
+
       refetchWallet();
-      
+
       Alert.alert(
-        '🎁 Gift Sent!', 
+        '🎁 Gift Sent!',
         `You sent "${gift.name}" to the stream! 🌟\n\nRemaining balance: ${(walletSummary?.coins || 0) - gift.cost} coins`,
         [{ text: 'Awesome!', style: 'default' }]
       );
     } catch (error: any) {
-      console.error('Failed to send gift:', error);
-      
       if (error?.data?.error === 'Insufficient coins') {
         Alert.alert(
           '💎 Insufficient Coins',
           'Your coin balance has changed. Please refresh and try again.',
           [
             { text: 'OK', style: 'cancel' },
-            { 
-              text: 'Get More Coins', 
+            {
+              text: 'Get More Coins',
               onPress: () => {
                 setShouldOpenGiftModalAfterPurchase(true);
                 setGiftModalVisible(false);
@@ -530,7 +822,7 @@ export default function UnifiedViewerStreamScreen() {
           ]
         );
       } else {
-        Alert.alert('❌ Oops!', 'Something went wrong sending your gift. Please try again.');
+        Alert.alert(' Oops!', 'Something went wrong sending your gift. Please try again.');
       }
     } finally {
       setSendingGift(false);
@@ -556,16 +848,15 @@ export default function UnifiedViewerStreamScreen() {
 
       // Refresh wallet to show new balance
       refetchWallet();
-      
+
       // Close modal and potentially open gift modal
       setCoinPurchaseModalVisible(false);
-      
+
       if (shouldOpenGiftModalAfterPurchase) {
         setGiftModalVisible(true);
         setShouldOpenGiftModalAfterPurchase(false);
       }
     } catch (error: any) {
-      console.error('Failed to purchase coins:', error);
       Alert.alert('Purchase Failed', 'Failed to purchase coins. Please try again.');
     } finally {
       setIsPurchasing(false);
@@ -580,204 +871,117 @@ export default function UnifiedViewerStreamScreen() {
       } catch (error) {
         // User was not registered, ignore
       }
-      
+
       // For viewers, just disconnect - no need to leave call since we never joined as participants
       if (streamClient) {
         await streamClient.disconnectUser();
       }
-      
-      setCall(null);
-      setStreamClient(null);
-      setHasJoined(false);
-      setIsConnecting(false);
+
+      // Reset connection state using the hook's action
+      resetConnectionState();
       setJoinAttemptCount(0);
-      
+
       return true;
     } catch (error) {
-      console.error('Failed to cleanup viewer connection:', error);
       return false;
     }
   };
 
-  const initializeStreamViewer = async () => {
-    if (isOperationInProgress || hasJoined || !streamDetails) {
-      return;
-    }
-
-    const apiBaseURL = MEDIA_BASE_URL;
-    
-    if (joinAttemptCount >= 3) {
-      Alert.alert(
-        'Connection Failed',
-        'Unable to connect to the stream after multiple attempts. Please check your connection and try again.',
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
-      return;
-    }
-
-    setJoinAttemptCount(prev => prev + 1);
-    setIsOperationInProgress(true);
-
+  const retryInitialization = async () => {
     try {
-      setIsConnecting(true);
-
-      const streamUser = createStreamUser(currentUser);
-      const client = await createStreamClient(streamUser);
-      
-      if (!client) {
-        Alert.alert('Error', 'Failed to connect to stream', [
-          { text: 'OK', onPress: () => router.back() }
-        ]);
-        return;
-      }
-      setStreamClient(client);
-
-      const callId = `stream_${streamId}`;
-      const streamCall = client.call('default', callId);
-      
-      // For viewers, join the call but disable camera and microphone
-      try {
-        await streamCall.join({ 
-          create: false
-        });
-        
-        await streamCall.camera.disable();
-        await streamCall.microphone.disable();
-      } catch (error) {
-        // If call doesn't exist yet, create it and join as viewer
-        await streamCall.join({ 
-          create: true
-        });
-        
-        // Disable camera and microphone for viewer
-        await streamCall.camera.disable();
-        await streamCall.microphone.disable();
-      }
-      
-      setCall(streamCall);
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // For backend, we still register as a viewer for analytics/chat purposes
-      // but we don't join as an active participant in the video call
-      if (streamDetails.status === 'live' && streamDetails.is_live) {
-        try {
-          await joinStream({
-            streamId,
-            data: { participant_type: 'viewer' }
-          }).unwrap();
-        } catch (joinError: any) {
-          if (joinError?.data?.error !== 'You are already in this stream') {
-            throw joinError;
-          }
-        }
-      }
-
-      setHasJoined(true);
-      setIsConnecting(false);
-      setJoinAttemptCount(0);
-      setVideoLoadError(null);
-      
-      if (initializationTimeoutRef.current) {
-        clearTimeout(initializationTimeoutRef.current);
-        initializationTimeoutRef.current = null;
-      }
-    } catch (error: any) {
-      console.error('Stream viewer initialization error:', error);
-      setIsConnecting(false);
-      
-      if (initializationTimeoutRef.current) {
-        clearTimeout(initializationTimeoutRef.current);
-        initializationTimeoutRef.current = null;
-      }
-      
-      if (error?.data?.error === 'You are already in this stream') {
-        const cleanupSuccess = await forceCleanupParticipation();
-        
-        if (cleanupSuccess) {
-          Alert.alert(
-            'Stream State Cleaned',
-            'We detected you were already in this stream and cleaned up the state. Try joining again.',
-            [
-              { text: 'Try Again', onPress: () => initializeStreamViewer() },
-              { text: 'Go Back', onPress: () => router.back() }
-            ]
-          );
-        } else {
-          Alert.alert(
-            'Connection Issue',
-            'There was an issue with your stream connection. Please try again or contact support.',
-            [
-              { text: 'Try Again', onPress: () => initializeStreamViewer() },
-              { text: 'Go Back', onPress: () => router.back() }
-            ]
-          );
-        }
-      } else {
-        Alert.alert('Connection Error', 'Failed to join stream. Please try again.');
-      }
-    } finally {
-      setIsOperationInProgress(false);
+      await hookInitializeStream();
+    } catch (error) {
+      hookSetVideoLoadError('Failed to join stream. Please try again.');
     }
   };
 
   const handleLeaveStream = async () => {
     setLeaveModalVisible(false);
-    
+
     if (isOperationInProgress) return;
-    setIsOperationInProgress(true);
+    // The hook will manage isOperationInProgress internally
 
     try {
-      // Leave backend stream if we joined it as a viewer
-      if (hasJoined && streamDetails?.status === 'live' && streamDetails?.is_live) {
-        try {
-          await leaveStream(streamId).unwrap();
-        } catch (error) {
-          // User may not have been registered, ignore
-        }
-      }
-      
-      // For viewers, we don't need to call.leave() since we never joined as participants
-      // Just disconnect the client to stop watching
-      if (streamClient) {
-        await streamClient.disconnectUser();
-      }
-      
+      // Use the hook's leave function which handles everything properly
+      await hookHandleLeaveStream();
+
       router.back();
     } catch (error) {
-      console.error('Failed to leave stream:', error);
       // Still navigate back even if there's an error
       router.back();
-    } finally {
-      setIsOperationInProgress(false);
     }
   };
 
   const handleShare = async () => {
     const shareUrl = `${MEDIA_BASE_URL}/stream/${streamId}`;
-    
+
     try {
       await Share.share({
         message: `Check out this stream: ${streamDetails?.title || 'Live Stream'}`,
         url: shareUrl,
       });
     } catch (error) {
-      console.error('Failed to share:', error);
+      // Share failed - no action needed
+    }
+  };
+
+  const handleJoinAsParticipant = async () => {
+    try {
+      if (!call) {
+        Alert.alert('Error', 'Stream not ready. Please wait and try again.');
+        return;
+      }
+
+      // First check if we have camera permissions
+      try {
+        // Enable camera and microphone for participant
+        await call.camera.enable();
+        await call.microphone.enable();
+
+        // Update participant state
+        setIsParticipant(true);
+
+        Alert.alert('Success', 'You are now participating in the stream!');
+      } catch (enableError) {
+        Alert.alert(
+          'Permission Required',
+          'Please allow camera and microphone access to participate in the stream.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        'Join Failed',
+        'Unable to join as participant. Please try again later.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
   useEffect(() => {
-    if (streamDetails && userData?.id && !hasJoined && !isConnecting && !isOperationInProgress) {
-      initializeStreamViewer();
+    if (userData?.id && streamId && !hasJoined && !isOperationInProgress) {
+      // Add a race condition with timeout for initialization
+      const initPromise = hookInitializeStream();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Initialization timeout')), 20000) // Increased to 20 seconds
+      );
+
+      Promise.race([initPromise, timeoutPromise]).catch((error) => {
+        hookSetVideoLoadError(
+          error.message === 'Initialization timeout'
+            ? 'Stream initialization took too long. Please check your internet connection and try again.'
+            : 'Failed to join stream. Please check your internet connection and try again.'
+        );
+      });
     }
-  }, [streamDetails, userData?.id, hasJoined, isConnecting, isOperationInProgress]);
+  }, [userData?.id, streamId, hasJoined, isOperationInProgress, streamDetails, streamLoading]); // Include stream loading state
 
   useEffect(() => {
     const timeout = setTimeout(() => {
       if (!hasJoined && !isConnecting && streamDetails) {
-        setVideoLoadError('Stream took too long to load. Please try again.');
+        hookSetVideoLoadError('Stream took too long to load. Please try again.');
       }
-    }, 30000);
+    }, 15000); // Reduced from 30s to 15s
 
     initializationTimeoutRef.current = timeout;
 
@@ -791,7 +995,9 @@ export default function UnifiedViewerStreamScreen() {
   useEffect(() => {
     return () => {
       if (streamClient) {
-        streamClient.disconnectUser().catch(console.error);
+        streamClient.disconnectUser().catch(() => {
+          // Cleanup disconnection failed - ignore
+        });
       }
     };
   }, [streamClient]);
@@ -827,7 +1033,7 @@ export default function UnifiedViewerStreamScreen() {
             <StreamCall call={call}>
               <StreamContent
                 streamDetails={streamDetails}
-                streamMessages={streamMessages}
+                streamMessages={chat.messages || []}
                 chat={chat}
                 giftAnimations={giftAnimations}
                 hasJoined={hasJoined}
@@ -844,13 +1050,44 @@ export default function UnifiedViewerStreamScreen() {
                 followSystem={followSystem}
                 userData={userData}
                 hostProfilePictureUrl={hostProfilePictureUrl}
+                connectionState={connectionState}
+                actions={{
+                  initializeStream: hookInitializeStream,
+                  handleLeaveStream: hookHandleLeaveStream,
+                  handleSendMessage: hookHandleSendMessage,
+                  setVideoLoadError: hookSetVideoLoadError,
+                  refetchMessages,
+                  resetConnectionState,
+                  refetchStreamDetails,
+                }}
+                refetchStreamQuery={refetchStreamQuery}
               />
             </StreamCall>
           </StreamVideo>
+        ) : videoLoadError ? (
+          <View className="flex-1 items-center justify-center">
+            <Text className="text-red-400 text-lg mb-4">{videoLoadError}</Text>
+            <TouchableOpacity
+              onPress={retryInitialization}
+              className="bg-blue-600 px-6 py-3 rounded-lg"
+            >
+              <Text className="text-white font-semibold">Try Again</Text>
+            </TouchableOpacity>
+            {__DEV__ && (
+              <Text className="text-gray-500 text-xs mt-4 text-center px-4">
+                Debug: streamClient={!!streamClient}, call={!!call}, hasJoined={hasJoined}, isConnecting={isConnecting}
+              </Text>
+            )}
+          </View>
         ) : (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color="#ffffff" />
             <Text className="text-white mt-4">Initializing stream...</Text>
+            {__DEV__ && (
+              <Text className="text-gray-500 text-xs mt-2 text-center px-4">
+                streamClient={!!streamClient}, call={!!call}, hasJoined={hasJoined}, isConnecting={isConnecting}, isOperationInProgress={isOperationInProgress}
+              </Text>
+            )}
           </View>
         )}
 
@@ -885,6 +1122,8 @@ export default function UnifiedViewerStreamScreen() {
           isLiked={isLiked}
           likeCount={likeCount}
           hasJoined={hasJoined && !isConnecting}
+          isMultiStream={streamDetails?.mode === 'multi'}
+          isParticipant={isParticipant}
         />
 
         {/* Modular Modals */}

@@ -148,7 +148,6 @@ const NotificationInboxScreen = () => {
       
       refetch(); // Refresh notifications
     } catch (error: any) {
-      console.error('Accept invitation error:', error);
       Alert.alert('Error', error?.data?.error || 'Failed to accept invitation');
     }
   };
@@ -168,7 +167,6 @@ const NotificationInboxScreen = () => {
       Alert.alert('Invitation Declined', 'The host has been notified of your decision.');
       refetch(); // Refresh notifications
     } catch (error: any) {
-      console.error('Decline invitation error:', error);
       Alert.alert('Error', error?.data?.error || 'Failed to decline invitation');
     }
   };
@@ -201,7 +199,6 @@ const NotificationInboxScreen = () => {
               await clearAllNotifications().unwrap();
               Alert.alert('Success', 'All notifications have been cleared.');
             } catch (error) {
-              console.error('Error clearing notifications:', error);
               Alert.alert('Error', 'Failed to clear notifications. Please try again.');
             }
           },
@@ -226,7 +223,6 @@ const NotificationInboxScreen = () => {
             try {
               await clearNotification(notificationId).unwrap();
             } catch (error) {
-              console.error('Error clearing notification:', error);
               Alert.alert('Error', 'Failed to delete notification. Please try again.');
             }
           },
@@ -237,14 +233,6 @@ const NotificationInboxScreen = () => {
 
   const handleNotificationPress = async (notification: any) => {
     try {
-      console.log('🔔 Notification clicked:', {
-        type: notification.notification_type,
-        extra_data: notification.extra_data,
-        related_object: notification.related_object,
-        title: notification.title,
-        message: notification.message
-      });
-
       // Mark as read with beautiful animation
       if (!notification.is_read) {
         await markAsRead(notification.id).unwrap();
@@ -273,10 +261,10 @@ const NotificationInboxScreen = () => {
           }
           break;
         default:
-          console.log('Notification pressed:', notification);
+          // Handle other notification types
+          break;
       }
     } catch (error) {
-      console.error('Error handling notification:', error);
       Alert.alert('Error', 'Failed to open notification');
     }
   };

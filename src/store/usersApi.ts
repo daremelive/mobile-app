@@ -2,6 +2,17 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { RootState } from './index';
 import { API_BASE_URL } from '../config/env';
 
+// Import centralized types
+import {
+  UserProfile,
+  UpdateUserProfileRequest,
+  BlockUserRequest,
+  UnblockUserRequest,
+  ReportUserRequest,
+  ProfilePictureUploadResponse,
+  UserActionResponse
+} from '../../types/api/users';
+
 // Create base query
 const baseQuery = fetchBaseQuery({
   baseUrl: API_BASE_URL,
@@ -15,35 +26,6 @@ const baseQuery = fetchBaseQuery({
     return headers;
   },
 });
-
-// User profile interface
-export interface UserProfile {
-  id: number;
-  username: string;
-  email: string;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  short_name: string;
-  phone_number: string;
-  gender: 'male' | 'female';
-  country: string;
-  interests: string;
-  language: string;
-  vip_level: 'basic' | 'premium' | 'vip' | 'vvip';
-  profile_picture: string | null;
-  profile_picture_url: string | null;
-  is_email_verified: boolean;
-  is_phone_verified: boolean;
-  profile_completed: boolean;
-  is_content_creator: boolean;
-  followers_count: number;
-  following_count: number;
-  total_likes_count: number;
-  is_following: boolean;
-  created_at: string;
-  updated_at: string;
-}
 
 export const usersApi = createApi({
   reducerPath: 'usersApi',
@@ -69,7 +51,7 @@ export const usersApi = createApi({
     }),
 
     // Update current user profile
-    updateUserProfile: builder.mutation<UserProfile, Partial<UserProfile>>({
+    updateUserProfile: builder.mutation<UserProfile, UpdateUserProfileRequest>({
       query: (data) => ({
         url: '/users/profile/',
         method: 'PATCH',
@@ -79,7 +61,7 @@ export const usersApi = createApi({
     }),
 
     // Upload profile picture
-    uploadProfilePicture: builder.mutation<{ profile_picture_url: string }, FormData>({
+    uploadProfilePicture: builder.mutation<ProfilePictureUploadResponse, FormData>({
       query: (formData) => ({
         url: '/users/upload-profile-picture/',
         method: 'POST',
@@ -98,7 +80,7 @@ export const usersApi = createApi({
     }),
 
     // Block user
-    blockUser: builder.mutation<{ message: string }, { user_id: number }>({
+    blockUser: builder.mutation<UserActionResponse, BlockUserRequest>({
       query: (data) => ({
         url: '/users/block/',
         method: 'POST',
@@ -108,7 +90,7 @@ export const usersApi = createApi({
     }),
 
     // Unblock user
-    unblockUser: builder.mutation<{ message: string }, { user_id: number }>({
+    unblockUser: builder.mutation<UserActionResponse, UnblockUserRequest>({
       query: (data) => ({
         url: '/users/unblock/',
         method: 'POST',
@@ -118,7 +100,7 @@ export const usersApi = createApi({
     }),
 
     // Report user
-    reportUser: builder.mutation<{ message: string }, { user_id: number; reason: string; description?: string }>({
+    reportUser: builder.mutation<UserActionResponse, ReportUserRequest>({
       query: (data) => ({
         url: '/users/report/',
         method: 'POST',

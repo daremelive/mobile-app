@@ -15,9 +15,8 @@ export default function I18nTestScreen() {
     try {
       await saveLanguagePreference(languageCode);
       await changeLanguage(languageCode);
-      console.log(`🌍 Language changed to: ${languageCode}`);
     } catch (error) {
-      console.error('Failed to change language:', error);
+      // Silent language change failure
     } finally {
       setIsChanging(false);
     }

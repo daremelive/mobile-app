@@ -1,13 +1,7 @@
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-
-interface LogoutConfirmationModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  hasActiveStreams?: boolean;
-}
+import { LogoutConfirmationModalProps } from './types';
 
 const LogoutConfirmationModal: React.FC<LogoutConfirmationModalProps> = ({
   visible,

@@ -3,48 +3,29 @@ import * as SecureStore from 'expo-secure-store';
 import type { RootState } from './index';
 import { API_BASE_URL } from '../config/env';
 
-// Types for Follow API
-export interface UserListItem {
-  id: number;
-  username: string;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  profile_picture_url?: string;
-  followers_count: string; // Backend returns formatted string like "12k"
-  is_following: boolean;
-  is_live: boolean;
-}
+// Import centralized types
+import type {
+  UserListItem,
+  FollowUserProfile,
+  FollowRequest,
+  UnfollowRequest,
+  FollowResponse,
+  FollowListResponse,
+  FollowQueryParams,
+  DiscoverUsersParams,
+  GetFollowingParams,
+  GetFollowersParams,
+  DiscoverUsersResponse,
+} from '../../types/api/follow';
 
-export interface FollowRequest {
-  user_id: number;
-}
-
-export interface FollowResponse {
-  message: string;
-  is_following: boolean;
-}
-
-export interface FollowListResponse {
-  results: UserListItem[];
-  count: number;
-  next: string | null;
-  previous: string | null;
-}
-
-export interface UserProfile {
-  id: number;
-  username: string;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  profile_picture_url?: string;
-  followers_count: number;
-  following_count: number;
-  is_following: boolean;
-  vip_level: string;
-  is_content_creator: boolean;
-}
+// Re-export for backward compatibility
+export type {
+  UserListItem,
+  FollowRequest,
+  FollowResponse,
+  FollowListResponse,
+  UserProfile,
+} from '../../types/api/follow';
 
 // Create API with base query that includes token
 const baseQuery = fetchBaseQuery({
@@ -153,7 +134,7 @@ export const followApi = createApi({
     }),
 
     // Get list of users the current user is following
-    getFollowing: builder.query<UserListItem[], { search?: string }>({
+    getFollowing: builder.query<UserListItem[], GetFollowingParams>({
       query: ({ search = '' }) => ({
         url: '/users/following/',
         params: search ? { search } : {},
@@ -165,7 +146,7 @@ export const followApi = createApi({
     }),
 
     // Get list of users following the current user
-    getFollowers: builder.query<UserListItem[], { search?: string }>({
+    getFollowers: builder.query<UserListItem[], GetFollowersParams>({
       query: ({ search = '' }) => ({
         url: '/users/followers/',
         params: search ? { search } : {},
@@ -175,19 +156,19 @@ export const followApi = createApi({
     }),
 
     // Discover users to follow
-    discoverUsers: builder.query<UserListItem[], { search?: string }>({
+    discoverUsers: builder.query<UserListItem[], DiscoverUsersParams>({
       query: ({ search = '' }) => ({
         url: '/users/discover/',
         params: search ? { search } : {},
       }),
       providesTags: ['Users'],
-      transformResponse: (response: FollowListResponse) => response.results,
+      transformResponse: (response: DiscoverUsersResponse) => response.results,
       // Add more aggressive cache invalidation for follow status updates
       keepUnusedDataFor: 0, // Don't cache this data for too long
     }),
 
     // Get user profile with follow status
-    getUserProfile: builder.query<UserProfile, number>({
+    getUserProfile: builder.query<FollowUserProfile, number>({
       query: (userId) => ({
         url: `/users/${userId}/`,
         method: 'GET',

@@ -1,35 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Keyboard } from 'react-native';
 import streamChatService, { StreamChatMessage, StreamChatUser, getStreamChatServiceForUser } from '../../../src/services/StreamChatService';
-import type { ChatMessage } from '../components/StreamChatOverlay';
+import type { ChatMessage } from '../components/types';
 import { store } from '../../../src/store';
-import { usersApi, UserProfile } from '../../../src/store/usersApi';
-
-interface UseStreamChatWithStreamProps {
-  streamId: string;
-  streamTitle: string;
-  userId?: string;
-  username?: string;
-  isHost?: boolean;
-  hostId?: string; // Actual host ID from stream details
-  profilePicture?: string;
-  enabled?: boolean;
-  maxMessages?: number;
-  baseURL?: string; // Add baseURL for profile picture construction
-}
-
-interface UseStreamChatWithStreamReturn {
-  messages: ChatMessage[];
-  isKeyboardVisible: boolean;
-  keyboardHeight: number;
-  sendMessage: (message: string, customData?: any) => Promise<void>;
-  addMessage: (message: ChatMessage) => void;
-  clearMessages: () => void;
-  isSendingMessage: boolean;
-  isConnected: boolean;
-  connectionError: string | null;
-  sendGiftEvent?: (giftData: any) => Promise<void>; // 🎁 Add gift event method
-}
+import { usersApi } from '../../../src/store/usersApi';
+import { UseStreamChatWithStreamProps, UseStreamChatWithStreamReturn } from './types';
 
 export const useStreamChatWithStream = ({
   streamId,
@@ -50,7 +25,7 @@ export const useStreamChatWithStream = ({
   const [connectionError, setConnectionError] = useState<string | null>(null);
   
   // User profile cache to store profile pictures
-  const userProfileCache = useRef<Map<string, UserProfile>>(new Map());
+  const userProfileCache = useRef<Map<string, any>>(new Map());
   
   // Keep track of message count for performance
   const maxMessages = 100;
@@ -191,7 +166,7 @@ export const useStreamChatWithStream = ({
   }, [userId]);
 
   // Helper function to get user profile with caching
-  const getUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+  const getUserProfile = useCallback(async (userId: string): Promise<any | null> => {
     // Check cache first
     if (userProfileCache.current.has(userId)) {
       return userProfileCache.current.get(userId)!;
@@ -217,7 +192,7 @@ export const useStreamChatWithStream = ({
     
     // Try to get profile picture from Stream Chat user data first
     let profilePictureUrl = streamMessage.user.image;
-    let userProfile: UserProfile | null = null;
+    let userProfile: any | null = null;
     
     // If no profile picture in Stream Chat, fetch from backend API
     if (!profilePictureUrl) {

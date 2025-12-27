@@ -1,12 +1,6 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { View, TextInput } from 'react-native';
-
-interface CommentInputProps {
-  onSendMessage: (message: string) => void;
-  placeholder?: string;
-  maxLength?: number;
-  disabled?: boolean;
-}
+import { CommentInputProps } from './types';
 
 export const CommentInput = React.memo(({ 
   onSendMessage, 

@@ -65,7 +65,7 @@ const UnlockLevelScreen = () => {
         [
           { text: 'Cancel', style: 'cancel' },
           { 
-            text: '💰 Get Riz', 
+            text: ' Get Riz', 
             onPress: () => {
               router.push('/get-coins');
             }

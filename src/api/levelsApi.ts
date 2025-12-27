@@ -2,9 +2,33 @@ import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/r
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../config/env';
 
+// Import centralized types
+import type {
+  LevelTier,
+  UserLevelSummary,
+  UserCoins,
+  CoinTransaction,
+  StreamChannel,
+  StreamPrivileges,
+  UnlockLevelRequest,
+  LevelTiersResponse,
+  CoinTransactionsResponse,
+  UnlockLevelResponse,
+} from '../../types/api/levels';
+
+// Re-export for backward compatibility
+export type {
+  LevelTier,
+  UserLevelSummary,
+  UserCoins,
+  CoinTransaction,
+  StreamChannel,
+  StreamPrivileges,
+};
+
 // Create base query for levels endpoints
 const baseQuery = fetchBaseQuery({
-  baseUrl: `${API_BASE_URL}/levels/`,
+  baseUrl: `${API_BASE_URL}levels/`,
   prepareHeaders: async (headers) => {
     try {
       const token = await SecureStore.getItemAsync('accessToken');
@@ -17,86 +41,6 @@ const baseQuery = fetchBaseQuery({
     return headers;
   },
 });
-
-export interface LevelTier {
-  id: number;
-  name: string;
-  display_name: string;
-  required_coins: number;
-  coin_range_display: string;
-  description: string;
-  benefits: string[];
-  color_hex: string;
-  order: number;
-  is_unlocked: boolean;
-  is_current: boolean;
-}
-
-export interface UserLevelSummary {
-  current_tier: {
-    name: string;
-    display_name: string;
-    color_hex: string;
-  };
-  coins: {
-    current: number;
-    total_earned: number;
-    needed_for_next: number;
-  };
-  progress: number;
-  next_tier: {
-    name: string;
-    display_name: string;
-    required_coins: number;
-  } | null;
-}
-
-export interface UserCoins {
-  current_coins: number;
-  total_earned: number;
-  total_spent: number;
-  current_tier: LevelTier;
-  next_tier: LevelTier | null;
-  progress_to_next: number;
-}
-
-export interface CoinTransaction {
-  id: number;
-  amount: number;
-  transaction_type: string;
-  reason: string;
-  created_at: string;
-}
-
-export interface StreamChannel {
-  id: number;
-  code: string;
-  name: string;
-  description?: string;
-  image_url?: string;
-  max_participants: number;
-  allow_recording: boolean;
-  required_tiers: string[];
-  required_tiers_display: string;
-  is_accessible: boolean;
-  is_locked: boolean;
-  unlock_tier?: string;
-  coins_needed_to_unlock: number;
-  unlock_message?: string;
-}
-
-export interface StreamPrivileges {
-  can_create_streams: boolean;
-  can_join_streams: boolean;
-  all_channels: StreamChannel[];
-  accessible_channels: StreamChannel[];
-  locked_channels: StreamChannel[];
-  max_stream_duration_minutes: number;
-  tier_name: string;
-  tier_display_name: string;
-  current_coins: number;
-  current_tier_display: string;
-}
 
 export const levelsApi = createApi({
   reducerPath: 'levelsApi',
@@ -115,7 +59,7 @@ export const levelsApi = createApi({
 
     getLevelTiers: builder.query<LevelTier[], void>({
       query: () => 'tiers/',
-      transformResponse: (response: { results: LevelTier[] }) => response.results,
+      transformResponse: (response: LevelTiersResponse) => response.results,
       providesTags: ['LevelTiers'],
     }),
 
@@ -124,11 +68,8 @@ export const levelsApi = createApi({
       providesTags: ['StreamPrivileges'],
     }),
 
-    unlockLevel: builder.mutation<
-      { message: string; tier: LevelTier },
-      { tier_id: number }
-    >({
-      query: (data: { tier_id: number }) => ({
+    unlockLevel: builder.mutation<UnlockLevelResponse, UnlockLevelRequest>({
+      query: (data: UnlockLevelRequest) => ({
         url: 'unlock/',
         method: 'POST',
         body: data,
@@ -138,7 +79,7 @@ export const levelsApi = createApi({
 
     getCoinTransactions: builder.query<CoinTransaction[], void>({
       query: () => 'transactions/',
-      transformResponse: (response: { results: CoinTransaction[] }) => response.results,
+      transformResponse: (response: CoinTransactionsResponse) => response.results,
       providesTags: ['CoinTransactions'],
     }),
   }),

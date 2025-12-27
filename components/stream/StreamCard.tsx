@@ -57,15 +57,15 @@ const StreamCard: React.FC<StreamCardProps> = ({
 
     // Enhanced tier access check with channel-based hierarchical access
     const tierAccessResult = checkHostAccess(
-      host, 
-      { 
-        allowHigherTier: true, 
-        requireExactMatch: false, 
-        checkChannelAccess: true 
+      host,
+      {
+        allowHigherTier: true,
+        requireExactMatch: false,
+        checkChannelAccess: true
       },
       channel // Pass channel for channel-based access check
     );
-    
+
     console.log('🔍 Enhanced tier access check result:', {
       userTier: (currentUser as any)?.vip_level,
       hostTier: host.vip_level,
@@ -74,7 +74,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
       channelBasedAccess: tierAccessResult.channelBasedAccess,
       channel: channel
     });
-    
+
     if (!tierAccessResult.canAccess) {
       // Show tier access modal immediately for users without access
       console.log('🚫 Tier access denied - showing upgrade modal');
@@ -87,7 +87,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
       console.log('✅ Channel-based access granted - proceeding to stream');
       Alert.alert(
         'Join Live Stream',
-        `Join ${host.username || host.first_name || 'Unknown Host'}'s stream: "${title}"?\n\n🔓 Access granted via ${channel} channel privileges`,
+        `Join ${host.username || host.first_name || 'Unknown Host'}'s stream: "${title}"?\n\nAccess granted via ${channel} channel privileges`,
         [
           {
             text: 'Cancel',
@@ -99,7 +99,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
               console.log(`✅ Joining ${channel} stream: ${id} (channel-based access)`);
               router.push({
                 pathname: '/stream/viewer',
-                params: { 
+                params: {
                   streamId: id,
                   hostUsername: host.username || host.first_name || 'Unknown Host',
                   streamTitle: title
@@ -114,7 +114,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
 
     // For traditional tier-based access, also check channel access for completeness
     const hasChannelAccess = requestChannelAccess(channel);
-    
+
     if (!hasChannelAccess) {
       console.log(`🔒 Access denied for ${channel} channel. Showing upgrade modal.`);
       return;
@@ -136,7 +136,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
             console.log(`✅ Joining ${channel} stream: ${id}`);
             router.push({
               pathname: '/stream/viewer',
-              params: { 
+              params: {
                 streamId: id,
                 hostUsername: host.username || host.first_name || 'Unknown Host',
                 streamTitle: title
@@ -170,25 +170,25 @@ const StreamCard: React.FC<StreamCardProps> = ({
   };
 
   const tierBadge = getTierBadgeInfo(host.vip_level);
-  const userCanAccess = currentUser ? 
-    checkHostAccess(host, { allowHigherTier: true, requireExactMatch: false }).canAccess : 
+  const userCanAccess = currentUser ?
+    checkHostAccess(host, { allowHigherTier: true, requireExactMatch: false }).canAccess :
     false;
 
-  const profileImageUrl = host.profile_picture_url?.startsWith('http') 
-    ? host.profile_picture_url 
-    : host.profile_picture_url 
+  const profileImageUrl = host.profile_picture_url?.startsWith('http')
+    ? host.profile_picture_url
+    : host.profile_picture_url
       ? buildProfilePictureURL(host.profile_picture_url)
       : null;
 
   return (
     <>
-      <TouchableOpacity 
+      <TouchableOpacity
         className={`${width} ${height} rounded-2xl overflow-hidden mb-4 ${margin}`}
         onPress={handlePress}
       >
         {profileImageUrl ? (
-          <ImageBackground 
-            source={{ uri: profileImageUrl }} 
+          <ImageBackground
+            source={{ uri: profileImageUrl }}
             className="w-full h-full justify-between"
           >
             {/* Viewer count, live status, and tier badge */}
@@ -199,21 +199,21 @@ const StreamCard: React.FC<StreamCardProps> = ({
                   {formatViewerCount(viewer_count)}
                 </Text>
               </View>
-              
+
               {/* Tier Badge */}
               <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
                 <Text className="text-white text-xs font-bold">
                   {tierBadge.emoji}
                 </Text>
               </View>
-              
+
               {status === 'live' && (
                 <View className="bg-red-600 px-2 py-1 rounded-full">
                   <Text className="text-white text-xs font-bold">LIVE</Text>
                 </View>
               )}
             </View>
-            
+
             {/* Title and host info */}
             <BlurView
               intensity={30}
@@ -238,7 +238,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
               size="full"
               className="absolute inset-0"
             />
-            
+
             {/* Viewer count, live status, and tier badge */}
             <View className="items-end p-2 relative z-10">
               <View className="bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1 mb-2">
@@ -247,21 +247,21 @@ const StreamCard: React.FC<StreamCardProps> = ({
                   {formatViewerCount(viewer_count)}
                 </Text>
               </View>
-              
+
               {/* Tier Badge */}
               <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
                 <Text className="text-white text-xs font-bold">
                   {tierBadge.emoji}
                 </Text>
               </View>
-              
+
               {status === 'live' && (
                 <View className="bg-red-600 px-2 py-1 rounded-full">
                   <Text className="text-white text-xs font-bold">LIVE</Text>
                 </View>
               )}
             </View>
-            
+
             {/* Title and host info */}
             <BlurView
               intensity={30}

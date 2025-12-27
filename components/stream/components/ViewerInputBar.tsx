@@ -3,27 +3,20 @@ import { View, KeyboardAvoidingView, Platform, TouchableOpacity, Text } from 're
 import { Ionicons } from '@expo/vector-icons';
 import { CommentInput } from './CommentInput';
 import GiftIcon from '../../../assets/icons/gift.svg';
-
-interface ViewerInputBarProps {
-  onSendMessage: (message: string) => void;
-  onLike?: () => void;
-  onGiftPress?: () => void;
-  isLiked?: boolean;
-  likeCount?: number;
-  hasJoined: boolean;
-  keyboardHeight?: number;
-  isKeyboardVisible?: boolean;
-}
+import { ViewerInputBarProps } from './types';
 
 export const ViewerInputBar = ({
   onSendMessage,
   onLike,
   onGiftPress,
+  onJoinAsParticipant,
   isLiked = false,
   likeCount = 0,
   hasJoined,
   keyboardHeight = 0,
   isKeyboardVisible = false,
+  isMultiStream = false,
+  isParticipant = false,
 }: ViewerInputBarProps) => {
   if (!hasJoined) return null;
 
@@ -52,6 +45,25 @@ export const ViewerInputBar = ({
           alignItems: 'center',
           paddingBottom: 8
         }}>
+          {/* Join as Participant Button for Multi Streams */}
+          {isMultiStream && !isParticipant && onJoinAsParticipant && (
+            <TouchableOpacity 
+              onPress={onJoinAsParticipant}
+              className="items-center mb-2"
+            >
+              <View className="w-12 h-12 rounded-full bg-red-600 items-center justify-center">
+                <Ionicons 
+                  name="videocam" 
+                  size={20} 
+                  color="#FFFFFF" 
+                />
+              </View>
+              <Text className="text-white text-xs font-semibold mt-0.5">
+                Join
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {onLike && (
             <TouchableOpacity 
               onPress={onLike}

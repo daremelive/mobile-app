@@ -2,14 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
-interface EndStreamModalProps {
-  visible: boolean;
-  onCancel: () => void;
-  onEndStream: () => void;
-  isLoading?: boolean;
-  streamStatus?: 'live' | 'ended' | 'disconnected' | null;
-}
+import { EndStreamModalProps } from './types';
 
 export const EndStreamModal: React.FC<EndStreamModalProps> = ({
   visible,

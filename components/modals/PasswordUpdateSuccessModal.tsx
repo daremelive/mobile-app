@@ -5,11 +5,7 @@ import { router } from 'expo-router';
 import CheckIcon from '../../assets/icons/check.svg';
 import StarsIcon from '../../assets/icons/stars.svg';
 import SuccessIcon from '../../assets/icons/success.svg';
-
-interface PasswordUpdateSuccessModalProps {
-  visible: boolean;
-  onDone: () => void;
-}
+import { PasswordUpdateSuccessModalProps } from './types';
 
 const PasswordUpdateSuccessModal: React.FC<PasswordUpdateSuccessModalProps> = ({
   visible,

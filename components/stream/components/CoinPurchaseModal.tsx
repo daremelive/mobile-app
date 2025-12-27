@@ -4,30 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import CancelIcon from '../../../assets/icons/cancel.svg';
 import DiamondSvg from '../../../assets/icons/diamond-2.svg';
-
-interface CoinPackage {
-  id: number;
-  name: string;
-  coins: number;
-  price: number;
-  currency: string;
-  bonus_coins: number;
-  total_coins: number;
-  formatted_price: string;
-  display_order: number;
-  is_active: boolean;
-}
-
-interface CoinPurchaseModalProps {
-  visible: boolean;
-  onClose: () => void;
-  coinPackages: CoinPackage[];
-  onPurchase: (packageData: CoinPackage) => void;
-  walletBalance: number;
-  isRefreshing: boolean;
-  onRefresh: () => void;
-  isPurchasing: boolean;
-}
+import { CoinPackage, CoinPurchaseModalProps } from './types';
 
 // Diamond icon component
 const DiamondIcon = ({ size = 40, color = "#60A5FA" }: { size?: number; color?: string }) => (

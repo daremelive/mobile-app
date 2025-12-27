@@ -4,20 +4,7 @@ import { useFollowUserMutation, useUnfollowUserMutation, useGetFollowingQuery, u
 import { authApi } from '../../../src/store/authApi';
 import { usersApi } from '../../../src/store/usersApi';
 import { streamsApi } from '../../../src/store/streamsApi';
-
-interface UseFollowSystemProps {
-  userId?: string;
-  targetUserId?: string;
-}
-
-interface UseFollowSystemReturn {
-  isFollowing: boolean;
-  isLoadingFollow: boolean;
-  followersCount: number;
-  followingCount: number;
-  toggleFollow: () => Promise<void>;
-  refreshFollowStatus: () => void;
-}
+import { UseFollowSystemProps, UseFollowSystemReturn } from './types';
 
 export const useFollowSystem = ({
   userId,

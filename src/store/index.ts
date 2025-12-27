@@ -8,6 +8,7 @@ import { notificationApi } from '../api/notificationApi';
 import { blockedApi } from '../api/blockedApi';
 import { levelsApi } from '../api/levelsApi';
 import { walletApi } from '../api/walletApi';
+import { messagingApi } from '../api/messagingApi';
 import authReducer from './authSlice';
 
 export const store = configureStore({
@@ -21,6 +22,7 @@ export const store = configureStore({
     [blockedApi.reducerPath]: blockedApi.reducer,
     [levelsApi.reducerPath]: levelsApi.reducer,
     [walletApi.reducerPath]: walletApi.reducer,
+    [messagingApi.reducerPath]: messagingApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -53,9 +55,11 @@ export const store = configureStore({
           'levelsApi.queries',
           'walletApi.mutations',
           'walletApi.queries',
+          'messagingApi.mutations',
+          'messagingApi.queries',
         ],
       },
-    }).concat(authApi.middleware, streamsApi.middleware, followApi.middleware, usersApi.middleware, notificationApi.middleware, blockedApi.middleware, levelsApi.middleware, walletApi.middleware),
+    }).concat(authApi.middleware, streamsApi.middleware, followApi.middleware, usersApi.middleware, notificationApi.middleware, blockedApi.middleware, levelsApi.middleware, walletApi.middleware, messagingApi.middleware),
 });
 
 setupListeners(store.dispatch);

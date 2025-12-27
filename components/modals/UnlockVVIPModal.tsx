@@ -4,12 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import CancelIcon from '../../assets/icons/cancel.svg';
 import VVIPBadge from '../../assets/icons/vvip.svg';
 import CheckIcon from '../../assets/icons/check.svg';
-
-interface UnlockVVIPModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onUnlock: () => void;
-}
+import { UnlockVVIPModalProps } from './types';
 
 const UnlockVVIPModal: React.FC<UnlockVVIPModalProps> = ({
   visible,

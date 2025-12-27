@@ -1,19 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
-interface StreamControlsProps {
-  isHost?: boolean;
-  isRecording?: boolean;
-  isMuted?: boolean;
-  isCameraOn?: boolean;
-  canToggleCamera?: boolean;
-  canToggleMic?: boolean;
-  canRecord?: boolean;
-  onToggleCamera?: () => void;
-  onToggleMic?: () => void;
-  onToggleRecording?: () => void;
-}
+import { StreamControlsProps } from './types';
 
 export const StreamControls = ({
   isHost = false,

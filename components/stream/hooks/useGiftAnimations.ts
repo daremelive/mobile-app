@@ -1,30 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../../../src/store/authSlice';
+import { GiftAnimationData, UseGiftAnimationsProps } from './types';
 
-export interface GiftAnimationData {
-  id: string;
-  gift: {
-    id: number;
-    name: string;
-    icon_url: string | null;
-    icon: string;
-    cost: number;
-  };
-  sender: {
-    username: string;
-    full_name: string;
-    first_name?: string;
-    last_name?: string;
-    profile_picture_url?: string;
-  };
-  animationKey: string;
-}
-
-interface UseGiftAnimationsProps {
-  messages: any[];
-  baseURL: string;
-}
+export { GiftAnimationData } from './types';
 
 export const useGiftAnimations = ({ messages, baseURL }: UseGiftAnimationsProps) => {
   const currentUser = useSelector(selectCurrentUser);

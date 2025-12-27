@@ -33,12 +33,13 @@ import { useGetMyStreamsQuery, useStreamActionMutation, streamsApi } from '../..
 import { useDispatch, useSelector } from 'react-redux';
 import { logout, selectRefreshToken, selectCurrentUser } from '../../../src/store/authSlice';
 import LogoutConfirmationModal from '../../../components/modals/LogoutConfirmationModal';
-import ipDetector from '../../../src/utils/ipDetector';
+import { MEDIA_BASE_URL } from '../../../src/config/env';
 
 type MenuItem = {
   title: string;
   Icon: React.FC<{ width: number; height: number }>;
   route?: string;
+  comingSoon?: boolean;
 };
 
 const ProfileScreen = () => {
@@ -122,40 +123,46 @@ const ProfileScreen = () => {
 
   const handleLogout = async () => {
     try {
-      // First, end any active streams
+      // First, end any active streams with timeout
       if (myStreams && myStreams.length > 0) {
         const activeStreams = myStreams.filter(stream => stream.status === 'live');
         
         if (activeStreams.length > 0) {
           console.log(`Ending ${activeStreams.length} active stream(s) before logout...`);
           
-          // End all active streams
-          for (const stream of activeStreams) {
-            try {
-              await streamAction({ 
-                streamId: stream.id, 
-                action: { action: 'end' } 
-              }).unwrap();
-              console.log(`Stream ${stream.id} ended successfully`);
-            } catch (streamError) {
-              console.error(`Failed to end stream ${stream.id}:`, streamError);
-              // Continue with logout even if stream ending fails
-            }
-          }
+          // End all active streams with individual timeouts
+          const streamEndPromises = activeStreams.map(stream =>
+            Promise.race([
+              streamAction({ streamId: stream.id, action: { action: 'end' } }).unwrap(),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Stream end timeout')), 3000))
+            ]).catch(error => {
+              console.error(`Failed to end stream ${stream.id}:`, error);
+            })
+          );
+          
+          await Promise.allSettled(streamEndPromises);
           
           // Invalidate streams cache
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         }
       }
 
-      // Then proceed with normal logout
+      // Then proceed with normal logout with timeout
       if (refreshToken) {
-        await logoutMutation({ refresh: refreshToken }).unwrap();
+        await Promise.race([
+          logoutMutation({ refresh: refreshToken }).unwrap(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Logout API timeout')), 5000)
+          )
+        ]).catch(error => {
+          console.log('Logout API call failed or timed out, proceeding with local logout:', error);
+        });
       }
     } catch (error) {
       console.error('Logout process error:', error);
       // Continue with logout even if server call fails
     } finally {
+      // Always perform local logout regardless of API status
       dispatch(logout());
       setLogoutModalVisible(false);
       router.replace('/(auth)/signin');
@@ -164,16 +171,8 @@ const ProfileScreen = () => {
 
   const handleShare = async () => {
     try {
-      const detection = await ipDetector.detectIP();
-      let baseUrl;
-      
-      if (detection.ip === 'daremelive.pythonanywhere.com') {
-        baseUrl = `https://${detection.ip}`;
-      } else {
-        baseUrl = `http://${detection.ip}:8000`;
-      }
-      
-      const profileUrl = `${baseUrl}/profile/${profileData?.username || currentUser?.username}?utm_source=mobile_share&utm_medium=social`;
+      const username = profileData?.username || currentUser?.username || '';
+      const profileUrl = `${MEDIA_BASE_URL}/profile/${username}?utm_source=mobile_share&utm_medium=social`;
       const userName = profileData?.full_name || currentUser?.full_name || profileData?.username || currentUser?.username;
       
       await Share.share({

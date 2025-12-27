@@ -8,6 +8,7 @@ import EyeIcon from '../../assets/icons/eye.svg';
 import { useSigninMutation, useGoogleAuthMutation } from '../../src/store/authApi';
 import { useDispatch } from 'react-redux';
 import { setCredentials } from '../../src/store/authSlice';
+import { API_BASE_URL } from '../../src/config/env';
 import { markAccountCreated } from '../../src/hooks/useAuthRouting';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
@@ -21,7 +22,7 @@ export default function SigninScreen() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  
+
   const dispatch = useDispatch();
   const [signin, { isLoading }] = useSigninMutation();
   const [googleAuth, { isLoading: isGoogleLoading }] = useGoogleAuthMutation();
@@ -96,21 +97,58 @@ export default function SigninScreen() {
             return;
           }
 
+          // Debug: Log API call details
+          console.log('[GoogleAuth] Starting backend auth request:', {
+            apiUrl: API_BASE_URL,
+            endpoint: '/auth/google/',
+            idTokenLength: idToken?.length,
+            timestamp: new Date().toISOString(),
+          });
+
+          const startTime = Date.now();
           const result = await googleAuth({ id_token: idToken } as any).unwrap();
+
+          console.log('[GoogleAuth] Backend auth successful:', {
+            duration: `${Date.now() - startTime}ms`,
+            userId: result?.user?.id,
+          });
           dispatch(setCredentials(result));
-          
+
           // 🚀 MARK ACCOUNT EXISTS - Google signin means they have an account
           await markAccountCreated();
-          
+
           if (!result.user.profile_completed) {
             router.replace('/(auth)/signup-two');
           } else {
             router.replace('/(tabs)/home');
           }
         } catch (e: any) {
-          console.error('Google auth error:', e);
-          const msg = e?.data?.message || e?.data?.error || 'Google authentication failed';
-          Alert.alert('Google Sign-In', msg);
+          // Detailed error logging for debugging
+          console.error('[GoogleAuth] Error details:', {
+            status: e?.status,
+            error: e?.error,
+            data: e?.data,
+            message: e?.message,
+            apiUrl: API_BASE_URL,
+            fullError: JSON.stringify(e, null, 2),
+          });
+
+          // Provide more helpful error messages
+          let errorMessage = 'Google authentication failed';
+
+          if (e?.status === 'TIMEOUT_ERROR' || e?.error?.includes?.('Abort') || e?.name === 'AbortError') {
+            errorMessage = `Connection timeout to ${API_BASE_URL}. Please check your internet connection and try again.`;
+          } else if (e?.status === 'FETCH_ERROR') {
+            errorMessage = `Cannot reach server at ${API_BASE_URL}. Please check your network connection.`;
+          } else if (e?.data?.message) {
+            errorMessage = e.data.message;
+          } else if (e?.data?.error) {
+            errorMessage = e.data.error;
+          } else if (e?.data?.detail) {
+            errorMessage = e.data.detail;
+          }
+
+          Alert.alert('Google Sign-In', errorMessage);
         }
       }
     };
@@ -125,7 +163,7 @@ export default function SigninScreen() {
     // Clear previous errors
     setEmailError('');
     setPasswordError('');
-                      // no-op (leftover)
+    // no-op (leftover)
     // Validate inputs
     if (!email.trim()) {
       setEmailError('Email is required');
@@ -178,8 +216,8 @@ export default function SigninScreen() {
   return (
     <SafeAreaView className="flex-1 bg-black">
       <StatusBar style="light" />
-      <ScrollView 
-        className="flex-1" 
+      <ScrollView
+        className="flex-1"
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -190,70 +228,68 @@ export default function SigninScreen() {
             Log in to stream, connect, and engage with your audience in real time.
           </Text>
 
-        <View className="mb-6">
-          <Text className="text-white mb-2">Email</Text>
-          <TextInput
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              if (emailError) setEmailError('');
-            }}
-            placeholder="e.g joedoe@gmail.com"
-            placeholderTextColor="#8A8A8E"
-            className={`bg-[#1C1C1E] text-white rounded-full border px-5 w-full h-14 ${
-              emailError ? 'border-red-500' : 'border-[#333333]'
-            }`}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            editable={!isLoading}
-          />
-          {emailError ? (
-            <Text className="text-red-500 text-sm mt-1 ml-4">{emailError}</Text>
-          ) : null}
-        </View>
-
-        <View className="mb-4">
-          <Text className="text-white mb-2">Password</Text>
-          <View className="relative">
+          <View className="mb-6">
+            <Text className="text-white mb-2">Email</Text>
             <TextInput
-              value={password}
+              value={email}
               onChangeText={(text) => {
-                setPassword(text);
-                if (passwordError) setPasswordError('');
+                setEmail(text);
+                if (emailError) setEmailError('');
               }}
-              placeholder="••••••••"
+              placeholder="e.g joedoe@gmail.com"
               placeholderTextColor="#8A8A8E"
-              className={`bg-[#1C1C1E] text-white rounded-full border px-5 w-full h-14 ${
-                passwordError ? 'border-red-500' : 'border-[#333333]'
-              }`}
-              secureTextEntry={!passwordVisible}
+              className={`bg-[#1C1C1E] text-white rounded-full border px-5 w-full h-14 ${emailError ? 'border-red-500' : 'border-[#333333]'
+                }`}
+              keyboardType="email-address"
+              autoCapitalize="none"
               editable={!isLoading}
             />
-            <TouchableOpacity
-              onPress={() => setPasswordVisible(!passwordVisible)}
-              className="absolute right-5 top-1/2 -translate-y-3"
-              disabled={isLoading}
-            >
-              {passwordVisible ? (
-                <EyeIcon width={24} height={24} stroke="#8A8A8E" />
-              ) : (
-                <EyeOffIcon width={24} height={24} stroke="#8A8A8E" />
-              )}
-            </TouchableOpacity>
+            {emailError ? (
+              <Text className="text-red-500 text-sm mt-1 ml-4">{emailError}</Text>
+            ) : null}
           </View>
-          {passwordError ? (
-            <Text className="text-red-500 text-sm mt-1 ml-4">{passwordError}</Text>
-          ) : null}
-        </View>
-        
-        <TouchableOpacity 
-          className="self-end mb-8"
-          onPress={() => router.push('/forgot-password')}
-        >
-          <Text className="text-[#C40000] font-semibold">Forgot Password?</Text>
-        </TouchableOpacity>
 
-        {/* <LinearGradient
+          <View className="mb-4">
+            <Text className="text-white mb-2">Password</Text>
+            <View className="relative">
+              <TextInput
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  if (passwordError) setPasswordError('');
+                }}
+                placeholder="••••••••"
+                placeholderTextColor="#8A8A8E"
+                className={`bg-[#1C1C1E] text-white rounded-full border px-5 w-full h-14 ${passwordError ? 'border-red-500' : 'border-[#333333]'
+                  }`}
+                secureTextEntry={!passwordVisible}
+                editable={!isLoading}
+              />
+              <TouchableOpacity
+                onPress={() => setPasswordVisible(!passwordVisible)}
+                className="absolute right-5 top-1/2 -translate-y-3"
+                disabled={isLoading}
+              >
+                {passwordVisible ? (
+                  <EyeIcon width={24} height={24} stroke="#8A8A8E" />
+                ) : (
+                  <EyeOffIcon width={24} height={24} stroke="#8A8A8E" />
+                )}
+              </TouchableOpacity>
+            </View>
+            {passwordError ? (
+              <Text className="text-red-500 text-sm mt-1 ml-4">{passwordError}</Text>
+            ) : null}
+          </View>
+
+          <TouchableOpacity
+            className="self-end mb-8"
+            onPress={() => router.push('/forgot-password')}
+          >
+            <Text className="text-[#C40000] font-semibold">Forgot Password?</Text>
+          </TouchableOpacity>
+
+          {/* <LinearGradient
           colors={['#C40000', '#6F0000']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
@@ -267,56 +303,56 @@ export default function SigninScreen() {
           </TouchableOpacity>
         </LinearGradient> */}
 
-        <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
-          <LinearGradient
-            colors={isLoading ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
-            locations={[0, 1]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="w-full h-full"
-          >
-            <TouchableOpacity 
-              className="w-full h-full items-center justify-center"
-              onPress={handleSignin}
-              disabled={isLoading}
+          <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
+            <LinearGradient
+              colors={isLoading ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
+              locations={[0, 1]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              className="w-full h-full"
             >
-              <Text className="text-white text-[17px] font-semibold">
-                {isLoading ? 'Signing In...' : 'Sign In'}
-              </Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        </View>       
+              <TouchableOpacity
+                className="w-full h-full items-center justify-center"
+                onPress={handleSignin}
+                disabled={isLoading}
+              >
+                <Text className="text-white text-[17px] font-semibold">
+                  {isLoading ? 'Signing In...' : 'Sign In'}
+                </Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
 
-        <View className="flex-row items-center my-4">
-          <View className="flex-1 h-px bg-gray-600" />
-          <Text className="text-gray-400 mx-4">or</Text>
-          <View className="flex-1 h-px bg-gray-600" />
-        </View>
+          <View className="flex-row items-center my-4">
+            <View className="flex-1 h-px bg-gray-600" />
+            <Text className="text-gray-400 mx-4">or</Text>
+            <View className="flex-1 h-px bg-gray-600" />
+          </View>
 
-        <TouchableOpacity
-          className="w-full h-14 bg-[#1C1C1E] border border-[#333333] rounded-full flex-row items-center justify-center mb-8"
-          onPress={async () => {
-            if (!iosClientId && !androidClientId && !googleClientId) {
-              Alert.alert('Google Sign-In', 'Google client IDs are not configured.');
-              return;
-            }
-            setTimeout(() => {
-              promptAsync();
-            }, 100);
-          }}
-          disabled={isGoogleLoading || !request}
-        >
-          <Image source={require('../../assets/icons/google.png')} className="w-6 h-6 mr-3" />
-          <Text className="text-white text-lg font-semibold">{isGoogleLoading ? 'Signing in...' : 'Continue with Google'}</Text>
-        </TouchableOpacity>
-
-        <View className="flex-row justify-center">
-          <Text className="text-gray-400">Don't have an account? </Text>
-          <TouchableOpacity onPress={() => router.push('/signup')}>
-            <Text className="text-[#C40000] font-semibold">Sign Up</Text>
+          <TouchableOpacity
+            className="w-full h-14 bg-[#1C1C1E] border border-[#333333] rounded-full flex-row items-center justify-center mb-8"
+            onPress={async () => {
+              if (!iosClientId && !androidClientId && !googleClientId) {
+                Alert.alert('Google Sign-In', 'Google client IDs are not configured.');
+                return;
+              }
+              setTimeout(() => {
+                promptAsync();
+              }, 100);
+            }}
+            disabled={isGoogleLoading || !request}
+          >
+            <Image source={require('../../assets/icons/google.png')} className="w-6 h-6 mr-3" />
+            <Text className="text-white text-lg font-semibold">{isGoogleLoading ? 'Signing in...' : 'Continue with Google'}</Text>
           </TouchableOpacity>
+
+          <View className="flex-row justify-center">
+            <Text className="text-gray-400">Don't have an account? </Text>
+            <TouchableOpacity onPress={() => router.push('/signup')}>
+              <Text className="text-[#C40000] font-semibold">Sign Up</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
       </ScrollView>
     </SafeAreaView>
   );

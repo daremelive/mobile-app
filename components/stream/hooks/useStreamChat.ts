@@ -1,25 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Keyboard } from 'react-native';
 import { useSendMessageMutation } from '../../../src/store/streamsApi';
-import type { ChatMessage } from '../components/StreamChatOverlay';
-
-interface UseStreamChatProps {
-  streamId: string;
-  userId?: string;
-  username?: string;
-  isHost?: boolean;
-  profilePicture?: string;
-}
-
-interface UseStreamChatReturn {
-  messages: ChatMessage[];
-  isKeyboardVisible: boolean;
-  keyboardHeight: number;
-  sendMessage: (message: string) => Promise<void>;
-  addMessage: (message: ChatMessage) => void;
-  clearMessages: () => void;
-  isSendingMessage: boolean;
-}
+import type { ChatMessage } from '../components/types';
+import { UseStreamChatProps, UseStreamChatReturn } from './types';
 
 export const useStreamChat = ({
   streamId,

@@ -1,8 +1,9 @@
 // GetStream Video SDK configuration
 export const STREAM_CONFIG = {
   // You can get these from https://getstream.io/dashboard/
-  API_KEY: process.env.STREAM_API_KEY || 'your-getstream-api-key-here',
-  APP_ID: process.env.STREAM_APP_ID || 'your-app-id-here',
+  // Values loaded from environment variables (EXPO_PUBLIC_ prefix required)
+  API_KEY: process.env.EXPO_PUBLIC_STREAM_API_KEY || 'your-getstream-api-key-here',
+  APP_ID: process.env.EXPO_PUBLIC_STREAM_APP_ID || 'your-app-id-here',
   
   // Token will be generated on your backend for each user
   // This is just a placeholder - DO NOT put real tokens here
@@ -48,12 +49,12 @@ export const RECORDING_SETTINGS = {
 // Environment validation
 export const validateStreamConfig = () => {
   if (!STREAM_CONFIG.API_KEY || STREAM_CONFIG.API_KEY === 'your-getstream-api-key-here') {
-    console.warn('⚠️ GetStream API key not configured. Please set STREAM_API_KEY in your .env file');
+    console.warn('⚠️ GetStream API key not configured. Please set EXPO_PUBLIC_STREAM_API_KEY in your .env file');
     return false;
   }
   
   if (!STREAM_CONFIG.APP_ID || STREAM_CONFIG.APP_ID === 'your-app-id-here') {
-    console.warn('⚠️ GetStream App ID not configured. Please set STREAM_APP_ID in your .env file');
+    console.warn('⚠️ GetStream App ID not configured. Please set EXPO_PUBLIC_STREAM_APP_ID in your .env file');
     return false;
   }
   

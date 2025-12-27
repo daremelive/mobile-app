@@ -2,25 +2,7 @@ import React from 'react';
 import { View, Text, Image, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
-interface StreamHeaderProps {
-  streamTitle?: string;            // e.g. "Marriage Sacrifices"
-  hostName?: string;               // Full display name (optional - will be computed from first/last name)
-  hostFirstName?: string;          // Host's first name
-  hostLastName?: string;           // Host's last name
-  hostUsername?: string;           // Username (without @)
-  hostProfilePicture?: string;
-  viewerCount?: number;
-  likesCount?: number;
-  isFollowing?: boolean;
-  disableFollow?: boolean;
-  onToggleFollow?: () => void;
-  onShare?: () => void;
-  onClose?: () => void;
-  onBack?: () => void;
-  showBackButton?: boolean;
-  showCloseButton?: boolean;
-}
+import { StreamHeaderProps } from './types';
 
 export const StreamHeader = ({
   streamTitle,

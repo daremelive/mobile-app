@@ -3,101 +3,46 @@ import * as SecureStore from 'expo-secure-store';
 import type { RootState } from './index';
 import { API_BASE_URL } from '../config/env';
 
+// Import centralized types
+import type {
+  User,
+  AuthResponse,
+  SignupRequest,
+  SignupResponse,
+  SigninRequest,
+  VerifyOTPRequest,
+  ResendOTPRequest,
+  ProfileCompletionRequest,
+  ProfileCompletionResponse,
+  UpdateProfileRequest,
+  ProfilePictureUploadResponse,
+  ChangePasswordRequest,
+  PasswordResetRequest,
+  PasswordResetConfirmRequest,
+  RefreshTokenRequest,
+  RefreshTokenResponse,
+  DeactivateAccountRequest,
+  LogoutRequest,
+  GoogleAuthRequest,
+  AuthMessageResponse,
+} from '../../types/api/auth';
+
+// Re-export for backward compatibility
+export type {
+  User,
+  AuthResponse,
+  SignupRequest,
+  SigninRequest,
+  VerifyOTPRequest,
+  ProfileCompletionRequest,
+  ProfileCompletionResponse,
+  ChangePasswordRequest,
+  UpdateProfileRequest,
+  PasswordResetRequest,
+  PasswordResetConfirmRequest,
+};
+
 // Silent operation - no logging
-
-// Types for API responses and requests
-export interface User {
-  id: number;
-  email: string;
-  username: string | null;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  short_name: string;
-  phone_number: string | null;
-  gender: 'male' | 'female' | 'other' | null;
-  country: string | null;
-  interests: string | null; // Backend stores as comma-separated string
-  language: string;
-  profile_completed: boolean;
-  is_email_verified: boolean;
-  is_phone_verified: boolean;
-  is_content_creator: boolean;
-  has_accepted_terms: boolean;
-  vip_level: 'basic' | 'premium' | 'vip' | 'vvip';
-  // Profile picture
-  profile_picture: string | null;
-  profile_picture_url: string | null;
-  // Social stats
-  followers_count: number;
-  following_count: number;
-  total_likes_count: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AuthResponse {
-  access: string;
-  refresh: string;
-  user: User;
-}
-
-export interface SignupRequest {
-  email: string;
-  password: string;
-  confirm_password: string;
-}
-
-export interface SigninRequest {
-  email: string;
-  password: string;
-}
-
-export interface VerifyOTPRequest {
-  email: string;
-  otp: string;
-  purpose: 'signup' | 'reset';
-}
-
-export interface ProfileCompletionRequest {
-  username: string;
-  phone_number: string;
-  gender: 'male' | 'female' | 'other'; // Backend expects lowercase
-  country: string;
-  has_accepted_terms: boolean;
-}
-
-export interface ProfileCompletionResponse {
-  message: string;
-  user: User;
-}
-
-export interface ChangePasswordRequest {
-  old_password: string;
-  new_password: string;
-  new_password_confirm: string;
-}
-
-export interface UpdateProfileRequest {
-  username?: string;
-  first_name?: string;
-  last_name?: string;
-  phone_number?: string;
-  country?: string;
-  interests?: string; // Backend expects string, not array
-  language?: string;
-}
-
-export interface PasswordResetRequest {
-  email: string;
-}
-
-export interface PasswordResetConfirmRequest {
-  email: string;
-  otp: string;
-  new_password: string;
-  new_password_confirm: string;
-}
 
 // Create base query for authenticated requests
 const baseQuery = fetchBaseQuery({
@@ -107,7 +52,7 @@ const baseQuery = fetchBaseQuery({
     const state = getState() as RootState;
     const token = state.auth.accessToken;
     const isAuthenticated = state.auth.isAuthenticated;
-    
+
     if (token && isAuthenticated) {
       headers.set('authorization', `Bearer ${token}`);
     }
@@ -116,8 +61,8 @@ const baseQuery = fetchBaseQuery({
   },
 });
 
-// Create base query for public endpoints (no auth)
-const publicBaseQuery = fetchBaseQuery({
+// Create base query for public endpoints (no auth) with debug wrapper
+const rawPublicBaseQuery = fetchBaseQuery({
   baseUrl: API_BASE_URL,
   timeout: 15000,
   prepareHeaders: (headers) => {
@@ -126,27 +71,58 @@ const publicBaseQuery = fetchBaseQuery({
   },
 });
 
+// Wrapped public base query with debugging
+const publicBaseQuery = async (args: any, api: any, extraOptions: any) => {
+  const url = typeof args === 'string' ? args : args?.url;
+  console.log('[AuthAPI] publicBaseQuery starting:', {
+    url,
+    baseUrl: API_BASE_URL,
+    fullUrl: `${API_BASE_URL}${url}`,
+    method: args?.method || 'GET',
+  });
+
+  const startTime = Date.now();
+  const result = await rawPublicBaseQuery(args, api, extraOptions);
+  const duration = Date.now() - startTime;
+
+  if (result.error) {
+    console.error('[AuthAPI] publicBaseQuery error:', {
+      url,
+      duration: `${duration}ms`,
+      status: result.error.status,
+      error: result.error,
+    });
+  } else {
+    console.log('[AuthAPI] publicBaseQuery success:', {
+      url,
+      duration: `${duration}ms`,
+    });
+  }
+
+  return result;
+};
+
 // Base query with automatic token refresh
 const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
   let result = await baseQuery(args, api, extraOptions);
-  
+
   // Don't attempt token refresh for public endpoints
   const publicEndpoints = [
-    'passwordResetRequest', 
-    'passwordResetConfirm', 
-    'signup', 
+    'passwordResetRequest',
+    'passwordResetConfirm',
+    'signup',
     'resendOTP',
-    'signin', 
+    'signin',
     'verifyOTP',
     'refresh',
     'googleAuth'
   ];
-  
+
   const endpoint = extraOptions?.endpoint || args?.endpoint;
   const isPublicEndpoint = publicEndpoints.includes(endpoint);
-  
+
   console.log('[AuthAPI] baseQueryWithReauth:', { endpoint, isPublicEndpoint, status: result.error?.status });
-  
+
   if (result.error && result.error.status === 401 && !isPublicEndpoint) {
     console.log('[AuthAPI] Attempting token refresh for protected endpoint:', endpoint);
     // Try to get a new token
@@ -161,7 +137,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
         api,
         extraOptions
       );
-      
+
       if (refreshResult.data) {
         const refreshData = refreshResult.data as { access: string };
         const { access } = refreshData;
@@ -177,7 +153,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
   } else if (result.error && result.error.status === 401 && isPublicEndpoint) {
     console.log('[AuthAPI] 401 on public endpoint - this should not happen:', endpoint);
   }
-  
+
   return result;
 };
 
@@ -187,14 +163,14 @@ export const authApi = createApi({
   tagTypes: ['User', 'Auth'],
   endpoints: (builder) => ({
     // Registration
-    signup: builder.mutation<{ message: string; email: string }, SignupRequest>({
+    signup: builder.mutation<SignupResponse, SignupRequest>({
       queryFn: async (credentials, _queryApi, _extraOptions) => {
         const result = await publicBaseQuery({
           url: '/users/register/',
           method: 'POST',
           body: credentials,
         }, _queryApi, _extraOptions);
-        
+
         return result as any;
       },
     }),
@@ -207,21 +183,21 @@ export const authApi = createApi({
           method: 'POST',
           body: data,
         }, _queryApi, _extraOptions);
-        
+
         return result as any;
       },
       invalidatesTags: ['Auth', 'User'],
     }),
 
     // Resend OTP
-    resendOTP: builder.mutation<{ message: string }, { email: string; purpose: 'signup' | 'reset' }>({
+    resendOTP: builder.mutation<AuthMessageResponse, ResendOTPRequest>({
       queryFn: async (data, _queryApi, _extraOptions) => {
         const result = await publicBaseQuery({
           url: '/auth/send-otp/',
           method: 'POST',
           body: data,
         }, _queryApi, _extraOptions);
-        
+
         return result as any;
       },
     }),
@@ -234,14 +210,14 @@ export const authApi = createApi({
           method: 'POST',
           body: credentials,
         }, _queryApi, _extraOptions);
-        
+
         return result as any;
       },
       invalidatesTags: ['Auth', 'User'],
     }),
 
     // Refresh token
-    refresh: builder.mutation<{ access: string }, { refresh: string }>({
+    refresh: builder.mutation<RefreshTokenResponse, RefreshTokenRequest>({
       query: (tokens) => ({
         url: '/auth/token/refresh/',
         method: 'POST',
@@ -250,11 +226,12 @@ export const authApi = createApi({
     }),
 
     // Logout
-    logout: builder.mutation<{ message: string }, { refresh: string }>({
+    logout: builder.mutation<AuthMessageResponse, LogoutRequest>({
       query: (data) => ({
         url: '/users/logout/',
         method: 'POST',
         body: data,
+        timeout: 5000, // 5 second timeout for logout
       }),
       invalidatesTags: ['Auth', 'User'],
     }),
@@ -286,7 +263,7 @@ export const authApi = createApi({
     }),
 
     // Upload profile picture
-    uploadProfilePicture: builder.mutation<{ message: string; user: User }, FormData>({
+    uploadProfilePicture: builder.mutation<ProfilePictureUploadResponse, FormData>({
       query: (formData) => ({
         url: '/users/profile/upload-picture/',
         method: 'POST',
@@ -296,7 +273,7 @@ export const authApi = createApi({
     }),
 
     // Change password
-    changePassword: builder.mutation<{ message: string }, ChangePasswordRequest>({
+    changePassword: builder.mutation<AuthMessageResponse, ChangePasswordRequest>({
       query: (data) => ({
         url: '/users/change-password/',
         method: 'POST',
@@ -305,7 +282,7 @@ export const authApi = createApi({
     }),
 
     // Deactivate account
-    deactivateAccount: builder.mutation<{ message: string }, { reason?: string }>({
+    deactivateAccount: builder.mutation<AuthMessageResponse, DeactivateAccountRequest>({
       query: (data) => ({
         url: '/users/deactivate/',
         method: 'POST',
@@ -315,37 +292,42 @@ export const authApi = createApi({
     }),
 
     // Google OAuth
-    googleAuth: builder.mutation<AuthResponse, { id_token: string }>({
-      query: (data) => ({
-        url: '/auth/google/',
-        method: 'POST',
-        body: data,
-      }),
+    googleAuth: builder.mutation<AuthResponse, GoogleAuthRequest>({
+      queryFn: async (data, _queryApi, _extraOptions) => {
+        // Use publicBaseQuery since this is an unauthenticated endpoint
+        const result = await publicBaseQuery({
+          url: 'auth/google/',  // No leading slash - baseUrl already ends with /
+          method: 'POST',
+          body: data,
+        }, _queryApi, _extraOptions);
+
+        return result as any;
+      },
       invalidatesTags: ['Auth', 'User'],
     }),
 
-        // Password reset request
-    passwordResetRequest: builder.mutation<{ message: string }, PasswordResetRequest>({
+    // Password reset request
+    passwordResetRequest: builder.mutation<AuthMessageResponse, PasswordResetRequest>({
       queryFn: async (data, _queryApi, _extraOptions) => {
         const result = await publicBaseQuery({
           url: '/auth/password-reset/',
           method: 'POST',
           body: data,
         }, _queryApi, _extraOptions);
-        
+
         return result as any; // Type assertion to match expected return type
       },
     }),
 
     // Password reset confirm
-    passwordResetConfirm: builder.mutation<{ message: string }, PasswordResetConfirmRequest>({
+    passwordResetConfirm: builder.mutation<AuthMessageResponse, PasswordResetConfirmRequest>({
       queryFn: async (data, _queryApi, _extraOptions) => {
         const result = await publicBaseQuery({
           url: '/auth/password-reset/confirm/',
           method: 'POST',
           body: data,
         }, _queryApi, _extraOptions);
-        
+
         return result as any; // Type assertion to match expected return type
       },
     }),

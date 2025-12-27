@@ -51,12 +51,15 @@ class StreamChatService {
   }
 
   async connectUser(user: StreamChatUser): Promise<void> {
+    console.log('🔗 [StreamChat] Starting connectUser for:', user.id);
+    
     if (!this.client) {
+      console.log('🔗 [StreamChat] Client not initialized, initializing now...');
       await this.initialize();
     }
 
     if (!this.client) {
-      throw new Error('Stream Chat client not initialized');
+      throw new Error('Stream Chat client failed to initialize');
     }
 
     try {
@@ -69,7 +72,7 @@ class StreamChatService {
       }
       
       // Disconnect any existing user first
-      if (this.client.userID) {
+      if (this.client && this.client.userID) {
         console.log('🔗 [StreamChat] Disconnecting existing user:', this.client.userID);
         await this.client.disconnectUser();
       }
@@ -84,6 +87,11 @@ class StreamChatService {
       };
 
       console.log('🔗 [StreamChat] Connecting with user object:', streamUser);
+      
+      if (!this.client) {
+        throw new Error('StreamChat client is not initialized');
+      }
+      
       await this.client.connectUser(streamUser, token);
       console.log('✅ [StreamChat] User connected successfully');
     } catch (error) {

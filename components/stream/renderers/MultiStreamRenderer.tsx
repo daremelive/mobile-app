@@ -27,7 +27,8 @@ export const MultiStreamRenderer: React.FC<MultiStreamRendererProps> = ({
   // Filter active participants (excluding viewer-only participants)
   const activeParticipants = participants.filter((p: any) => {
     if (p.isLocalParticipant) return false;
-    if (p.custom?.viewerOnly === true || p.custom?.role === 'viewer') return false;
+    const custom = p.custom as any;
+    if (custom?.viewerOnly === true || custom?.role === 'viewer') return false;
     return true;
   });
 
@@ -115,6 +116,7 @@ export const MultiStreamRenderer: React.FC<MultiStreamRendererProps> = ({
 
     const renderParticipant = ({ item: participant, index }: { item: any, index: number }) => {
       const isMainParticipant = index === 0 && activeParticipants.length > 2;
+      const hasVideo = !!participant.videoStream;
       
       return (
         <View 
@@ -126,32 +128,42 @@ export const MultiStreamRenderer: React.FC<MultiStreamRendererProps> = ({
             minHeight: isMainParticipant ? 200 : 120
           }}
         >
-          <VideoRenderer 
-            participant={participant}
-            objectFit="cover"
-            key={`multi-grid-${participant.sessionId}-${index}`}
-          />
+          {hasVideo ? (
+            <VideoRenderer 
+              participant={participant}
+              objectFit="cover"
+              key={`multi-grid-${participant.sessionId}-${index}`}
+            />
+          ) : (
+            // Audio-only placeholder (Zoom/Meet style)
+            <View className="flex-1 items-center justify-center">
+              <View className="w-12 h-12 rounded-full bg-gray-700 items-center justify-center mb-2">
+                <Text className="text-white text-2xl">🎙️</Text>
+              </View>
+              <Text className="text-white text-sm font-medium" numberOfLines={1}>
+                {participant.name || participant.userId?.split('_')[0] || `User ${index + 1}`}
+              </Text>
+              <Text className="text-gray-400 text-xs mt-1">Audio Only</Text>
+            </View>
+          )}
           
           {/* Participant label */}
           <View className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1">
             <Text className="text-white text-xs font-medium" numberOfLines={1}>
-              {participant.userId?.split('_')[0] || `User ${index + 1}`}
+              {participant.name || participant.userId?.split('_')[0] || `User ${index + 1}`}
             </Text>
           </View>
           
-          {/* Audio/Video indicators */}
-          <View className="absolute top-2 right-2 flex-row space-x-1">
-            {!participant.audioStream && (
-              <View className="w-6 h-6 bg-red-500 rounded-full items-center justify-center">
-                <Ionicons name="mic-off" size={12} color="white" />
-              </View>
-            )}
-            {!participant.videoStream && (
-              <View className="w-6 h-6 bg-gray-600 rounded-full items-center justify-center">
-                <Ionicons name="videocam-off" size={12} color="white" />
-              </View>
-            )}
-          </View>
+          {/* Audio/Video indicators - only show when video is present */}
+          {hasVideo && (
+            <View className="absolute top-2 right-2 flex-row space-x-1">
+              {!participant.audioStream && (
+                <View className="w-6 h-6 bg-red-500 rounded-full items-center justify-center">
+                  <Ionicons name="mic-off" size={12} color="white" />
+                </View>
+              )}
+            </View>
+          )}
         </View>
       );
     };

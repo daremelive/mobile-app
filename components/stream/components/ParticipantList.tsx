@@ -1,25 +1,7 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
-export interface Participant {
-  id: string;
-  username: string;
-  profilePicture?: string;
-  isHost?: boolean;
-  isMuted?: boolean;
-  isCameraOn?: boolean;
-  isOnSeat?: boolean;
-  seatNumber?: number;
-}
-
-interface ParticipantListProps {
-  participants: Participant[];
-  isVisible?: boolean;
-  onParticipantPress?: (participant: Participant) => void;
-  showControls?: boolean;
-  currentUserId?: string;
-}
+import { Participant, ParticipantListProps } from './types';
 
 export const ParticipantList = ({
   participants,

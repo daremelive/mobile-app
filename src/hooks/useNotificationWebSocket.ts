@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { selectAccessToken, selectCurrentUser } from '../store/authSlice';
-import IPDetector from '../utils/ipDetector';
+import { WS_BASE_URL } from '../config/env';
 
 interface NotificationStats {
   total_notifications: number;
@@ -56,21 +56,9 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
     }
 
     try {
-      // Always use IP detector - get dynamic IP with production domain support
-      let wsUrl = 'wss://daremelive.pythonanywhere.com/ws/notifications/'; // Production fallback
-      
-      try {
-        const detectionResult = await IPDetector.detectIP();
-        // Check if it's production domain or local IP
-        if (detectionResult.ip === 'daremelive.pythonanywhere.com') {
-          wsUrl = `wss://${detectionResult.ip}/ws/notifications/`;
-        } else {
-          wsUrl = `ws://${detectionResult.ip}:8000/ws/notifications/`;
-        }
-        console.log('🔗 [NotificationWS] Using detected WebSocket URL:', wsUrl);
-      } catch (error) {
-        console.error('❌ [NotificationWS] IP detection failed, using fallback:', error);
-      }
+      // Use centralized WebSocket configuration
+      const wsUrl = `${WS_BASE_URL}/ws/notifications/`;
+      console.log('🔗 [NotificationWS] Using WebSocket URL:', wsUrl);
 
       // Close existing connection
       if (wsRef.current) {

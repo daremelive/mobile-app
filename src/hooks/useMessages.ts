@@ -1,213 +1,181 @@
-import { useState, useEffect, useCallback } from 'react';
-import { messagesApi, Conversation, ConversationDetail, Message } from '../services/messagesApi';
+import { useState, useCallback } from 'react';
+import {
+  useGetConversationsQuery,
+  useGetConversationDetailQuery,
+  useSendMessageMutation,
+  useMarkMessagesAsReadMutation,
+  useSearchMessagesQuery,
+  useSearchUsersQuery,
+  useGetUsersQuery,
+  useGetUserStatusQuery,
+  useCreateConversationMutation,
+} from '../api/messagingApi';
 
-export const useConversations = () => {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [searchResults, setSearchResults] = useState<any>(null);
+export const useConversations = (searchQuery?: string) => {
   const [isSearching, setIsSearching] = useState(false);
+  
+  // Main conversations query
+  const {
+    data: conversationsData,
+    error: conversationsError,
+    isLoading: conversationsLoading,
+    refetch: refetchConversations,
+    isFetching: refreshing,
+  } = useGetConversationsQuery();
 
-  const fetchConversations = useCallback(async () => {
-    try {
-      setError(null);
-      const response = await messagesApi.getConversations();
-      setConversations(response.results);
-      setSearchResults(null); // Clear search results when fetching all conversations
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch conversations');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const refreshConversations = useCallback(async () => {
-    setRefreshing(true);
-    await fetchConversations();
-    setRefreshing(false);
-  }, [fetchConversations]);
+  // Search query (only when searching)
+  const {
+    data: searchData,
+    error: searchError,
+    isLoading: searchLoading,
+  } = useSearchMessagesQuery(
+    { query: searchQuery || '' },
+    { skip: !searchQuery?.trim() }
+  );
 
   const searchConversations = useCallback(async (query: string) => {
     if (!query.trim()) {
-      setSearchResults(null);
       setIsSearching(false);
-      await fetchConversations();
       return;
     }
-    
-    try {
-      setIsSearching(true);
-      setError(null);
-      const results = await messagesApi.searchMessages(query);
-      setSearchResults(results);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to search conversations');
-    } finally {
-      setIsSearching(false);
-    }
-  }, [fetchConversations]);
+    setIsSearching(true);
+  }, []);
 
-  useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
+  const clearSearch = useCallback(() => {
+    setIsSearching(false);
+  }, []);
+
+  const refreshConversations = useCallback(async () => {
+    refetchConversations();
+  }, [refetchConversations]);
+
+  // Return search results if searching, otherwise regular conversations
+  const conversations = isSearching && searchData ? searchData.conversations : conversationsData?.results || [];
+  const loading = isSearching ? searchLoading : conversationsLoading;
+  const error = isSearching ? searchError : conversationsError;
 
   return {
     conversations,
     loading,
     error,
     refreshing,
-    searchResults,
+    searchResults: searchData,
     isSearching,
     refreshConversations,
     searchConversations,
+    clearSearch,
   };
 };
 
 export const useConversationDetail = (conversationId: number) => {
-  const [conversation, setConversation] = useState<ConversationDetail | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
+  const {
+    data: conversation,
+    error,
+    isLoading: loading,
+    refetch: refreshConversation,
+  } = useGetConversationDetailQuery({ conversationId });
 
-  const fetchConversationDetail = useCallback(async () => {
-    try {
-      setError(null);
-      const response = await messagesApi.getConversationDetails(conversationId);
-      setConversation(response);
-      setMessages(response.messages);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch conversation');
-    } finally {
-      setLoading(false);
-    }
-  }, [conversationId]);
+  const [sendMessageMutation, { isLoading: sending }] = useSendMessageMutation();
+  const [markAsReadMutation] = useMarkMessagesAsReadMutation();
 
   const sendMessage = useCallback(async (content: string, recipientId: number) => {
     if (!content.trim()) return;
 
-    setSending(true);
     try {
-      const newMessage = await messagesApi.sendMessage({
+      await sendMessageMutation({
         recipient_id: recipientId,
         content: content.trim(),
-      });
+      }).unwrap();
       
-      // Add the new message to the local state
-      setMessages(prev => [...prev, newMessage]);
-      
-      // Optionally refresh the conversation to get updated metadata
-      await fetchConversationDetail();
+      // RTK Query will automatically update the cache
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send message');
-    } finally {
-      setSending(false);
+      throw new Error(err instanceof Error ? err.message : 'Failed to send message');
     }
-  }, [fetchConversationDetail]);
+  }, [sendMessageMutation]);
 
   const markAsRead = useCallback(async () => {
     try {
-      await messagesApi.markMessagesAsRead(conversationId);
-      // Update local state to mark messages as read
-      setMessages(prev => prev.map(msg => ({ ...msg, is_read: true })));
+      await markAsReadMutation({ conversationId }).unwrap();
     } catch (err) {
       console.error('Failed to mark messages as read:', err);
     }
-  }, [conversationId]);
-
-  useEffect(() => {
-    fetchConversationDetail();
-  }, [fetchConversationDetail]);
-
-  useEffect(() => {
-    // Mark messages as read when conversation is opened
-    if (conversation && messages.length > 0) {
-      markAsRead();
-    }
-  }, [conversation, messages.length, markAsRead]);
+  }, [markAsReadMutation, conversationId]);
 
   return {
     conversation,
-    messages,
+    messages: conversation?.messages || [],
     loading,
     error,
     sending,
     sendMessage,
-    refreshConversation: fetchConversationDetail,
+    refreshConversation,
+    markAsRead,
   };
 };
 
 export const useUserStatus = (userId: number) => {
-  const [isOnline, setIsOnline] = useState(false);
-  const [lastSeen, setLastSeen] = useState<string | null>(null);
+  const {
+    data: statusData,
+    error,
+    isLoading,
+  } = useGetUserStatusQuery({ userId });
 
-  useEffect(() => {
-    const fetchUserStatus = async () => {
-      try {
-        const status = await messagesApi.getUserStatus(userId);
-        setIsOnline(status.is_online);
-        setLastSeen(status.last_seen || null);
-      } catch (err) {
-        console.error('Failed to fetch user status:', err);
-      }
-    };
-
-    fetchUserStatus();
-    
-    // Poll for status updates every 30 seconds - DISABLED to prevent screen blinking
-    // const interval = setInterval(fetchUserStatus, 30000);
-    
-    // return () => clearInterval(interval);
-  }, [userId]);
-
-  return { isOnline, lastSeen };
+  return {
+    isOnline: statusData?.is_online || false,
+    lastSeen: statusData?.last_seen || null,
+    loading: isLoading,
+    error,
+  };
 };
 
-export const useUsers = () => {
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export const useUsers = (searchQuery?: string) => {
+  const [isSearching, setIsSearching] = useState(false);
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      setError(null);
-      const response = await messagesApi.getUsers();
-      setUsers(response.results);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch users');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Main users query
+  const {
+    data: usersData,
+    error: usersError,
+    isLoading: usersLoading,
+    refetch: refetchUsers,
+  } = useGetUsersQuery();
+
+  // Search query (only when searching)
+  const {
+    data: searchData,
+    error: searchError,
+    isLoading: searchLoading,
+  } = useSearchUsersQuery(
+    { query: searchQuery || '' },
+    { skip: !searchQuery?.trim() }
+  );
+
+  const [createConversationMutation] = useCreateConversationMutation();
 
   const searchUsers = useCallback(async (query: string) => {
     if (!query.trim()) {
-      await fetchUsers();
+      setIsSearching(false);
       return;
     }
-    
-    try {
-      setError(null);
-      const results = await messagesApi.searchUsers(query);
-      setUsers(results);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to search users');
-    }
-  }, [fetchUsers]);
+    setIsSearching(true);
+  }, []);
 
   const createConversation = useCallback(async (userId: number) => {
     try {
-      const conversation = await messagesApi.getOrCreateConversation(userId);
+      const conversation = await createConversationMutation({ userId }).unwrap();
       return conversation;
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to create conversation');
     }
-  }, []);
+  }, [createConversationMutation]);
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+  const refreshUsers = useCallback(async () => {
+    refetchUsers();
+  }, [refetchUsers]);
+
+  // Return search results if searching, otherwise regular users
+  const users = isSearching && searchData ? searchData.results : usersData?.results || [];
+  const loading = isSearching ? searchLoading : usersLoading;
+  const error = isSearching ? searchError : usersError;
 
   return {
     users,
@@ -215,6 +183,6 @@ export const useUsers = () => {
     error,
     searchUsers,
     createConversation,
-    refreshUsers: fetchUsers,
+    refreshUsers,
   };
 };

@@ -75,7 +75,7 @@ export default function PopularChannelsScreen() {
         )}
       </ScrollView>
 
-      {/* 🏆 PROFESSIONAL ACCESS CONTROL MODAL */}
+      {/* ACCESS CONTROL MODAL */}
       {accessModal.visible && accessModal.channelInfo && (
         <ChannelAccessModal
           visible={accessModal.visible}
