@@ -2,11 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useGetGiftsQuery, useSendGiftMutation } from '../../../src/store/streamsApi';
 import { useGetWalletSummaryQuery, useGetCoinPackagesQuery, usePurchaseCoinsMutation } from '../../../src/api/walletApi';
-
-interface UseGiftSystemProps {
-  streamId: string;
-  onGiftSent?: (gift: any) => void;
-}
+import { UseGiftSystemProps } from './types';
 
 export const useGiftSystem = ({ streamId, onGiftSent }: UseGiftSystemProps) => {
   const [giftModalVisible, setGiftModalVisible] = useState(false);

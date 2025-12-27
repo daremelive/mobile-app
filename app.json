@@ -22,7 +22,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mobile.daremelive",
-      "buildNumber": "33",
+      "buildNumber": "47",
       "icon": "./assets/images/icon.png",
       "splash": {
         "image": "./assets/images/splash-icon.png",
@@ -82,12 +82,12 @@
         "expo-build-properties",
         {
           "ios": {
-            "useHermes": true,
+            "useHermes": false,
             "flipper": false,
             "newArchEnabled": false
           },
           "android": {
-            "useHermes": true,
+            "useHermes": false,
             "newArchEnabled": false
           }
         }

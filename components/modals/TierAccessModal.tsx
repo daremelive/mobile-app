@@ -7,17 +7,7 @@ import BasicIcon from '../../assets/icons/basic.svg';
 import PremiumIcon from '../../assets/icons/premium.svg';
 import VIPIcon from '../../assets/icons/vip.svg';
 import VVIPIcon from '../../assets/icons/vvip.svg';
-
-export type TierLevel = 'basic' | 'premium' | 'vip' | 'vvip';
-
-interface TierAccessModalProps {
-  visible: boolean;
-  onClose: () => void;
-  userTier: TierLevel;
-  requiredTier: TierLevel;
-  hostName: string;
-  streamTitle: string;
-}
+import { TierAccessModalProps, TierLevel } from './types';
 
 const TierAccessModal: React.FC<TierAccessModalProps> = ({
   visible,

@@ -4,12 +4,7 @@ import LockIcon from '../../assets/icons/lock.svg';
 import CancelIcon from '../../assets/icons/cancel.svg';
 import LockPasswordIcon from '../../assets/icons/lock-password.svg';
 import { router } from 'expo-router';
-
-interface ChangePasswordConfirmationModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}
+import { ChangePasswordConfirmationModalProps } from './types';
 
 const ChangePasswordConfirmationModal: React.FC<ChangePasswordConfirmationModalProps> = ({
   visible,

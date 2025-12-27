@@ -6,17 +6,7 @@ import LockIcon from '../../assets/icons/lock.svg';
 import DiamondIcon from '../../assets/icons/diamond.svg';
 import StarIcon from '../../assets/icons/stars.svg';
 import CrownIcon from '../../assets/icons/crown.svg';
-
-interface ChannelAccessModalProps {
-  visible: boolean;
-  onClose: () => void;
-  channelName: string;
-  channelCode: string;
-  requiredTier: string;
-  coinsNeeded: number;
-  currentCoins: number;
-  unlockMessage: string;
-}
+import { ChannelAccessModalProps } from './types';
 
 const ChannelAccessModal: React.FC<ChannelAccessModalProps> = ({
   visible,

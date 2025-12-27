@@ -3,15 +3,7 @@ import { View, TouchableOpacity, Text, KeyboardAvoidingView, Platform } from 're
 import { LinearGradient } from 'expo-linear-gradient';
 import { CommentInput } from './CommentInput';
 import GiftIcon from '../../../assets/icons/gift.svg';
-
-interface StreamInputBarProps {
-  onSendMessage: (message: string) => void;
-  onGiftPress: () => void;
-  hasJoined: boolean;
-  keyboardHeight?: number;
-  isKeyboardVisible?: boolean;
-  showGiftButton?: boolean;
-}
+import { StreamInputBarProps } from './types';
 
 export const StreamInputBar = ({
   onSendMessage,

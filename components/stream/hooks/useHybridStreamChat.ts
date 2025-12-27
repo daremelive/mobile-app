@@ -1,31 +1,6 @@
 import { useStreamChatWithStream } from './useStreamChatWithStream';
-import type { ChatMessage } from '../components/StreamChatOverlay';
-
-interface UseHybridStreamChatProps {
-  streamId: string;
-  streamTitle?: string;
-  userId?: string;
-  username?: string;
-  isHost?: boolean;
-  hostId?: string; // Actual host ID from stream details
-  profilePicture?: string;
-  useStreamChat?: boolean; // Use Stream Chat (default: true)
-  baseURL?: string; // Add baseURL for profile picture construction
-}
-
-interface UseHybridStreamChatReturn {
-  messages: ChatMessage[];
-  isKeyboardVisible: boolean;
-  keyboardHeight: number;
-  sendMessage: (message: string, customData?: any) => Promise<void>;
-  addMessage: (message: ChatMessage) => void;
-  clearMessages: () => void;
-  isSendingMessage: boolean;
-  isConnected: boolean;
-  connectionError: string | null;
-  chatProvider: 'stream-chat';
-  sendGiftEvent?: (giftData: any) => Promise<void>; // 🎁 Add gift event method
-}
+import type { ChatMessage } from '../components/types';
+import { UseHybridStreamChatProps, UseHybridStreamChatReturn } from './types';
 
 export const useHybridStreamChat = ({
   streamId,

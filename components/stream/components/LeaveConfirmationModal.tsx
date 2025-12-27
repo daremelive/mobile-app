@@ -2,18 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-
-interface LeaveConfirmationModalProps {
-  visible: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-  title?: string;
-  message?: string;
-  confirmText?: string;
-  cancelText?: string;
-  isLoading?: boolean;
-  iconName?: keyof typeof Ionicons.glyphMap;
-}
+import { LeaveConfirmationModalProps } from './types';
 
 export const LeaveConfirmationModal = ({
   visible,

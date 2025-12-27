@@ -2,9 +2,43 @@ import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/r
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../config/env';
 
+// Import centralized types
+import type {
+  CoinPackage,
+  WalletSummary,
+  WalletAnalytics,
+  WalletTransaction,
+  CoinExchangeRate,
+  PurchaseCoinsRequest,
+  AddTestCoinsRequest,
+  AddTestBalanceRequest,
+  WithdrawMoneyRequest,
+  CoinPackagesResponse,
+  WalletTransactionsResponse,
+  PurchaseCoinsResponse,
+  WithdrawMoneyResponse,
+  TestResponse,
+} from '../../types/api/wallet';
+
+// Re-export for backward compatibility
+export type {
+  CoinPackage,
+  WalletSummary,
+  WalletAnalytics,
+  WalletTransaction,
+  CoinExchangeRate,
+  PurchaseCoinsRequest,
+  AddTestCoinsRequest,
+  AddTestBalanceRequest,
+  WithdrawMoneyRequest,
+  PurchaseCoinsResponse,
+  WithdrawMoneyResponse,
+  TestResponse,
+};
+
 // Create base query for wallet endpoints
 const baseQuery = fetchBaseQuery({
-  baseUrl: `${API_BASE_URL}/wallet/`,
+  baseUrl: `${API_BASE_URL}wallet/`,
   timeout: 30000, // 30 second timeout
   prepareHeaders: async (headers) => {
     try {
@@ -18,131 +52,6 @@ const baseQuery = fetchBaseQuery({
     return headers;
   },
 });
-
-// Types
-export interface CoinPackage {
-  id: number;
-  coins: number;
-  bonus_coins: number;
-  total_coins: number;
-  price: string;
-  currency: string;
-  formatted_price: string;
-  is_popular: boolean;
-  is_active: boolean;
-}
-
-export interface WalletSummary {
-  coins: number;
-  balance: string;
-  formatted_balance: string;
-  coins_equivalent_text: string;
-  total_earned: string;
-  formatted_total_earned: string;
-  this_year_earnings: string;
-  formatted_this_year_earnings: string;
-  analytics: {
-    total_rewards: {
-      amount: string;
-      formatted: string;
-    };
-    this_year_rewards: {
-      amount: string;
-      formatted: string;
-    };
-  };
-}
-
-export interface WalletAnalytics {
-  total_balance: number;
-  total_coins: number;
-  total_earned: number;
-  total_withdrawn: number;
-  this_month_earned: number;
-  monthly_data: Array<{
-    month: string;
-    year: number;
-    earnings: number;
-  }>;
-  recent_transactions: WalletTransaction[];
-}
-
-export interface WalletTransaction {
-  id: number;
-  transaction_type: 'COIN_PURCHASE' | 'GIFT_SENT' | 'GIFT_RECEIVED' | 'EARNING' | 'WITHDRAWAL' | 'REFUND' | 'BONUS';
-  amount: string;
-  formatted_amount: string;
-  coins: number;
-  reason: string;
-  reference: string;
-  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-  created_at: string;
-  formatted_date: string;
-  formatted_time: string;
-  display_type: string;
-  is_outgoing: boolean;
-}
-
-export interface CoinExchangeRate {
-  id: number;
-  diamond_coins: number;
-  naira_amount: string;
-  is_active: boolean;
-  rate_per_coin: number;
-  formatted_rate: string;
-  created_at: string;
-}
-
-export interface PurchaseCoinsRequest {
-  package_id: number;
-  payment_method: 'paystack' | 'flutterwave';
-}
-
-export interface PurchaseCoinsResponse {
-  success: boolean;
-  message: string;
-  transaction_id: number;
-  coins_added: number;
-  new_balance: number;
-  reference: string;
-}
-
-export interface AddTestCoinsRequest {
-  coins: number;
-}
-
-export interface AddTestBalanceRequest {
-  amount?: number;
-  reason?: string;
-}
-
-export interface WithdrawMoneyRequest {
-  amount: number;
-}
-
-export interface WithdrawMoneyResponse {
-  status: 'success' | 'error';
-  message: string;
-  withdrawal_amount?: string;
-  formatted_withdrawal?: string;
-  coins_deducted?: number;
-  transaction_reference?: string;
-  new_balance?: string;
-  formatted_new_balance?: string;
-  new_coins?: number;
-  current_balance?: string;
-  formatted_balance?: string;
-}
-
-export interface TestResponse {
-  success: boolean;
-  message: string;
-  coins_added?: number;
-  balance_added?: string;
-  new_coins?: number;
-  new_balance?: string;
-  reference?: string;
-}
 
 export const walletApi = createApi({
   reducerPath: 'walletApi',
@@ -158,7 +67,7 @@ export const walletApi = createApi({
     // Get coin packages
     getCoinPackages: builder.query<CoinPackage[], void>({
       query: () => 'packages/',
-      transformResponse: (response: { results: CoinPackage[] }) => response.results,
+      transformResponse: (response: CoinPackagesResponse) => response.results,
       providesTags: ['CoinPackages'],
     }),
 

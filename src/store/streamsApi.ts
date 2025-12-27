@@ -2,161 +2,69 @@ import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { RootState } from './index';
 import { API_BASE_URL } from '../config/env';
 
-// Direct base query without wrapper - much faster
+import {
+  Stream,
+  StreamHost,
+  StreamParticipant,
+  StreamMessage,
+  Gift
+} from '../../types/stream';
+
+import {
+  CreateStreamRequest,
+  JoinStreamRequest,
+  StreamQueryParams
+} from '../../types/api/streams';
+
+import {
+  SearchResults,
+  SearchUser,
+  SearchStream
+} from '../../types/api/search';
+
+import {
+  StreamActionRequest,
+  SendMessageRequest,
+  SendGiftRequest
+} from '../../types/stream/actions';
+
+import type {
+  ParticipantSummary,
+  GuestInvitationMetadata,
+} from '../../types/services/websocket';
+
+interface GuestInvitationResponse {
+  message: string;
+  guest: ParticipantSummary;
+  invitation: GuestInvitationMetadata;
+}
+
+interface GuestPromotionResponse {
+  message: string;
+  participant: ParticipantSummary;
+}
+
+import {
+  GetStreamTokenResponse
+} from '../../types/api';
+
+// Base query with production-optimized timeouts and retry logic
 const baseQuery = fetchBaseQuery({
   baseUrl: API_BASE_URL,
-  timeout: 15000, // Reduced timeout for faster failure detection
+  timeout: __DEV__ ? 15000 : 45000, // Extended timeout for production (45s)
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;
     if (token) {
       headers.set('authorization', `Bearer ${token}`);
     }
+    // Add production-specific headers for better connectivity
+    if (!__DEV__) {
+      headers.set('Connection', 'keep-alive');
+      headers.set('Keep-Alive', 'timeout=30, max=100');
+    }
     return headers;
   },
 });
-
-// Types for Stream functionality
-export interface StreamHost {
-  id: number;
-  username: string;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  vip_level: 'basic' | 'premium' | 'vip' | 'vvip';
-  profile_picture_url?: string | null;
-}
-
-export interface StreamParticipant {
-  id: number;
-  user: StreamHost;
-  participant_type: 'host' | 'guest' | 'viewer';
-  joined_at: string;
-  left_at: string | null;
-  is_active: boolean;
-  seat_number: number | null;
-}
-
-export interface StreamMessage {
-  id: number;
-  user: StreamHost;
-  message: string;
-  message_type: string;
-  created_at: string;
-  gift: any | null;
-  gift_quantity: number;
-  gift_receiver: StreamHost | null;
-}
-
-export interface Gift {
-  id: number;
-  name: string;
-  icon_url: string;
-  cost: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SendGiftRequest {
-  gift_id: number;
-  recipient_user_id?: number; // Optional for multi-user streams
-}
-
-export interface SearchUser {
-  id: number;
-  username: string;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  profile_picture_url: string | null;
-  is_following: boolean;
-  follower_count: number;
-  following_count: number;
-  is_online: boolean;
-}
-
-export interface SearchStream {
-  id: string;
-  title: string;
-  channel: string;
-  mode: 'single' | 'multi';
-  status: 'scheduled' | 'live' | 'ended' | 'cancelled';
-  viewer_count: number;
-  total_participant_count: number;
-  host: StreamHost;
-  created_at: string;
-  started_at: string | null;
-}
-
-export interface SearchResults {
-  query: string;
-  results: {
-    streams: SearchStream[];
-    users: SearchUser[];
-  };
-  total_results: number;
-  search_type: string;
-}
-
-export interface Stream {
-  id: string;
-  host: StreamHost;
-  title: string;
-  mode: 'single' | 'multi';
-  channel: 'video' | 'game' | 'truth-or-dare' | 'banter';
-  max_seats: number;
-  status: 'scheduled' | 'live' | 'ended' | 'cancelled';
-  scheduled_at: string | null;
-  started_at: string | null;
-  ended_at: string | null;
-  viewer_count: number;
-  total_viewers: number;
-  likes_count: number;
-  gifts_received: number;
-  created_at: string;
-  updated_at: string;
-  duration: number | null;
-  is_live: boolean;
-  // Recording fields
-  is_recorded: boolean;
-  recording_url: string | null;
-  recording_status: 'pending' | 'processing' | 'completed' | 'failed';
-  recording_file_size: number | null;
-  has_recording: boolean;
-  is_recording_available: boolean;
-  participants: StreamParticipant[];
-  messages: StreamMessage[];
-}
-
-export interface CreateStreamRequest {
-  title: string;
-  mode: 'single' | 'multi';
-  channel: 'video' | 'game' | 'truth-or-dare' | 'banter';
-  max_seats: number;
-  scheduled_at?: string;
-  is_recorded?: boolean;
-}
-
-export interface JoinStreamRequest {
-  participant_type: 'host' | 'guest' | 'viewer';
-  seat_number?: number;
-}
-
-export interface StreamActionRequest {
-  action: 'start' | 'end' | 'heartbeat';
-}
-
-export interface SendMessageRequest {
-  message: string;
-}
-
-// GetStream token response interface
-export interface GetStreamTokenResponse {
-  token: string;
-  user_id: string;
-  api_key: string;
-  app_id: string;
-}
 
 export const streamsApi = createApi({
   reducerPath: 'streamsApi',
@@ -230,14 +138,16 @@ export const streamsApi = createApi({
       providesTags: (result, error, streamId) => [{ type: 'Stream', id: streamId }],
     }),
 
-    // Create stream
+        // Create a new stream with production timeout
     createStream: builder.mutation<Stream, CreateStreamRequest>({
       query: (data) => ({
         url: '/streams/',
         method: 'POST',
         body: data,
+        // Extended timeout for stream creation in production
+        timeout: __DEV__ ? 15000 : 45000,
       }),
-      invalidatesTags: ['Stream'],
+      invalidatesTags: ['Stream', 'UserStreams'],
     }),
 
     // Update stream
@@ -279,6 +189,8 @@ export const streamsApi = createApi({
           url: `/streams/${streamId}/action/`,
           method: 'POST',
           body: action,
+          // Critical for stream start/end actions in production
+          timeout: __DEV__ ? 15000 : 45000,
         };
       },
       invalidatesTags: (result, error, { streamId, action }) => {
@@ -353,7 +265,7 @@ export const streamsApi = createApi({
     }),
 
     // Guest management endpoints
-    inviteGuest: builder.mutation<{ message: string; guest: any }, { streamId: string; username: string }>({
+    inviteGuest: builder.mutation<GuestInvitationResponse, { streamId: string; username: string }>({
       query: ({ streamId, username }) => ({
         url: `/streams/${streamId}/invite/`,
         method: 'POST',
@@ -373,7 +285,7 @@ export const streamsApi = createApi({
       }),
     }),
 
-    acceptInvite: builder.mutation<{ message: string; participant: any }, string>({
+    acceptInvite: builder.mutation<GuestPromotionResponse, string>({
       query: (streamId) => ({
         url: `/streams/${streamId}/accept-invite/`,
         method: 'POST',
@@ -404,18 +316,7 @@ export const streamsApi = createApi({
     }),
 
     // Seamless promotion
-    promoteViewerToGuest: builder.mutation<{ 
-      message: string; 
-      participant: {
-        id: number;
-        user_id: number;
-        username: string;
-        participant_type: string;
-        seat_number: number;
-        camera_enabled: boolean;
-        microphone_enabled: boolean;
-      }
-    }, { streamId: string; userId: number }>({
+    promoteViewerToGuest: builder.mutation<GuestPromotionResponse, { streamId: string; userId: number }>({
       query: ({ streamId, userId }) => ({
         url: `/streams/${streamId}/promote-viewer/`,
         method: 'POST',
@@ -441,11 +342,13 @@ export const streamsApi = createApi({
       }),
     }),
 
-    // GetStream token endpoint
+    // GetStream token endpoint with extended timeout for production
     getStreamToken: builder.mutation<GetStreamTokenResponse, void>({
       query: () => ({
         url: '/streams/token/',
         method: 'POST',
+        // Critical endpoint - extend timeout even further for production
+        timeout: __DEV__ ? 15000 : 60000, // 60s for production token fetch
       }),
     }),
 
@@ -518,4 +421,34 @@ export const {
   useSendGiftMutation,
   useSearchQuery,
   useEmergencyCleanupStreamsMutation,
-} = streamsApi; 
+} = streamsApi;
+
+
+export type {
+  Stream,
+  StreamHost,
+  StreamParticipant,
+  StreamMessage,
+  Gift
+} from '../../types/stream';
+
+export type {
+  CreateStreamRequest,
+  JoinStreamRequest
+} from '../../types/api/streams';
+
+export type {
+  StreamActionRequest,
+  SendMessageRequest,
+  SendGiftRequest
+} from '../../types/stream/actions';
+
+export type {
+  SearchResults,
+  SearchUser,
+  SearchStream
+} from '../../types/api/search';
+
+export type {
+  GetStreamTokenResponse
+} from '../../types/api'; 

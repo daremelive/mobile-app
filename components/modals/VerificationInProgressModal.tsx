@@ -3,11 +3,7 @@ import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import CancelIcon from '../../assets/icons/cancel.svg';
 import AttentionIcon from '../../assets/icons/attention.svg';
-
-interface VerificationInProgressModalProps {
-  visible: boolean;
-  onClose: () => void;
-}
+import { VerificationInProgressModalProps } from './types';
 
 const VerificationInProgressModal: React.FC<VerificationInProgressModalProps> = ({
   visible,

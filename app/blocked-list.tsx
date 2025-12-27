@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState} from 'react';
 import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Image, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -10,29 +10,11 @@ import {
   useGetBlockedUsersCountQuery,
   useUnblockUserMutation,
 } from '../src/api/blockedApi';
-import ipDetector from '../src/utils/ipDetector';
+import { buildProfilePictureURL, buildAvatarFallbackURL } from '../src/config/env';
 
 const BlockedListScreen = () => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [baseURL, setBaseURL] = useState<string>('');
-
-  // Initialize base URL with IP detection
-  useEffect(() => {
-    const initializeBaseURL = async () => {
-      try {
-        const detection = await ipDetector.detectIP();
-        const url = `http://${detection.ip}:8000`;
-        setBaseURL(url);
-        console.log('🔗 Blocked List Base URL initialized:', url);
-      } catch (error) {
-        console.error('❌ Failed to detect IP in blocked list:', error);
-        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
-      }
-    };
-    
-    initializeBaseURL();
-  }, []);
 
   // RTK Query hooks - conditional based on search
   const { data: allBlockedUsers, isLoading: allLoading, refetch: refetchAll, error: allError } = useGetAllBlockedUsersQuery(undefined, {
@@ -49,16 +31,6 @@ const BlockedListScreen = () => {
   const error = searchQuery ? searchError : allError;
   const { data: countData } = useGetBlockedUsersCountQuery();
   const [unblockUser] = useUnblockUserMutation();
-
-  // Add logging to debug
-  useEffect(() => {
-    console.log('🔍 BlockedList Debug:', {
-      blockedUsers: blockedUsers?.length || 0,
-      isLoading: blockedUsersLoading,
-      error: error,
-      countData: countData
-    });
-  }, [blockedUsers, blockedUsersLoading, error, countData]);
 
   const handleUnblock = async (userId: number, username: string) => {
     Alert.alert(
@@ -77,7 +49,6 @@ const BlockedListScreen = () => {
               await unblockUser({ user_id: userId }).unwrap();
               refetch(); // Refresh the list
             } catch (error) {
-              console.error('Failed to unblock user:', error);
               Alert.alert('Error', 'Failed to unblock user. Please try again.');
             }
           },
@@ -87,18 +58,6 @@ const BlockedListScreen = () => {
   };
 
   const blockedCount = countData?.count || 0;
-
-  // Helper function to get profile image URL
-  const getProfileImageUrl = (user: any) => {
-    if (user.profile_picture_url) {
-      // If URL starts with http, it's already absolute, otherwise prepend baseURL
-      return user.profile_picture_url.startsWith('http') 
-        ? user.profile_picture_url 
-        : `${baseURL}${user.profile_picture_url}`;
-    }
-    // Fallback to UI Avatars for initials
-    return `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`;
-  };
 
   if (blockedUsersLoading && !blockedUsers) {
     return (
@@ -137,15 +96,13 @@ const BlockedListScreen = () => {
               <View className="flex-row items-center">
                 <Image 
                   source={{ 
-                    uri: getProfileImageUrl(blockedUser.blocked_user)
+                    uri: blockedUser.blocked_user.profile_picture 
+                      ? buildProfilePictureURL(blockedUser.blocked_user.profile_picture) 
+                      : buildAvatarFallbackURL(blockedUser.blocked_user.full_name || blockedUser.blocked_user.username)
                   }} 
                   className="w-14 h-14 rounded-full mr-4 border-2 border-white" 
-                  onError={(error) => {
-                    console.log('❌ Profile image load error for blocked user:', {
-                      userId: blockedUser.blocked_user.id,
-                      username: blockedUser.blocked_user.username,
-                      error: error.nativeEvent
-                    });
+                  onError={() => {
+                    // Silent failure for avatar images
                   }}
                 />
                 <View>

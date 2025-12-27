@@ -48,22 +48,22 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
           <View className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 items-center justify-center mb-6">
             <Ionicons name="videocam" size={40} color="white" />
           </View>
-          
+
           {/* Title */}
           <Text className="text-white text-2xl font-bold text-center mb-3">
-            🎉 You're Invited!
+            You're Invited!
           </Text>
-          
+
           {/* Host info */}
           <Text className="text-gray-300 text-base text-center mb-2">
             <Text className="font-semibold text-blue-400">@{hostName}</Text> wants you to join as a guest speaker
           </Text>
-          
+
           {/* Stream title */}
           <Text className="text-gray-400 text-sm text-center mb-6">
             "{streamTitle}"
           </Text>
-          
+
           {/* Seat info */}
           <View className="bg-gray-800 rounded-xl px-4 py-3 mb-8 w-full">
             <Text className="text-gray-300 text-center text-sm">
@@ -74,7 +74,7 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
               Your camera and microphone will be enabled
             </Text>
           </View>
-          
+
           {/* Buttons */}
           <View className="w-full space-y-3">
             {/* Accept Button */}
@@ -99,7 +99,7 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
                 </View>
               </LinearGradient>
             </TouchableOpacity>
-            
+
             {/* Decline Button */}
             <TouchableOpacity
               onPress={onDecline}
@@ -114,7 +114,7 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
               </View>
             </TouchableOpacity>
           </View>
-          
+
           {/* Info text */}
           <Text className="text-gray-500 text-xs text-center mt-4 leading-4">
             You can leave the guest seat anytime and return to viewer mode

@@ -4,12 +4,7 @@ import BlockedIcon from '../../assets/icons/blocked.svg';
 import CancelIcon from '../../assets/icons/cancel.svg';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-
-interface DeactivateAccountConfirmationModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}
+import { DeactivateAccountConfirmationModalProps } from './types';
 
 const DeactivateAccountConfirmationModal: React.FC<DeactivateAccountConfirmationModalProps> = ({
   visible,

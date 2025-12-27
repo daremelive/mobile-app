@@ -34,15 +34,6 @@ const WalletScreen = () => {
   const { data: walletData, isLoading, error, refetch } = useGetWalletSummaryQuery();
   const { data: walletAnalytics, isLoading: analyticsLoading, error: analyticsError } = useGetWalletAnalyticsQuery();
 
-  // Debug logging
-  console.log('💰 Wallet Screen Debug:');
-  console.log('  Loading:', isLoading, 'Analytics Loading:', analyticsLoading);
-  console.log('  Error:', error, 'Analytics Error:', analyticsError);
-  console.log('  Wallet Data:', walletData);
-  console.log('  Analytics Data:', walletAnalytics);
-  console.log('  Analytics total_earned:', walletAnalytics?.total_earned);
-  console.log('  Analytics Monthly Data:', walletAnalytics?.monthly_data);
-
   // Analytics filter options
   const analyticsFilterOptions: AnalyticsFilterOption[] = [
     {
@@ -123,7 +114,6 @@ const WalletScreen = () => {
       const result = selectedOption.calculateRewards(walletData, walletAnalytics);
       return result || { totalRewards: '0 Riz', periodRewards: '0 Riz' };
     } catch (error) {
-      console.error('Analytics calculation error:', error);
       return { totalRewards: '0 Riz', periodRewards: '0 Riz' };
     }
   }, [walletData, selectedAnalyticsFilter, walletAnalytics]);
@@ -134,16 +124,6 @@ const WalletScreen = () => {
                      selectedAnalyticsFilter === 'month' ? 'This month\'s rewards' :
                      selectedAnalyticsFilter === 'week' ? 'This week\'s rewards' :
                      selectedAnalyticsFilter === '3months' ? 'Last 3 months\' rewards' : 'Period rewards';
-
-  // Debug logging
-  console.log('💰 Wallet Screen Debug:');
-  console.log('  Loading:', isLoading);
-  console.log('  Error:', error);
-  console.log('  Wallet Data:', walletData);
-  console.log('  Analytics Data Structure:', walletData?.analytics);
-  console.log('  Total Rewards Amount:', walletData?.analytics?.total_rewards?.amount);
-  console.log('  Selected Filter:', selectedAnalyticsFilter);
-  console.log('  Calculated Analytics:', analyticsData);
 
   // Generate chart data from analytics monthly data with period filtering
   const chartData = useMemo(() => {
@@ -192,15 +172,6 @@ const WalletScreen = () => {
     // Backend already sends month abbreviations (Jan, Feb, etc.), no need to parse as date
     const labels = filteredData.map(item => item.month);
     const data = filteredData.map(item => item.earnings || 0);
-
-    console.log('📊 Chart Data Debug:', {
-      selectedFilter: selectedAnalyticsFilter,
-      totalMonthlyData: monthlyData.length,
-      filteredDataLength: filteredData.length,
-      labels,
-      data,
-      rawFilteredData: filteredData
-    });
 
     return {
       labels,

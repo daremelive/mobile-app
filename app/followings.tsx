@@ -6,7 +6,7 @@ import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import SearchIcon from '../assets/icons/search-icon.svg';
 import CheckIcon from '../assets/icons/check.svg';
 import { useGetFollowingQuery, useFollowUserMutation, useUnfollowUserMutation, useDiscoverUsersQuery } from '../src/store/followApi';
-import ipDetector from '../src/utils/ipDetector';
+import { buildProfilePictureURL } from '../src/config/env';
 
 // Sent icon SVG
 const sentIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -16,30 +16,6 @@ const sentIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xm
 
 export default function FollowingsScreen() {
   const [search, setSearch] = useState('');
-  const [baseURL, setBaseURL] = useState<string>('');
-  
-  // Initialize base URL with IP detection
-  useEffect(() => {
-    const initializeBaseURL = async () => {
-      try {
-        const detection = await ipDetector.detectIP();
-        let url;
-        // Check if it's production domain or local IP
-        if (detection.ip === 'daremelive.pythonanywhere.com') {
-          url = `https://${detection.ip}`;
-        } else {
-          url = `http://${detection.ip}:8000`;
-        }
-        setBaseURL(url);
-        console.log('🔗 Followings Base URL initialized:', url);
-      } catch (error) {
-        console.error('❌ Failed to detect IP in followings:', error);
-        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
-      }
-    };
-    
-    initializeBaseURL();
-  }, []);
   
   // RTK Query hooks with aggressive refresh to ensure data is current
   // Use both following users and discover users to show all available users
@@ -99,7 +75,6 @@ export default function FollowingsScreen() {
   
   useFocusEffect(
     React.useCallback(() => {
-      // console.log('📱 Followings screen focused - refreshing data');
       refetch();
     }, [refetch])
   );
@@ -115,7 +90,6 @@ export default function FollowingsScreen() {
       await refetchFollowing();
       await refetchDiscover();
     } catch (error: any) {
-      console.error('Follow/Unfollow error:', error);
       Alert.alert('Error', error.data?.message || 'Failed to update follow status');
     }
   };
@@ -233,9 +207,7 @@ export default function FollowingsScreen() {
                   {user.profile_picture_url ? (
                     <Image 
                       source={{ 
-                        uri: user.profile_picture_url.startsWith('http') 
-                          ? user.profile_picture_url 
-                          : baseURL ? `${baseURL}${user.profile_picture_url}` : `https://daremelive.pythonanywhere.com${user.profile_picture_url}`
+                        uri: buildProfilePictureURL(user.profile_picture_url)
                       }} 
                       className={`w-14 h-14 rounded-full ${user.is_live ? 'border-2 border-[#C42720]' : 'border-2 border-transparent'}`}
                     />

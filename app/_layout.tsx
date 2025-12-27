@@ -11,6 +11,9 @@ import { I18nextProvider } from 'react-i18next';
 import i18n, { initializeLanguage } from '../src/i18n';
 import '../global.css';
 
+// Initialize Sentry for production error tracking
+import '../sentry.config';
+
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 

@@ -1,14 +1,16 @@
 import { useRef, useEffect, useCallback } from 'react';
 import { StreamWebSocketService } from '../services/StreamWebSocketService';
+import type { GuestInvitePayload, UserPromotedData } from '../../types/services';
 
 interface UseStreamingWebSocketProps {
   streamId: string;
   userId: string;
   token: string;
-  onGuestInvited?: (guest: any, invitedBy: any) => void;
+  onGuestInvited?: (payload: GuestInvitePayload) => void;
   onGuestJoined?: (participant: any) => void;
   onGuestDeclined?: (guest: any) => void;
   onGuestRemoved?: (guestId: string, removedBy: string) => void;
+  onUserPromoted?: (data: UserPromotedData) => void;
   onCameraToggled?: (userId: string, enabled: boolean) => void;
   onMicrophoneToggled?: (userId: string, enabled: boolean) => void;
   onStreamMessage?: (message: any) => void;
@@ -29,6 +31,7 @@ export const useStreamingWebSocket = ({
   onGuestJoined,
   onGuestDeclined,
   onGuestRemoved,
+  onUserPromoted,
   onCameraToggled,
   onMicrophoneToggled,
   onStreamMessage,
@@ -41,32 +44,34 @@ export const useStreamingWebSocket = ({
 
   // Stable callback refs to prevent reconnections
   const stableCallbacks = useRef({
-    onGuestInvited: onGuestInvited || (() => {}),
-    onGuestJoined: onGuestJoined || (() => {}),
-    onGuestDeclined: onGuestDeclined || (() => {}),
-    onGuestRemoved: onGuestRemoved || (() => {}),
-    onCameraToggled: onCameraToggled || (() => {}),
-    onMicrophoneToggled: onMicrophoneToggled || (() => {}),
-    onStreamMessage: onStreamMessage || (() => {}),
-    onStreamState: onStreamState || (() => {}),
-    onError: onError || (() => {})
+    onGuestInvited: onGuestInvited || (() => { }),
+    onGuestJoined: onGuestJoined || (() => { }),
+    onGuestDeclined: onGuestDeclined || (() => { }),
+    onGuestRemoved: onGuestRemoved || (() => { }),
+    onUserPromoted: onUserPromoted || (() => { }),
+    onCameraToggled: onCameraToggled || (() => { }),
+    onMicrophoneToggled: onMicrophoneToggled || (() => { }),
+    onStreamMessage: onStreamMessage || (() => { }),
+    onStreamState: onStreamState || (() => { }),
+    onError: onError || (() => { })
   });
 
   // Update callbacks without causing reconnection
   useEffect(() => {
     stableCallbacks.current = {
-      onGuestInvited: onGuestInvited || (() => {}),
-      onGuestJoined: onGuestJoined || (() => {}),
-      onGuestDeclined: onGuestDeclined || (() => {}),
-      onGuestRemoved: onGuestRemoved || (() => {}),
-      onCameraToggled: onCameraToggled || (() => {}),
-      onMicrophoneToggled: onMicrophoneToggled || (() => {}),
-      onStreamMessage: onStreamMessage || (() => {}),
-      onStreamState: onStreamState || (() => {}),
-      onError: onError || (() => {})
+      onGuestInvited: onGuestInvited || (() => { }),
+      onGuestJoined: onGuestJoined || (() => { }),
+      onGuestDeclined: onGuestDeclined || (() => { }),
+      onGuestRemoved: onGuestRemoved || (() => { }),
+      onUserPromoted: onUserPromoted || (() => { }),
+      onCameraToggled: onCameraToggled || (() => { }),
+      onMicrophoneToggled: onMicrophoneToggled || (() => { }),
+      onStreamMessage: onStreamMessage || (() => { }),
+      onStreamState: onStreamState || (() => { }),
+      onError: onError || (() => { })
     };
-  }, [onGuestInvited, onGuestJoined, onGuestDeclined, onGuestRemoved, 
-      onCameraToggled, onMicrophoneToggled, onStreamMessage, onStreamState, onError]);
+  }, [onGuestInvited, onGuestJoined, onGuestDeclined, onGuestRemoved, onUserPromoted,
+    onCameraToggled, onMicrophoneToggled, onStreamMessage, onStreamState, onError]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -79,10 +84,11 @@ export const useStreamingWebSocket = ({
       streamId,
       userId,
       token,
-      onGuestInvited: (guest, invitedBy) => stableCallbacks.current.onGuestInvited(guest, invitedBy),
+      onGuestInvited: (payload) => stableCallbacks.current.onGuestInvited(payload),
       onGuestJoined: (participant) => stableCallbacks.current.onGuestJoined(participant),
       onGuestDeclined: (guest) => stableCallbacks.current.onGuestDeclined(guest),
       onGuestRemoved: (guestId, removedBy) => stableCallbacks.current.onGuestRemoved(guestId, removedBy),
+      onUserPromoted: (data) => stableCallbacks.current.onUserPromoted(data),
       onCameraToggled: (userId, enabled) => stableCallbacks.current.onCameraToggled(userId, enabled),
       onMicrophoneToggled: (userId, enabled) => stableCallbacks.current.onMicrophoneToggled(userId, enabled),
       onStreamMessage: (message) => stableCallbacks.current.onStreamMessage(message),

@@ -17,7 +17,7 @@ import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { fonts } from '../constants/Fonts';
-import ipDetector from '../src/utils/ipDetector';
+import { MEDIA_BASE_URL } from '../src/config/env';
 
 interface ShareProfileModalProps {
   visible: boolean;
@@ -49,23 +49,15 @@ export default function ShareProfileModal({ visible, onClose, userProfile }: Sha
   const [copied, setCopied] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string>('');
 
-  // Initialize profile URL with IP detection
+  // Initialize profile URL
   useEffect(() => {
     const initializeProfileUrl = async () => {
       try {
-        const detection = await ipDetector.detectIP();
-        let baseUrl;
-        // Check if it's production domain or local IP
-        if (detection.ip === 'daremelive.pythonanywhere.com') {
-          baseUrl = `https://${detection.ip}`;
-        } else {
-          baseUrl = `http://${detection.ip}:8000`;
-        }
-        // Use a more user-friendly URL structure for profile sharing
-        const url = `${baseUrl}/profile/${userProfile.username}?utm_source=mobile_share&utm_medium=social`;
+        // Use centralized config for profile URL
+        const url = `${MEDIA_BASE_URL}/profile/${userProfile.username}?utm_source=mobile_share&utm_medium=social`;
         setProfileUrl(url);
       } catch (error) {
-        console.error('❌ Failed to detect IP for sharing:', error);
+        console.error('❌ Failed to initialize profile URL:', error);
         setProfileUrl(`https://daremelive.pythonanywhere.com/profile/${userProfile.username}?utm_source=mobile_share&utm_medium=social`);
       }
     };

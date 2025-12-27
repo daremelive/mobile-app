@@ -2,14 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { CommentInput } from './CommentInput';
 import AddTeamIcon from '../../../assets/icons/add-team.svg';
-
-interface MultiParticipantInputBarProps {
-  onSendMessage: (message: string) => void;
-  onAddParticipant: () => void;
-  hasJoined: boolean;
-  keyboardHeight?: number;
-  isKeyboardVisible?: boolean;
-}
+import { MultiParticipantInputBarProps } from './types';
 
 export const MultiParticipantInputBar = ({
   onSendMessage,

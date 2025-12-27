@@ -2,9 +2,37 @@ import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/r
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../config/env';
 
+// Import centralized types
+import type {
+  NotificationSetting,
+  AccountNotificationSetting,
+  InboxNotification,
+  Notification,
+  UpdateNotificationSettingsRequest,
+  UpdateAccountNotificationSettingRequest,
+  NotificationQueryParams,
+  InboxNotificationQueryParams,
+  NotificationListResponse,
+  InboxNotificationListResponse,
+  AccountNotificationSettingsResponse,
+  NotificationStatsResponse,
+  NotificationActionResponse,
+  NotificationReadResponse,
+  ClearNotificationResponse,
+  MarkAllReadResponse,
+} from '../../types/api/notifications';
+
+// Re-export for backward compatibility
+export type {
+  NotificationSetting,
+  AccountNotificationSetting,
+  InboxNotification,
+  Notification,
+};
+
 // Create base query for notification endpoints
 const baseQuery = fetchBaseQuery({
-  baseUrl: `${API_BASE_URL}/notifications/`,
+  baseUrl: `${API_BASE_URL}notifications/`,
   prepareHeaders: async (headers) => {
     try {
       const token = await SecureStore.getItemAsync('accessToken');
@@ -18,66 +46,6 @@ const baseQuery = fetchBaseQuery({
   },
 });
 
-export interface NotificationSetting {
-  id: number;
-  user: number;
-  live_notifications: boolean;
-  reward_notifications: boolean;
-  push_notifications: boolean;
-  email_notifications: boolean;
-  quiet_hours_start?: string;
-  quiet_hours_end?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AccountNotificationSetting {
-  id: number;
-  user: number;
-  following_user: {
-    id: number;
-    username: string;
-    email: string;
-    profile_picture_url?: string;
-  };
-  live_notifications: boolean;
-  new_content_notifications: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface InboxNotification {
-  id: number;
-  recipient: number;
-  sender?: {
-    id: number;
-    username: string;
-    first_name: string;
-    last_name: string;
-    profile_picture_url?: string;
-  };
-  notification_type: 'follow' | 'live_start' | 'live_end' | 'stream_invite' | 'reward' | 'gift' | 'new_content' | 'system';
-  title: string;
-  message: string;
-  extra_data: Record<string, any>;
-  is_read: boolean;
-  is_sent: boolean;
-  created_at: string;
-  read_at?: string;
-}
-
-export interface Notification {
-  id: number;
-  user: number;
-  title: string;
-  message: string;
-  notification_type: 'follow' | 'live_start' | 'reward' | 'announcement' | 'profile_activity';
-  is_read: boolean;
-  created_at: string;
-  sender_username?: string;
-  sender_avatar?: string;
-}
-
 export const notificationApi = createApi({
   reducerPath: 'notificationApi',
   baseQuery: baseQuery,
@@ -90,11 +58,8 @@ export const notificationApi = createApi({
     }),
 
     // Update user's notification settings
-    updateNotificationSettings: builder.mutation<
-      NotificationSetting,
-      Partial<Omit<NotificationSetting, 'id' | 'user' | 'created_at' | 'updated_at'>>
-    >({
-      query: (data: Partial<Omit<NotificationSetting, 'id' | 'user' | 'created_at' | 'updated_at'>>) => ({
+    updateNotificationSettings: builder.mutation<NotificationSetting, UpdateNotificationSettingsRequest>({
+      query: (data: UpdateNotificationSettingsRequest) => ({
         url: 'settings/',
         method: 'PATCH',
         body: data,
@@ -105,22 +70,13 @@ export const notificationApi = createApi({
     // Get account notification settings (for specific followed users)
     getAccountNotificationSettings: builder.query<AccountNotificationSetting[], void>({
       query: () => 'account-settings/',
-      transformResponse: (response: { results: AccountNotificationSetting[] }) => response.results,
+      transformResponse: (response: AccountNotificationSettingsResponse) => response.results,
       providesTags: ['AccountNotificationSettings'],
     }),
 
     // Update account notification setting for a specific followed user
-    updateAccountNotificationSetting: builder.mutation<
-      AccountNotificationSetting,
-      { 
-        following_user_id: number;
-        data: Partial<Omit<AccountNotificationSetting, 'id' | 'user' | 'following_user' | 'created_at' | 'updated_at'>>;
-      }
-    >({
-      query: ({ following_user_id, data }: { 
-        following_user_id: number;
-        data: Partial<Omit<AccountNotificationSetting, 'id' | 'user' | 'following_user' | 'created_at' | 'updated_at'>>;
-      }) => ({
+    updateAccountNotificationSetting: builder.mutation<AccountNotificationSetting, UpdateAccountNotificationSettingRequest>({
+      query: ({ following_user_id, data }: UpdateAccountNotificationSettingRequest) => ({
         url: `account-settings/update/`,
         method: 'PATCH',
         body: { 
@@ -132,16 +88,8 @@ export const notificationApi = createApi({
     }),
 
     // Get user's notifications
-    getNotifications: builder.query<
-      { 
-        count: number;
-        next: string | null;
-        previous: string | null;
-        results: Notification[];
-      },
-      { page?: number; page_size?: number } | void
-    >({
-      query: (params: { page?: number; page_size?: number } | void) => ({
+    getNotifications: builder.query<NotificationListResponse, NotificationQueryParams | void>({
+      query: (params: NotificationQueryParams | void) => ({
         url: 'list/',
         params: params || {},
       }),
@@ -158,7 +106,7 @@ export const notificationApi = createApi({
     }),
 
     // Mark all notifications as read
-    markAllNotificationsAsRead: builder.mutation<{ message: string }, void>({
+    markAllNotificationsAsRead: builder.mutation<MarkAllReadResponse, void>({
       query: () => ({
         url: 'mark-all-read/',
         method: 'POST',
@@ -176,7 +124,7 @@ export const notificationApi = createApi({
     }),
 
     // Clear a specific inbox notification
-    clearInboxNotification: builder.mutation<{ message: string }, number>({
+    clearInboxNotification: builder.mutation<ClearNotificationResponse, number>({
       query: (notificationId: number) => ({
         url: `inbox/${notificationId}/clear/`,
         method: 'DELETE',
@@ -185,15 +133,8 @@ export const notificationApi = createApi({
     }),
 
     // Get user's notification inbox (in-app notifications)
-    getInboxNotifications: builder.query<
-      { 
-        notifications: InboxNotification[];
-        total_count: number;
-        has_next: boolean;
-      }, 
-      { page?: number; page_size?: number } | void
-    >({
-      query: (params: { page?: number; page_size?: number } | void) => ({
+    getInboxNotifications: builder.query<InboxNotificationListResponse, InboxNotificationQueryParams | void>({
+      query: (params: InboxNotificationQueryParams | void) => ({
         url: 'inbox/',
         method: 'GET',
         params: params || {},
@@ -202,7 +143,7 @@ export const notificationApi = createApi({
     }),
 
     // Mark inbox notification as read
-    markInboxNotificationAsRead: builder.mutation<{ message: string; notification_id: number }, number>({
+    markInboxNotificationAsRead: builder.mutation<NotificationReadResponse, number>({
       query: (notificationId: number) => ({
         url: `inbox/${notificationId}/read/`,
         method: 'PATCH',
@@ -211,7 +152,7 @@ export const notificationApi = createApi({
     }),
 
     // Get notification stats (total and unread count)
-    getNotificationStats: builder.query<{ total_notifications: number; unread_notifications: number }, void>({
+    getNotificationStats: builder.query<NotificationStatsResponse, void>({
       query: () => ({
         url: 'stats/',
         method: 'GET',

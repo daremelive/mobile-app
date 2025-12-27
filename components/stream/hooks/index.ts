@@ -8,6 +8,12 @@ export { useHybridStreamChat } from './useHybridStreamChat';
 export { useFollowSystem } from './useFollowSystem';
 export { useEndStream } from './useEndStream';
 
-// Types
-export type { StreamActions } from './useStreamState';
+// Modular hooks  
+export * from './modules';
+
+// New modular version
+export { useStreamState as useStreamStateModular } from './useStreamStateModular';
+
+// Types - now imported from centralized types
+export type { StreamActions } from '../../../types/stream/actions';
 export type { GiftAnimationData } from './useGiftAnimations';

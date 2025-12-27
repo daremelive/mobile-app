@@ -10,35 +10,11 @@ import {
   useUpdateAccountNotificationSettingMutation,
 } from '../src/api/notificationApi';
 import { useGetFollowingQuery } from '../src/store/followApi';
-import ipDetector from '../src/utils/ipDetector';
+import { MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../src/config/env';
 
 const NotificationScreen = () => {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-  const [baseURL, setBaseURL] = React.useState<string>('');
-
-  // Initialize base URL with IP detection
-  React.useEffect(() => {
-    const initializeBaseURL = async () => {
-      try {
-        const detection = await ipDetector.detectIP();
-        let url;
-        // Check if it's production domain or local IP
-        if (detection.ip === 'daremelive.pythonanywhere.com') {
-          url = `https://${detection.ip}`;
-        } else {
-          url = `http://${detection.ip}:8000`;
-        }
-        setBaseURL(url);
-        console.log('🔗 Notifications Base URL initialized:', url);
-      } catch (error) {
-        console.error('❌ Failed to detect IP in notifications:', error);
-        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
-      }
-    };
-    
-    initializeBaseURL();
-  }, []);
 
   // API hooks
   const { data: notificationSettings, isLoading: settingsLoading, refetch: refetchSettings } = useGetNotificationSettingsQuery();
@@ -58,7 +34,7 @@ const NotificationScreen = () => {
         refetchFollowing(),
       ]);
     } catch (error) {
-      console.error('❌ Failed to refresh notification settings:', error);
+      // Silent refresh failure
     } finally {
       setRefreshing(false);
     }
@@ -70,10 +46,7 @@ const NotificationScreen = () => {
       await updateNotificationSettings({
         [settingKey]: value,
       }).unwrap();
-      
-      console.log(`✅ Updated ${settingKey} to ${value}`);
     } catch (error: any) {
-      console.error(`❌ Failed to update ${settingKey}:`, error);
       Alert.alert(
         'Update Failed',
         error?.data?.message || `Failed to update ${settingKey.replace('_', ' ')} setting. Please try again.`
@@ -88,10 +61,7 @@ const NotificationScreen = () => {
         following_user_id: followingUserId,
         data: { [settingKey]: value }
       }).unwrap();
-      
-      console.log(`✅ Updated account ${followingUserId} ${settingKey} to ${value}`);
     } catch (error: any) {
-      console.error(`❌ Failed to update account setting:`, error);
       Alert.alert(
         'Update Failed',
         error?.data?.message || 'Failed to update account notification setting. Please try again.'
@@ -191,10 +161,8 @@ const NotificationScreen = () => {
                 <Image 
                   source={{ 
                     uri: user.profile_picture_url 
-                      ? (user.profile_picture_url.startsWith('http') 
-                          ? user.profile_picture_url 
-                          : `${baseURL}${user.profile_picture_url}`)
-                      : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
+                      ? buildProfilePictureURL(user.profile_picture_url)
+                      : buildAvatarFallbackURL(user.full_name || user.username)
                   }} 
                   className="w-14 h-14 rounded-full mr-4 border-2 border-[#C42720]" 
                 />

@@ -20,7 +20,7 @@ import {
 import { useGetUserProfileQuery } from '../src/store/usersApi';
 import { useBlockUserMutation } from '../src/api/blockedApi';
 import ShareProfileModal from '../components/ShareProfileModal';
-import ipDetector from '../src/utils/ipDetector';
+import { MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../src/config/env';
 
 // SVG Icons
 const sentIcon = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -53,30 +53,6 @@ export default function UserProfileScreen() {
   
   const [actionLoading, setActionLoading] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
-  const [baseURL, setBaseURL] = useState<string>('');
-
-  // Initialize base URL with IP detection
-  useEffect(() => {
-    const initializeBaseURL = async () => {
-      try {
-        const detection = await ipDetector.detectIP();
-        let url;
-        // Check if it's production domain or local IP
-        if (detection.ip === 'daremelive.pythonanywhere.com') {
-          url = `https://${detection.ip}`;
-        } else {
-          url = `http://${detection.ip}:8000`;
-        }
-        setBaseURL(url);
-        console.log('🔗 Profile Base URL initialized:', url);
-      } catch (error) {
-        console.error('❌ Failed to detect IP in profile:', error);
-        setBaseURL('https://daremelive.pythonanywhere.com'); // Production fallback
-      }
-    };
-    
-    initializeBaseURL();
-  }, []);
 
   const handleFollowToggle = async () => {
     if (!userProfile || actionLoading) return;
@@ -84,17 +60,14 @@ export default function UserProfileScreen() {
     setActionLoading(true);
     try {
       if (userProfile.is_following) {
-        const result = await unfollowUser({ user_id: parseInt(userId) }).unwrap();
-        console.log('Unfollow result:', result);
+        await unfollowUser({ user_id: parseInt(userId) }).unwrap();
       } else {
-        const result = await followUser({ user_id: parseInt(userId) }).unwrap();
-        console.log('Follow result:', result);
+        await followUser({ user_id: parseInt(userId) }).unwrap();
       }
       
       // Refetch user profile to update follow status and counts
       refetch();
     } catch (error: any) {
-      console.error('Follow/Unfollow error:', error);
       Alert.alert('Error', error.data?.error || 'Failed to update follow status');
     } finally {
       setActionLoading(false);
@@ -121,15 +94,8 @@ export default function UserProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              console.log('🚫 Starting block process for user:', {
-                userId: parseInt(userId),
-                username: userProfile?.username,
-                fullName: userProfile?.full_name
-              });
-              
               const result = await blockUser({ user_id: parseInt(userId) }).unwrap();
               
-              console.log('✅ Block request successful:', result);
               Alert.alert('Success', `${userProfile?.full_name || userProfile?.username} has been blocked`, [
                 {
                   text: 'OK',
@@ -143,12 +109,6 @@ export default function UserProfileScreen() {
               // Also refetch data in case user stays on page
               refetch();
             } catch (error: any) {
-              console.error('❌ Failed to block user:', error);
-              console.error('❌ Error details:', {
-                status: error.status,
-                data: error.data,
-                message: error.message
-              });
               Alert.alert('Error', error.data?.message || 'Failed to block user. Please try again.');
             }
           }
@@ -201,9 +161,7 @@ export default function UserProfileScreen() {
   }
 
   const profileImageUrl = userProfile.profile_picture_url 
-    ? (userProfile.profile_picture_url.startsWith('http') 
-        ? userProfile.profile_picture_url 
-        : `${baseURL}${userProfile.profile_picture_url}`)
+    ? buildProfilePictureURL(userProfile.profile_picture_url)
     : null;
 
   return (
@@ -229,7 +187,9 @@ export default function UserProfileScreen() {
               source={{ uri: profileImageUrl }}
               className="w-full h-full"
               resizeMode="cover"
-              onError={(e) => console.log('Profile image load error:', e.nativeEvent.error)}
+              onError={() => {
+                // Silent image load failure
+              }}
             />
           ) : (
             <View className="w-full h-full bg-gray-600 items-center justify-center">

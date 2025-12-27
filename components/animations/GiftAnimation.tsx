@@ -15,27 +15,14 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { 
+  GiftAnimationProps, 
+  HeartParticleProps, 
+  ConfettiParticleProps, 
+  SparkleEffectProps 
+} from './types';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-
-interface GiftAnimationProps {
-  gift: {
-    id: number;
-    name: string;
-    icon_url?: string | null;
-    icon?: string | null;
-    cost: number;
-  };
-  sender: {
-    username: string;
-    full_name?: string;
-    first_name?: string;
-    last_name?: string;
-    profile_picture_url?: string;
-  };
-  onAnimationComplete: () => void;
-  animationKey: string;
-}
 
 export const GiftAnimation: React.FC<GiftAnimationProps> = ({
   gift,
@@ -438,7 +425,7 @@ export const GiftAnimation: React.FC<GiftAnimationProps> = ({
 };
 
 // Heart particle component for heart burst effect
-const HeartParticle: React.FC<{ angle: number; delay: number }> = ({ angle, delay }) => {
+const HeartParticle: React.FC<HeartParticleProps> = ({ angle, delay }) => {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const opacity = useSharedValue(0);
@@ -486,7 +473,7 @@ const HeartParticle: React.FC<{ angle: number; delay: number }> = ({ angle, dela
 };
 
 // Confetti particle component
-const ConfettiParticle: React.FC<{ delay: number; angle: number; distance: number }> = ({ 
+const ConfettiParticle: React.FC<ConfettiParticleProps> = ({ 
   delay, angle, distance 
 }) => {
   const translateX = useSharedValue(0);
@@ -546,7 +533,7 @@ const ConfettiParticle: React.FC<{ delay: number; angle: number; distance: numbe
 };
 
 // Enhanced sparkle effect
-const SparkleEffect: React.FC<{ delay: number; radius: number; angle: number }> = ({ 
+const SparkleEffect: React.FC<SparkleEffectProps> = ({ 
   delay, radius, angle 
 }) => {
   const opacity = useSharedValue(0);

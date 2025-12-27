@@ -3,67 +3,25 @@ import { View, Text, TouchableOpacity, Modal, TextInput, FlatList, Image, Alert,
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSelector } from 'react-redux';
-import { 
-  useInviteUsersToStreamMutation, 
+import {
+  useInviteUsersToStreamMutation,
   useRemoveGuestMutation,
   useRemoveParticipantMutation,
-  StreamParticipant,
   usePromoteViewerToGuestMutation
 } from '../../../src/store/streamsApi';
 import { useBlockUserMutation, useUnblockUserMutation, useGetAllBlockedUsersQuery } from '../../../src/api/blockedApi';
 import { selectCurrentUser } from '../../../src/store/authSlice';
-import { messagesApi, User as MessagesUser } from '../../../src/services/messagesApi';
+import { useSearchUsersQuery } from '../../../src/api/messagingApi';
+import { MessageUser } from '../../../types/api/messaging';
+import { User, Viewer, MembersListModalProps, ActionType, ActionMenuProps, StreamParticipant } from './types';
 
-interface User {
-  id: number;
-  participant_id?: number; // StreamParticipant ID for removal
-  username: string;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  followers_count?: string;
-  profile_picture_url?: string;
-  is_online?: boolean;
-}
-
-interface Participant extends User {
-  participant_type: 'host' | 'guest' | 'viewer';
-  is_streaming?: boolean;
-}
-
-interface Viewer extends User {
-  joined_at?: string;
-  last_seen?: string | null;
-}
-
-interface MembersListModalProps {
-  visible: boolean;
-  onClose: () => void;
-  streamId: string;
-  participants?: Participant[];
-  viewers?: Viewer[];
-  currentUserRole: 'host' | 'guest' | 'viewer';
-  onRefresh?: () => void;
-}
-
-type ActionType = 'promote' | 'block' | 'invite' | 'remove';
-
-interface ActionMenuProps {
-  visible: boolean;
-  user: User;
-  userType: 'participant' | 'viewer' | 'search';
-  currentUserRole: 'host' | 'guest' | 'viewer';
-  onAction: (action: ActionType, user: User) => void;
-  onClose: () => void;
-}
-
-const ActionMenu: React.FC<ActionMenuProps> = ({ 
-  visible, 
-  user, 
-  userType, 
+const ActionMenu: React.FC<ActionMenuProps> = ({
+  visible,
+  user,
+  userType,
   currentUserRole,
-  onAction, 
-  onClose 
+  onAction,
+  onClose
 }) => {
   if (!visible) return null;
 
@@ -78,15 +36,15 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <TouchableOpacity 
-        className="flex-1 bg-black/50" 
-        activeOpacity={1} 
+      <TouchableOpacity
+        className="flex-1 bg-black/50"
+        activeOpacity={1}
         onPress={() => {
           onClose();
         }}
       >
         <View className="flex-1 items-center justify-center px-6">
-          <TouchableOpacity 
+          <TouchableOpacity
             activeOpacity={1}
           >
             <View className="bg-gray-800 rounded-2xl p-4 w-full max-w-sm">
@@ -126,65 +84,65 @@ const ActionMenu: React.FC<ActionMenuProps> = ({
                   <Ionicons name="checkmark" size={20} color="#10B981" />
                   <Text className="text-green-400 font-medium ml-3">Test Button</Text>
                 </TouchableOpacity>
-              
-              {canPromote && (
-                <TouchableOpacity
-                  onPress={() => {
-                    onAction('promote', user);
-                    onClose();
-                  }}
-                  className="flex-row items-center py-3 px-4 rounded-xl bg-green-600/20"
-                >
-                  <Ionicons name="arrow-up-circle" size={20} color="#10B981" />
-                  <Text className="text-green-400 font-medium ml-3">Promote to Guest</Text>
-                </TouchableOpacity>
-              )}
 
-              {canBlock && (
-                <TouchableOpacity
-                  onPress={() => {
-                    onAction('block', user);
-                    onClose();
-                  }}
-                  className={`flex-row items-center py-3 px-4 rounded-xl ${
-                    /* We'll need to check if user is blocked in action menu too, but for now just show block */
-                    'bg-yellow-600/20'
-                  }`}
-                >
-                  <Ionicons name="ban" size={20} color="#F59E0B" />
-                  <Text className="text-yellow-400 font-medium ml-3">Block/Unblock User</Text>
-                </TouchableOpacity>
-              )}
+                {canPromote && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      onAction('promote', user);
+                      onClose();
+                    }}
+                    className="flex-row items-center py-3 px-4 rounded-xl bg-green-600/20"
+                  >
+                    <Ionicons name="arrow-up-circle" size={20} color="#10B981" />
+                    <Text className="text-green-400 font-medium ml-3">Promote to Guest</Text>
+                  </TouchableOpacity>
+                )}
 
-              {canRemove && (
-                <TouchableOpacity
-                  onPress={() => {
-                    onAction('remove', user);
-                    onClose();
-                  }}
-                  className="flex-row items-center py-3 px-4 rounded-xl bg-red-600/20"
-                >
-                  <Ionicons name="person-remove" size={20} color="#DC2626" />
-                  <Text className="text-red-400 font-medium ml-3">Remove Guest</Text>
-                </TouchableOpacity>
-              )}
+                {canBlock && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      onAction('block', user);
+                      onClose();
+                    }}
+                    className={`flex-row items-center py-3 px-4 rounded-xl ${
+                      /* We'll need to check if user is blocked in action menu too, but for now just show block */
+                      'bg-yellow-600/20'
+                      }`}
+                  >
+                    <Ionicons name="ban" size={20} color="#F59E0B" />
+                    <Text className="text-yellow-400 font-medium ml-3">Block/Unblock User</Text>
+                  </TouchableOpacity>
+                )}
+
+                {canRemove && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      onAction('remove', user);
+                      onClose();
+                    }}
+                    className="flex-row items-center py-3 px-4 rounded-xl bg-red-600/20"
+                  >
+                    <Ionicons name="person-remove" size={20} color="#DC2626" />
+                    <Text className="text-red-400 font-medium ml-3">Remove Guest</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                onPress={onClose}
+                className="mt-4 py-3 px-4 rounded-xl bg-gray-700"
+              >
+                <Text className="text-white font-medium text-center">Cancel</Text>
+              </TouchableOpacity>
             </View>
-
-            <TouchableOpacity
-              onPress={onClose}
-              className="mt-4 py-3 px-4 rounded-xl bg-gray-700"
-            >
-              <Text className="text-white font-medium text-center">Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </View>
-    </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
     </Modal>
   );
 };
 
-type DisplayItem = 
+type DisplayItem =
   | { item: User; type: 'search' }
   | { item: User; type: 'participant' }
   | { item: User; type: 'viewer' };
@@ -197,17 +155,36 @@ export const MembersListModal = ({
   viewers,
   currentUserRole,
   onRefresh,
+  call,
 }: MembersListModalProps) => {
   const currentUser = useSelector(selectCurrentUser);
   const [activeTab, setActiveTab] = useState<'guests' | 'audience'>('guests');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [actionMenuVisible, setActionMenuVisible] = useState(false);
   const [userType, setUserType] = useState<'participant' | 'viewer' | 'search'>('participant');
   const [promotingUserId, setPromotingUserId] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Use RTK Query for searching users
+  const {
+    data: searchData,
+    isLoading: isSearching,
+    error: searchError,
+  } = useSearchUsersQuery(
+    { query: searchQuery.trim() },
+    { skip: searchQuery.trim().length < 2 }
+  );
+
+  // Filter search results to exclude current user and already participating users
+  const searchResults = searchData?.results ? searchData.results.filter((user: MessageUser) =>
+    user.id !== currentUser?.id &&
+    !(participants || []).some(p => p.id === user.id) &&
+    !(viewers || []).some(v => v.id === user.id)
+  ).map((user: MessageUser) => ({
+    ...user,
+    full_name: user.full_name || `${user.first_name} ${user.last_name}`.trim()
+  })) : [];
 
   const [inviteUsers] = useInviteUsersToStreamMutation();
   const [removeGuest] = useRemoveGuestMutation();
@@ -231,43 +208,11 @@ export const MembersListModal = ({
     return (blockedUsers || []).some((blocked: any) => blocked.blocked_user.id === userId);
   }, [blockedUsers]);
 
-  // Search users when query changes
-  useEffect(() => {
-    const searchUsers = async () => {
-      if (searchQuery.trim().length < 2) {
-        setSearchResults([]);
-        return;
-      }
-
-      setIsSearching(true);
-      try {
-        const results = await messagesApi.searchUsers(searchQuery.trim());
-        // Filter out current user and already participating users
-        const filtered = results.filter(user => 
-          user.id !== currentUser?.id && 
-          !(participants || []).some(p => p.id === user.id) &&
-          !(viewers || []).some(v => v.id === user.id)
-        ).map(user => ({
-          ...user,
-          full_name: user.full_name || `${user.first_name} ${user.last_name}`.trim()
-        }));
-        setSearchResults(filtered);
-      } catch (error) {
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    };
-
-    const timeoutId = setTimeout(searchUsers, 500); // Debounce
-    return () => clearTimeout(timeoutId);
-  }, [searchQuery, currentUser?.id, participants, viewers]);
-
   // Filter participants and viewers based on search
-  const filteredParticipants = (participants || []).filter(p => 
+  const filteredParticipants = (participants || []).filter(p =>
     p.participant_type === 'guest' && // Only show guests, not the host
     (p.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-     p.username?.toLowerCase().includes(searchQuery.toLowerCase()))
+      p.username?.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const filteredViewers = (viewers || []).filter(v =>
@@ -285,9 +230,9 @@ export const MembersListModal = ({
     try {
       switch (action) {
         case 'invite':
-          const result = await inviteUsers({ 
-            streamId, 
-            userIds: [user.id] 
+          const result = await inviteUsers({
+            streamId,
+            userIds: [user.id]
           }).unwrap();
           Alert.alert('Success', `Invitation sent to ${user.full_name}`);
           setSearchQuery('');
@@ -297,29 +242,53 @@ export const MembersListModal = ({
           setPromotingUserId(user.id);
           try {
             console.log('🚀 Starting promotion for user:', user.id, 'in stream:', streamId);
-            const result = await promoteViewer({ 
-              streamId, 
-              userId: user.id 
+
+            // Step 1: Call backend API to promote user
+            const result = await promoteViewer({
+              streamId,
+              userId: user.id
             }).unwrap();
-            console.log('✅ Promotion successful:', result);
+            console.log('✅ Backend promotion successful:', result);
+
+            // Step 2: Grant Stream.io SDK permissions from host side (CRITICAL for video to work)
+            if (call) {
+              try {
+                console.log('🎥 Granting Stream.io SDK permissions to user:', user.id);
+
+                // Grant video and audio permissions using the SDK
+                await call.updateUserPermissions({
+                  user_id: user.id.toString(),
+                  grant_permissions: ['send-video', 'send-audio', 'screenshare'],
+                  revoke_permissions: []
+                });
+
+                console.log('✅ Stream.io SDK permissions granted successfully');
+              } catch (sdkError) {
+                console.error('⚠️ SDK permission grant failed (falling back to backend):', sdkError);
+                // Backend already granted permissions, so continue
+              }
+            } else {
+              console.log('⚠️ No call object available for SDK permission grant');
+            }
+
             Alert.alert(
-              '🎉 Promotion Successful!', 
+              '🎉 Promotion Successful!',
               `${user.first_name || user.username} has been promoted to guest speaker and assigned to Seat ${result.participant.seat_number}.`
             );
             onRefresh?.(); // Refresh the audience list
           } catch (error) {
             console.error('❌ Promotion error:', error);
             console.log('🔍 Error details:', JSON.stringify(error, null, 2));
-            
+
             let errorMessage = 'Failed to promote user. Please try again.';
-            
+
             if (error && typeof error === 'object' && 'data' in error) {
               const apiError = error as { data: { error?: string } };
               if (apiError.data?.error) {
                 errorMessage = apiError.data.error;
               }
             }
-            
+
             Alert.alert('Promotion Failed', errorMessage);
           } finally {
             setPromotingUserId(null);
@@ -329,10 +298,10 @@ export const MembersListModal = ({
         case 'block':
           const isBlocked = isUserBlocked(user.id);
           const actionText = isBlocked ? 'Unblock' : 'Block';
-          const actionMessage = isBlocked 
+          const actionMessage = isBlocked
             ? `Are you sure you want to unblock ${user.full_name}? They will be able to join the stream again.`
             : `Are you sure you want to block ${user.full_name}? They will be removed from the stream and won't be able to join again.`;
-          
+
           Alert.alert(
             `${actionText} User`,
             actionMessage,
@@ -349,21 +318,21 @@ export const MembersListModal = ({
                     } else {
                       // Block the user
                       await blockUser({ user_id: user.id }).unwrap();
-                      
+
                       // If the user is currently in the stream, kick them out
                       const isInStream = user.participant_id !== undefined;
                       if (isInStream && user.participant_id) {
                         try {
-                          await removeParticipant({ 
-                            streamId, 
-                            participantId: user.participant_id.toString() 
+                          await removeParticipant({
+                            streamId,
+                            participantId: user.participant_id.toString()
                           }).unwrap();
                         } catch (kickError) {
                           console.log('Could not kick user from stream:', kickError);
                           // Continue with blocking even if kick fails
                         }
                       }
-                      
+
                       Alert.alert('Success', `${user.full_name} has been blocked and removed from the stream`);
                     }
                     onRefresh?.();
@@ -379,10 +348,10 @@ export const MembersListModal = ({
         case 'remove':
           const isViewer = user.participant_id !== undefined;
           const alertTitle = isViewer ? 'Remove Viewer' : 'Remove Guest';
-          const alertMessage = isViewer 
+          const alertMessage = isViewer
             ? `Are you sure you want to remove ${user.full_name} from the stream? They will no longer be able to view or participate.`
             : `Are you sure you want to remove ${user.full_name} from the stream?`;
-            
+
           Alert.alert(
             alertTitle,
             alertMessage,
@@ -395,15 +364,15 @@ export const MembersListModal = ({
                   try {
                     if (isViewer && user.participant_id) {
                       // Use removeParticipant for viewers (and guests with participant_id)
-                      const result = await removeParticipant({ 
-                        streamId, 
-                        participantId: user.participant_id.toString() 
+                      const result = await removeParticipant({
+                        streamId,
+                        participantId: user.participant_id.toString()
                       }).unwrap();
                     } else {
                       // Fallback to removeGuest for legacy guests without participant_id
-                      const result = await removeGuest({ 
-                        streamId, 
-                        guestId: user.id.toString() 
+                      const result = await removeGuest({
+                        streamId,
+                        guestId: user.id.toString()
                       }).unwrap();
                     }
                     Alert.alert('Success', `${user.full_name} has been removed`);
@@ -424,7 +393,7 @@ export const MembersListModal = ({
 
   const handleRefresh = useCallback(async () => {
     if (!onRefresh || isRefreshing) return;
-    
+
     setIsRefreshing(true);
     try {
       // Call onRefresh and add a small delay for better UX
@@ -441,7 +410,7 @@ export const MembersListModal = ({
     const isParticipant = type === 'participant';
     const isViewer = type === 'viewer';
     const isSearch = type === 'search';
-    
+
     return (
       <TouchableOpacity
         onPress={() => openActionMenu(item, type)}
@@ -462,7 +431,7 @@ export const MembersListModal = ({
               </View>
             )}
           </View>
-          
+
           <View className="flex-1 ml-3">
             <Text className="text-white text-base font-semibold">
               {item.first_name || item.last_name || item.username || 'User'}
@@ -482,7 +451,7 @@ export const MembersListModal = ({
             </View>
           </View>
         </View>
-        
+
         <View className="flex-row items-center space-x-3">
           {isParticipant && currentUserRole === 'host' && (
             <View className="bg-red-600/20 px-4 py-2 rounded-lg">
@@ -492,48 +461,44 @@ export const MembersListModal = ({
           {isViewer && currentUserRole === 'host' && (
             <View className="flex-row space-x-4">
               {/* Promote to Guest Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => handleAction('promote', item)}
                 disabled={promotingUserId === item.id}
-                className={`px-3 py-1.5 mr-2 rounded-full flex-row items-center ${
-                  promotingUserId === item.id 
-                    ? 'bg-blue-600/10' 
+                className={`px-3 py-1.5 mr-2 rounded-full flex-row items-center ${promotingUserId === item.id
+                    ? 'bg-blue-600/10'
                     : 'bg-blue-600/20'
-                }`}
+                  }`}
               >
                 {promotingUserId === item.id ? (
                   <ActivityIndicator size="small" color="#3B82F6" />
                 ) : (
-                  <Ionicons 
-                    name="arrow-up-circle" 
-                    size={16} 
-                    color="#3B82F6" 
+                  <Ionicons
+                    name="arrow-up-circle"
+                    size={16}
+                    color="#3B82F6"
                   />
                 )}
-                <Text className={`text-sm font-medium ml-2 ${
-                  promotingUserId === item.id ? 'text-blue-300' : 'text-blue-400'
-                }`}>
+                <Text className={`text-sm font-medium ml-2 ${promotingUserId === item.id ? 'text-blue-300' : 'text-blue-400'
+                  }`}>
                   {promotingUserId === item.id ? 'Promoting...' : 'Promote'}
                 </Text>
               </TouchableOpacity>
-              
+
               {/* Block/Unblock Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => handleAction('block', item)}
-                className={`px-3 py-1.5 rounded-full flex-row items-center ${
-                  isUserBlocked(item.id) 
-                    ? 'bg-green-600/20' 
+                className={`px-3 py-1.5 rounded-full flex-row items-center ${isUserBlocked(item.id)
+                    ? 'bg-green-600/20'
                     : 'bg-red-600/20'
-                }`}
+                  }`}
               >
-                <Ionicons 
-                  name={isUserBlocked(item.id) ? "checkmark" : "ban"} 
-                  size={16} 
-                  color={isUserBlocked(item.id) ? "#10B981" : "#EF4444"} 
+                <Ionicons
+                  name={isUserBlocked(item.id) ? "checkmark" : "ban"}
+                  size={16}
+                  color={isUserBlocked(item.id) ? "#10B981" : "#EF4444"}
                 />
-                <Text className={`text-sm font-medium ml-2 ${
-                  isUserBlocked(item.id) ? 'text-green-400' : 'text-red-400'
-                }`}>
+                <Text className={`text-sm font-medium ml-2 ${isUserBlocked(item.id) ? 'text-green-400' : 'text-red-400'
+                  }`}>
                   {isUserBlocked(item.id) ? 'Unblock' : 'Block'}
                 </Text>
               </TouchableOpacity>
@@ -559,7 +524,7 @@ export const MembersListModal = ({
     if (searchQuery.trim().length >= 2 && searchResults.length > 0) {
       return searchResults.map(user => ({ item: user, type: 'search' as const }));
     }
-    
+
     if (activeTab === 'guests') {
       return filteredParticipants.map(p => ({ item: p as User, type: 'participant' as const }));
     } else {
@@ -598,35 +563,31 @@ export const MembersListModal = ({
                 onPress={() => setActiveTab('guests')}
                 className="flex-1 mr-2"
               >
-                <View className={`py-3 px-4 rounded-xl ${
-                  activeTab === 'guests' 
-                    ? 'bg-white' 
+                <View className={`py-3 px-4 rounded-xl ${activeTab === 'guests'
+                    ? 'bg-white'
                     : 'bg-transparent'
-                }`}>
-                  <Text className={`text-center font-semibold ${
-                    activeTab === 'guests' 
-                      ? 'text-black' 
-                      : 'text-gray-400'
                   }`}>
+                  <Text className={`text-center font-semibold ${activeTab === 'guests'
+                      ? 'text-black'
+                      : 'text-gray-400'
+                    }`}>
                     Guests ({filteredParticipants.length})
                   </Text>
                 </View>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 onPress={() => setActiveTab('audience')}
                 className="flex-1 ml-2"
               >
-                <View className={`py-3 px-4 rounded-xl ${
-                  activeTab === 'audience' 
-                    ? 'bg-white' 
+                <View className={`py-3 px-4 rounded-xl ${activeTab === 'audience'
+                    ? 'bg-white'
                     : 'bg-transparent'
-                }`}>
-                  <Text className={`text-center font-semibold ${
-                    activeTab === 'audience' 
-                      ? 'text-black' 
-                      : 'text-gray-400'
                   }`}>
+                  <Text className={`text-center font-semibold ${activeTab === 'audience'
+                      ? 'text-black'
+                      : 'text-gray-400'
+                    }`}>
                     Audience ({filteredViewers.length})
                   </Text>
                 </View>
@@ -645,8 +606,8 @@ export const MembersListModal = ({
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder={
-                    activeTab === 'guests' 
-                      ? "Search guests or invite new users..." 
+                    activeTab === 'guests'
+                      ? "Search guests or invite new users..."
                       : "Search audience or invite users..."
                   }
                   placeholderTextColor="#9CA3AF"
@@ -661,9 +622,9 @@ export const MembersListModal = ({
               </View>
               {searchQuery.trim().length >= 2 && (
                 <Text className="text-gray-400 text-xs mt-2 px-4">
-                  {isSearching 
-                    ? 'Searching...' 
-                    : searchResults.length > 0 
+                  {isSearching
+                    ? 'Searching...'
+                    : searchResults.length > 0
                       ? `${searchResults.length} users found`
                       : 'No users found'
                   }
@@ -687,20 +648,20 @@ export const MembersListModal = ({
                   }
                 >
                   <View className="flex-1 items-center justify-center px-6">
-                    <Ionicons 
+                    <Ionicons
                       name={
-                        searchQuery.trim().length >= 2 
-                          ? "search" 
-                          : activeTab === 'guests' 
-                            ? "people" 
+                        searchQuery.trim().length >= 2
+                          ? "search"
+                          : activeTab === 'guests'
+                            ? "people"
                             : "eye"
-                      } 
-                      size={48} 
-                      color="#6B7280" 
+                      }
+                      size={48}
+                      color="#6B7280"
                     />
                     <Text className="text-gray-400 text-center mt-4 text-base">
-                      {searchQuery.trim().length >= 2 
-                        ? isSearching 
+                      {searchQuery.trim().length >= 2
+                        ? isSearching
                           ? 'Searching for users...'
                           : 'No users found'
                         : activeTab === 'guests'

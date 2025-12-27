@@ -1,22 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { View, Text, FlatList, ListRenderItem } from 'react-native';
-
-interface OptimizedMessage {
-  id: number;
-  username: string;
-  message: string;
-  timestamp: string;
-  isHost?: boolean;
-  profilePicture?: string;
-  messageType?: 'text' | 'gift' | 'join' | 'leave';
-}
-
-interface OptimizedChatProps {
-  messages: OptimizedMessage[];
-  onUserInteraction: () => void;
-  keyboardHeight: number;
-  isKeyboardVisible: boolean;
-}
+import { OptimizedMessage, OptimizedChatProps } from './types';
 
 // Memoized message item to prevent unnecessary re-renders
 const MessageItem = memo<{ item: OptimizedMessage }>(({ item }) => {

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, SafeAreaView, TextInput, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, ActivityIndicator } from 'react-native';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { MaterialIcons } from '@expo/vector-icons';
 import { useSelector, useDispatch } from 'react-redux';
 import { SvgXml } from 'react-native-svg';
 import ArrowLeftIcon from '../../../assets/icons/arrow-left.svg';
@@ -12,12 +11,9 @@ import { CheckSingleIcon } from '../../../components/icons/CheckSingleIcon';
 import { useGetFollowingQuery } from '../../../src/store/followApi';
 import { useConversations, useUsers } from '../../../src/hooks/useMessages';
 import { selectCurrentUser } from '../../../src/store/authSlice';
-import { setUser } from '../../../src/store/authSlice';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fonts } from '../../../constants/Fonts';
-import { MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../../../src/config/env';
+import { buildProfilePictureURL, buildAvatarFallbackURL } from '../../../src/config/env';
 
-// Chat icon SVG
 const chatIcon = `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M15.75 7.875C15.75 11.3617 12.7367 14.25 9 14.25C8.25 14.25 7.5 14.1 6.75 13.8L2.25 15.75L4.2 11.25C3.9 10.5 3.75 9.75 3.75 9C3.75 5.51328 6.76328 2.625 10.5 2.625" stroke="#EDEEF9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
 </svg>`;
@@ -29,7 +25,6 @@ export default function MessagesScreen() {
   
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Helper function to build avatar URL using centralized config
   const buildAvatarUrl = useCallback((user: any) => {
     if (!user) return buildAvatarFallbackURL('U');
     
@@ -40,13 +35,20 @@ export default function MessagesScreen() {
     return buildAvatarFallbackURL(user.first_name || user.username || 'U');
   }, []);
 
-  // State for dynamic avatar URLs
+  const getOtherParticipant = useCallback((conversation: any) => {
+    if (!currentUser || !currentUser.id) return conversation.participant_2;
+    
+    if (conversation.participant_1?.id === currentUser.id) {
+      return conversation.participant_2;
+    } else {
+      return conversation.participant_1;
+    }
+  }, [currentUser]);
+
   const [avatarUrls, setAvatarUrls] = useState<{[key: string]: string}>({});
 
-  // Get following users for the top section
   const { data: followingUsers = [], isLoading: followingLoading } = useGetFollowingQuery({ search: '' });
   
-  // Use hooks for conversations and users
   const { 
     conversations, 
     loading, 
@@ -65,19 +67,16 @@ export default function MessagesScreen() {
     createConversation 
   } = useUsers();
   
-  // Update avatar URLs when data changes
   useEffect(() => {
     const updateAvatarUrls = () => {
       const urls: {[key: string]: string} = {};
       
-      // Update URLs for following users
       if (followingUsers) {
         for (const user of followingUsers) {
           urls[`following_${user.id}`] = buildAvatarUrl(user);
         }
       }
       
-      // Update URLs for conversation participants
       if (conversations) {
         for (const conversation of conversations) {
           const otherUser = getOtherParticipant(conversation);
@@ -87,7 +86,6 @@ export default function MessagesScreen() {
         }
       }
       
-      // Update URLs for search results
       if (users) {
         for (const user of users) {
           urls[`user_${user.id}`] = buildAvatarUrl(user);
@@ -98,63 +96,28 @@ export default function MessagesScreen() {
     };
     
     updateAvatarUrls();
-  }, [followingUsers, conversations, users, buildAvatarUrl, currentUser]);
+  }, [followingUsers, conversations, users, buildAvatarUrl, getOtherParticipant]);
 
-  // Set a test token and user for debugging (remove this in production)
-  useEffect(() => {
-    const setTestData = async () => {
-      // Using the token we generated earlier for user 'ted'
-      const testToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzU0MTc3NTIwLCJpYXQiOjE3NTQwOTExMjAsImp0aSI6Ijc1NmQxMDgyNGNlZTRiODhhMjRjMzg4NjNkYWM2YjI4IiwidXNlcl9pZCI6Mzl9.OsoyP6MEydnlbqkZhQE8UeCK_-Hlq_TknT4tNzzRjKY';
-      await AsyncStorage.setItem('access_token', testToken);
-      
-      // Set a mock user in Redux store if none exists
-      if (!currentUser) {
-        const mockUser = {
-          id: 2,
-          email: 'mailmrted@gmail.com',
-          username: 'mailmrted',
-          first_name: 'Thaddeaus',
-          last_name: 'Orkaa',
-          full_name: 'Thaddeaus Orkaa',
-          short_name: 'Thaddeaus',
-          phone_number: '+2348140631692',
-          gender: 'male' as const,
-          country: 'NG',
-          interests: 'Art & Creativity, Sports, Fashion & Beauty, Movie, Gaming',
-          language: 'English',
-          profile_completed: true,
-          is_email_verified: true,
-          is_phone_verified: false,
-          is_content_creator: false,
-          has_accepted_terms: true,
-          vip_level: 'basic' as const,
-          profile_picture: '/media/profile_pictures/profile_mPoiBIN.jpg',
-          profile_picture_url: '/media/profile_pictures/profile_mPoiBIN.jpg',
-          followers_count: 0,
-          following_count: 1,
-          total_likes_count: 0,
-          created_at: '2025-08-04T16:29:18.172707Z',
-          updated_at: '2025-08-05T17:59:21.792584Z'
-        };
-        dispatch(setUser(mockUser));
-      }
-    };
-    setTestData();
-  }, [currentUser, dispatch]);
+  const searchConversationsStable = useCallback((query: string) => {
+    searchConversations(query);
+  }, [searchConversations]);
 
-  // Handle search with debouncing
+  const searchUsersStable = useCallback((query: string) => {
+    searchUsers(query);
+  }, [searchUsers]);
+
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (searchQuery.trim()) {
-        searchConversations(searchQuery);
-        searchUsers(searchQuery);
+        searchConversationsStable(searchQuery);
+        searchUsersStable(searchQuery);
       } else {
-        searchConversations('');
+        searchConversationsStable('');
       }
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchConversations, searchUsers]);
+  }, [searchQuery, searchConversationsStable, searchUsersStable]);
 
   const formatTime = (dateString: string) => {
     if (!dateString) return '';
@@ -177,26 +140,13 @@ export default function MessagesScreen() {
     }
   };
 
-  const getOtherParticipant = (conversation: any) => {
-    if (!currentUser || !currentUser.id) return conversation.participant_2;
-    
-    if (conversation.participant_1?.id === currentUser.id) {
-      return conversation.participant_2;
-    } else {
-      return conversation.participant_1;
-    }
-  };
-
-  // Handle clicking on a following user to navigate to their profile or start conversation
   const handleFollowingUserPress = (user: any) => {
     if (user.is_live) {
-      // If user is live, could navigate to their stream or profile
       router.push({
         pathname: '/user-profile',
         params: { userId: user.id.toString() }
       });
     } else {
-      // Navigate to user profile
       router.push({
         pathname: '/user-profile',
         params: { userId: user.id.toString() }
@@ -204,26 +154,21 @@ export default function MessagesScreen() {
     }
   };
 
-  // Handle clicking on a user to start a conversation
   const handleUserPress = async (userId: number) => {
     try {
       router.push(`/(tabs)/messages/new-${userId}`);
     } catch (error) {
       Alert.alert('Error', 'Failed to start conversation. Please try again.');
-      console.error('Error starting conversation:', error);
     }
   };
 
-  // Handle clicking on existing conversation
   const handleConversationPress = (conversationId: number) => {
     router.push(`/(tabs)/messages/${conversationId}`);
   };
 
-  // Transform conversations to match the UI data structure
   const displayConversations = useMemo(() => {
     if (!currentUser) return [];
     
-    // Use search results if searching, otherwise use regular conversations
     const conversationsToDisplay = searchResults?.conversations || conversations;
     
     return conversationsToDisplay.map(conversation => {
@@ -244,7 +189,6 @@ export default function MessagesScreen() {
     });
   }, [conversations, searchResults, currentUser, avatarUrls, getOtherParticipant]);
 
-  // Helper function to highlight search text
   const highlightSearchText = (text: string, searchQuery: string) => {
     if (!searchQuery.trim()) return text;
     
@@ -268,7 +212,6 @@ export default function MessagesScreen() {
     <SafeAreaView className="flex-1 bg-black">
       <StatusBar style="light" />
       
-      {/* Header */}
       <View className="flex-row items-center px-4 pt-3 pb-3">
         <TouchableOpacity 
           onPress={() => router.back()}
@@ -281,7 +224,6 @@ export default function MessagesScreen() {
         </View>
       </View>
 
-      {/* Search Bar */}
       <View className="px-4 mb-6 mt-6">
         <View className="flex-row items-center rounded-full p-3 border border-[#333333]">
           {isSearching ? (
@@ -318,7 +260,6 @@ export default function MessagesScreen() {
           />
         }
       >
-        {/* Following Section - Exact replica from home screen */}
         <View className="mb-8 px-4">
           <ScrollView 
             horizontal 
@@ -327,21 +268,18 @@ export default function MessagesScreen() {
             className="gap-4"
           >
             {followingLoading ? (
-              // Loading state
               Array.from({ length: 5 }).map((_, index) => (
                 <View key={index} className="relative mr-4">
                   <View className="w-16 h-16 rounded-full bg-gray-600 border-2 border-[#C42720]" />
                 </View>
               ))
             ) : followingUsers.length === 0 ? (
-              // Empty state
               <View className="flex-1 items-center justify-center py-4">
                 <Text className="text-gray-400 text-sm">
                   Follow some users to see them here!
                 </Text>
               </View>
             ) : (
-              // Following users data
               followingUsers.slice(0, 10).map((user) => (
                 <TouchableOpacity 
                   key={user.id} 
@@ -367,16 +305,13 @@ export default function MessagesScreen() {
           </ScrollView>
         </View>
 
-        {/* Conversations Section */}
         <View className="flex-1">
-          {/* Show any errors */}
           {error && (
             <View className="p-4 bg-red-500/20 border border-red-500 rounded-lg mx-4 mb-4">
-              <Text className="text-red-400 text-sm">Error: {error}</Text>
+              <Text className="text-red-400 text-sm">Failed to load conversations</Text>
             </View>
           )}
 
-          {/* Search Results Summary */}
           {searchQuery.trim() && searchResults && !isSearching && (
             <View className="px-4 py-2 mb-2">
               <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
@@ -395,7 +330,6 @@ export default function MessagesScreen() {
             </View>
           ) : (
             <>
-              {/* Existing Conversations */}
               {filteredConversations.length === 0 && !searchQuery ? (
                 <View className="flex-1 items-center justify-center py-20 px-4">
                   <SvgXml xml={chatIcon} width={48} height={48} />
@@ -477,7 +411,6 @@ export default function MessagesScreen() {
                 ))
               )}
 
-              {/* Show search results for individual messages when searching */}
               {searchQuery.trim() && searchResults?.messages && searchResults.messages.length > 0 && (
                 <>
                   <View className="px-4 py-3 bg-[#1A1A1A] mt-4">
@@ -530,7 +463,6 @@ export default function MessagesScreen() {
                 </>
               )}
 
-              {/* Show users when searching */}
               {searchQuery.trim() && (
                 <>
                   <View className="px-4 py-3 bg-[#1A1A1A] mt-4">

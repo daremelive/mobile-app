@@ -2,11 +2,7 @@ import React from 'react';
 import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import SuccessIcon from '../../assets/icons/success.svg';
-
-interface BankDetailsAddedModalProps {
-  visible: boolean;
-  onClose: () => void;
-}
+import { BankDetailsAddedModalProps } from './types';
 
 const BankDetailsAddedModal: React.FC<BankDetailsAddedModalProps> = ({
   visible,

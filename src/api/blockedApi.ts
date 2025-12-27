@@ -2,9 +2,27 @@ import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/r
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../config/env';
 
+// Import centralized types
+import type {
+  BlockedUser,
+  BlockedUsersResponse,
+  BlockedUsersCountResponse,
+  BlockUserRequest,
+  UnblockUserRequest,
+  BlockUserResponse,
+  UnblockUserResponse,
+  SearchBlockedUsersParams,
+} from '../../types/api/blocked';
+
+// Re-export for backward compatibility
+export type {
+  BlockedUser,
+  BlockedUsersResponse,
+};
+
 // Create base query for blocked users endpoints
 const baseQuery = fetchBaseQuery({
-  baseUrl: `${API_BASE_URL}/blocked/`,
+  baseUrl: `${API_BASE_URL}blocked/`,
   prepareHeaders: async (headers) => {
     try {
       const token = await SecureStore.getItemAsync('accessToken');
@@ -17,29 +35,6 @@ const baseQuery = fetchBaseQuery({
     return headers;
   },
 });
-
-export interface BlockedUser {
-  id: number;
-  blocked_user: {
-    id: number;
-    username: string;
-    first_name: string;
-    last_name: string;
-    full_name: string;
-    profile_picture_url?: string;
-    followers_count: string;
-    is_following: boolean;
-    is_live: boolean;
-  };
-  created_at: string;
-}
-
-export interface BlockedUsersResponse {
-  count: number;
-  next: string | null;
-  previous: string | null;
-  results: BlockedUser[];
-}
 
 export const blockedApi = createApi({
   reducerPath: 'blockedApi',
@@ -63,14 +58,14 @@ export const blockedApi = createApi({
     }),
 
     // Get blocked users count
-    getBlockedUsersCount: builder.query<{ count: number }, void>({
+    getBlockedUsersCount: builder.query<BlockedUsersCountResponse, void>({
       query: () => 'count/',
       providesTags: ['BlockedUser'],
     }),
     
     // Block a user
-    blockUser: builder.mutation<any, { user_id: number; reason?: string }>({
-      query: (data: { user_id: number; reason?: string }) => ({
+    blockUser: builder.mutation<BlockUserResponse, BlockUserRequest>({
+      query: (data: BlockUserRequest) => ({
         url: 'block/',
         method: 'POST',
         body: data,
@@ -79,8 +74,8 @@ export const blockedApi = createApi({
     }),
     
     // Unblock a user
-    unblockUser: builder.mutation<any, { user_id: number }>({
-      query: (data: { user_id: number }) => ({
+    unblockUser: builder.mutation<UnblockUserResponse, UnblockUserRequest>({
+      query: (data: UnblockUserRequest) => ({
         url: 'unblock/',
         method: 'POST',
         body: data,

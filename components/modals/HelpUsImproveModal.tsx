@@ -4,13 +4,7 @@ import CancelIcon from '../../assets/icons/cancel.svg';
 import ChatIcon from '../../assets/icons/chat.svg';
 import CommentIcon from '../../assets/icons/comment.svg';
 import { LinearGradient } from 'expo-linear-gradient';
-
-interface HelpUsImproveModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onContinue: (feedback?: string) => void;
-  isLoading?: boolean;
-}
+import { HelpUsImproveModalProps } from './types';
 
 const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
   visible,

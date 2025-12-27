@@ -2,23 +2,11 @@ import React, { useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSelector } from 'react-redux';
-import CancelIcon from '../../assets/icons/cancel.svg';
-import UserIcon from '../../assets/icons/user.svg';
-import UsersIcon from '../../assets/icons/users.svg';
-import VideoIcon from '../../assets/icons/video.svg';
-import GameIcon from '../../assets/icons/game.svg';
-import TruthOrDareIcon from '../../assets/icons/truth-or-dare.svg';
-import BanterIcon from '../../assets/icons/banter.svg';
-import SeatsIcon from '../../assets/icons/seat-selector.svg';
-import LockIcon from '../../assets/icons/lock.svg';
+import { User, Users, Video, Gamepad2, HelpCircle, MessageCircle, Armchair, Lock, X } from 'lucide-react-native';
 import { useGetUserStreamPrivilegesQuery, StreamChannel } from '../../src/api/levelsApi';
 import { useGetProfileQuery } from '../../src/store/authApi';
 import { selectCurrentUser } from '../../src/store/authSlice';
-
-interface StreamModeSelectionModalProps {
-  visible: boolean;
-  onClose: () => void;
-}
+import { StreamModeSelectionModalProps } from './types';
 
 const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
   visible,
@@ -29,7 +17,12 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<number | null>(null);
 
-  const { data: privileges, isLoading: privilegesLoading, refetch: refetchPrivileges } = useGetUserStreamPrivilegesQuery();
+  const { data: privileges, isLoading: privilegesLoading, error: privilegesError, refetch: refetchPrivileges } = useGetUserStreamPrivilegesQuery(undefined, {
+    // Force refetch to ensure fresh data
+    refetchOnMountOrArgChange: true,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
+  });
   const { data: currentUserProfile } = useGetProfileQuery();
   const currentUser = useSelector(selectCurrentUser);
 
@@ -37,27 +30,27 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
     if (!selectedChannel || !privileges?.all_channels) {
       return [4, 6, 8, 12];
     }
-    
+
     const channel = privileges.all_channels.find(ch => ch.code === selectedChannel);
     if (!channel) {
       return [4, 6, 8, 12];
     }
-    
+
     const maxParticipants = channel.max_participants;
-    
+
     const baseOptions = [4, 6, 8, 12];
     const additionalOptions = [];
-    
+
     if (maxParticipants >= 16) additionalOptions.push(16);
     if (maxParticipants >= 20) additionalOptions.push(20);
     if (maxParticipants >= 30) additionalOptions.push(30);
     if (maxParticipants >= 50) additionalOptions.push(50);
     if (maxParticipants >= 100) additionalOptions.push(100);
-    
+
     const allOptions = [...baseOptions, ...additionalOptions]
       .filter(option => option <= maxParticipants)
       .sort((a, b) => a - b);
-    
+
     const uniqueOptions = Array.from(new Set(allOptions));
     return uniqueOptions.length >= 4 ? uniqueOptions : baseOptions;
   };
@@ -66,9 +59,20 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
 
   React.useEffect(() => {
     if (visible && !privilegesLoading) {
+      console.log('🔄 Refetching privileges when modal becomes visible...');
       refetchPrivileges();
     }
   }, [visible, refetchPrivileges, privilegesLoading]);
+
+  React.useEffect(() => {
+    console.log('🔍 Privileges data updated:', {
+      privileges,
+      privilegesLoading,
+      privilegesError,
+      all_channels: privileges?.all_channels,
+      all_channels_length: privileges?.all_channels?.length
+    });
+  }, [privileges, privilegesLoading, privilegesError]);
 
   React.useEffect(() => {
     if (selectedChannel) {
@@ -79,10 +83,10 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
   const handleProceed = () => {
     // Get user data - prioritize fresh profile data over cached user
     const userData = currentUserProfile || currentUser;
-    
+
     // Check if user has uploaded a profile picture
     const hasProfilePicture = !!(
-      userData?.profile_picture_url || 
+      userData?.profile_picture_url ||
       userData?.profile_picture
     );
 
@@ -92,8 +96,8 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
         'To create a professional stream experience, please upload your profile picture first. This helps viewers connect with you and makes your stream look amazing!',
         [
           { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Upload Photo', 
+          {
+            text: 'Upload Photo',
             onPress: () => {
               onClose();
               router.push('/(tabs)/profile');
@@ -110,10 +114,12 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
         `Your current tier (${privileges?.tier_display_name || 'Unknown'}) does not allow stream creation. Please upgrade your level to create streams.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Upgrade Level', onPress: () => {
-            onClose();
-            router.push('/unlock-level');
-          }}
+          {
+            text: 'Upgrade Level', onPress: () => {
+              onClose();
+              router.push('/unlock-level');
+            }
+          }
         ]
       );
       return;
@@ -130,10 +136,12 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
         `Your current tier (${privileges?.tier_display_name || 'Unknown'}) does not have access to the '${channelName}' channel. Please upgrade your level to access this channel.`,
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Upgrade Level', onPress: () => {
-            onClose();
-            router.push('/unlock-level');
-          }}
+          {
+            text: 'Upgrade Level', onPress: () => {
+              onClose();
+              router.push('/unlock-level');
+            }
+          }
         ]
       );
       return;
@@ -143,7 +151,7 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
       onClose();
       router.push({
         pathname: '/(stream)/stream-title',
-        params: { 
+        params: {
           mode: selectedMode,
           channel: selectedChannel
         }
@@ -152,7 +160,7 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
       onClose();
       router.push({
         pathname: '/(stream)/stream-title',
-        params: { 
+        params: {
           mode: selectedMode,
           channel: selectedChannel,
           seats: selectedSeats
@@ -173,11 +181,11 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
 
   const getChannelIcon = (channelCode: string) => {
     switch (channelCode) {
-      case 'video': return VideoIcon;
-      case 'game': return GameIcon;
-      case 'truth-or-dare': return TruthOrDareIcon;
-      case 'banter': return BanterIcon;
-      default: return VideoIcon;
+      case 'video': return Video;
+      case 'game': return Gamepad2;
+      case 'truth-or-dare': return HelpCircle;
+      case 'banter': return MessageCircle;
+      default: return Video;
     }
   };
 
@@ -200,11 +208,11 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
     >
       <View className="flex-1 justify-center items-center bg-black/80">
         <View className="bg-[#1A1A1A] rounded-2xl w-[90%] max-h-[85%] relative p-6">
-          <TouchableOpacity 
-            className="absolute right-4 top-4 z-10" 
+          <TouchableOpacity
+            className="absolute right-4 top-4 z-10"
             onPress={handleCancel}
           >
-            <CancelIcon width={24} height={24} />
+            <X size={24} color="#FFFFFF" />
           </TouchableOpacity>
 
           <Text className="text-white text-xl font-semibold mb-4">
@@ -230,7 +238,7 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
           )}
 
           <View className="flex-row gap-4 mb-6">
-            <TouchableOpacity 
+            <TouchableOpacity
               className={`flex-1 bg-[#1A1A1A] rounded-xl border p-4 items-center
                 ${selectedMode === 'single' ? 'border-[#C42720] bg-[#C42720]/20' : 'border-[#2A2A2A]'}
                 ${privileges && !privileges.can_create_streams ? 'opacity-50' : ''}`}
@@ -238,12 +246,12 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
               disabled={privileges && !privileges.can_create_streams}
             >
               <View className="w-16 h-16 rounded-full bg-[#2A2A2A] items-center justify-center mb-2">
-                <UserIcon width={32} height={32} />
+                <User size={32} color="#FFFFFF" />
               </View>
               <Text className="text-white text-base font-medium">Single Live</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               className={`flex-1 bg-[#1A1A1A] rounded-xl border p-4 items-center
                 ${selectedMode === 'multi' ? 'border-[#C42720] bg-[#C42720]/20' : 'border-[#2A2A2A]'}
                 ${privileges && !privileges.can_create_streams ? 'opacity-50' : ''}`}
@@ -255,14 +263,14 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
               disabled={privileges && !privileges.can_create_streams}
             >
               <View className="w-16 h-16 rounded-full bg-[#2A2A2A] items-center justify-center mb-2">
-                <UsersIcon width={32} height={32} />
+                <Users size={32} color="#FFFFFF" />
               </View>
               <Text className="text-white text-base font-medium">Multi Live</Text>
             </TouchableOpacity>
           </View>
 
           {(selectedMode === 'single' || selectedMode === 'multi') && (
-            <ScrollView 
+            <ScrollView
               showsVerticalScrollIndicator={false}
               className="max-h-[400px]"
               contentContainerStyle={{ paddingBottom: 20 }}
@@ -277,7 +285,7 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
                     const IconComponent = getChannelIcon(channel.code);
                     const isSelected = selectedChannel === channel.code;
                     const isLocked = channel.is_locked;
-                    
+
                     const handleChannelPress = () => {
                       if (isLocked) {
                         Alert.alert(
@@ -305,7 +313,7 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
                         setSelectedChannel(channel.code);
                       }
                     };
-                    
+
                     return (
                       <TouchableOpacity
                         key={channel.id}
@@ -316,24 +324,23 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
                       >
                         {isLocked && (
                           <View className="absolute top-2 right-2 bg-orange-500/20 rounded-full p-1">
-                            <LockIcon width={12} height={12} fill="#F97316" />
+                            <Lock size={12} color="#F97316" />
                           </View>
                         )}
-                        
+
                         <View className={`w-16 h-16 rounded-full items-center justify-center mb-2
                           ${isLocked ? 'bg-[#2A2A2A]/50' : 'bg-[#2A2A2A]'}`}>
-                          <IconComponent 
-                            width={32} 
-                            height={32} 
-                            fill={isLocked ? '#9CA3AF' : '#FFFFFF'} 
+                          <IconComponent
+                            size={32}
+                            color={isLocked ? '#9CA3AF' : '#FFFFFF'}
                           />
                         </View>
-                        
+
                         <Text className={`text-base font-medium text-center mb-1
                           ${isLocked ? 'text-gray-400' : 'text-white'}`}>
                           {channel.name}
                         </Text>
-                        
+
                         {isLocked ? (
                           <View className="items-center">
                             <Text className="text-orange-400 text-xs font-semibold">
@@ -356,25 +363,36 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
                     );
                   })}
                 </View>
-                
+
                 {privileges?.locked_channels && privileges.locked_channels.length > 0 && (
                   <View className="p-4 bg-gradient-to-r from-orange-500/20 to-yellow-500/20 rounded-lg border border-orange-500/30 mb-4">
                     <Text className="text-orange-400 text-center font-semibold mb-1">
                       🎯 Unlock More Channels!
                     </Text>
                     <Text className="text-orange-300 text-xs text-center">
-                      You currently have {privileges.current_tier_display} access. 
+                      You currently have {privileges.current_tier_display} access.
                       Upgrade to unlock {privileges.locked_channels.length} premium channels!
                     </Text>
                   </View>
                 )}
-                
+
                 {/* Fallback if no channels available */}
                 {(!privileges?.all_channels || privileges.all_channels.length === 0) && (
                   <View className="p-4 bg-yellow-500/20 rounded-lg">
-                    <Text className="text-yellow-400 text-center">
-                      No channels available. Contact support.
+                    <Text className="text-yellow-400 text-center text-base mb-2">
+                      🚫 No channels available
                     </Text>
+                    <Text className="text-yellow-300 text-center text-sm">
+                      {privilegesLoading ? 'Loading channels...' :
+                        privilegesError ? `Error: ${JSON.stringify(privilegesError)}` :
+                          !privileges ? 'Failed to load channels. Check your connection.' :
+                            'Contact support for assistance.'}
+                    </Text>
+                    {__DEV__ && (
+                      <Text className="text-gray-400 text-xs text-center mt-2">
+                        Debug: privileges={JSON.stringify(privileges, null, 2)}
+                      </Text>
+                    )}
                   </View>
                 )}
               </View>
@@ -408,7 +426,7 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
                           ${selectedSeats === seats ? 'border-[#C42720] bg-[#C42720]/20' : 'border-[#2A2A2A] bg-[#1A1A1A]'}`}
                         onPress={() => setSelectedSeats(seats)}
                       >
-                        <SeatsIcon width={16} height={16} />
+                        <Armchair size={16} color="#FFFFFF" />
                         <Text className="text-white font-medium">{seats}</Text>
                       </TouchableOpacity>
                     ))}
@@ -418,11 +436,11 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
 
               <TouchableOpacity
                 className={`w-full h-12 rounded-full items-center justify-center
-                  ${(selectedMode === 'single' && selectedChannel) || (selectedMode === 'multi' && selectedChannel && selectedSeats) 
+                  ${(selectedMode === 'single' && selectedChannel) || (selectedMode === 'multi' && selectedChannel && selectedSeats)
                     ? 'bg-white' : 'bg-white/50'}`}
                 onPress={handleProceed}
                 disabled={
-                  (selectedMode === 'single' && !selectedChannel) || 
+                  (selectedMode === 'single' && !selectedChannel) ||
                   (selectedMode === 'multi' && (!selectedChannel || !selectedSeats))
                 }
               >

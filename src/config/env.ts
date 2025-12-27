@@ -8,49 +8,35 @@ interface AppConfig {
   IS_PRODUCTION: boolean;
 }
 
+// Production URLs - always use these for production builds
+const PRODUCTION_API_URL = 'https://daremelive.pythonanywhere.com/api/';
+const PRODUCTION_WS_URL = 'wss://daremelive.pythonanywhere.com';
+const PRODUCTION_MEDIA_URL = 'https://daremelive.pythonanywhere.com';
+
+// Development URLs - update this IP when your network changes
+const DEV_IP = '172.20.10.6';
+const DEV_API_URL = `http://${DEV_IP}:8000/api/`;
+const DEV_WS_URL = `ws://${DEV_IP}:8000`;
+const DEV_MEDIA_URL = `http://${DEV_IP}:8000`;
+
 const getConfig = (): AppConfig => {
   const isDev = __DEV__;
-  const extra = Constants.expoConfig?.extra || {};
-  
+
   if (isDev) {
-    // Development: Try to use local development URLs, but handle network changes
-    let apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || extra.EXPO_PUBLIC_API_BASE_URL;
-    let wsBaseUrl = process.env.EXPO_PUBLIC_WS_BASE_URL || extra.EXPO_PUBLIC_WS_BASE_URL;
-    
-    // Fallback to localhost if no environment variables are set
-    if (!apiBaseUrl) {
-      apiBaseUrl = 'http://localhost:8000/api/';
-      wsBaseUrl = 'ws://localhost:8000';
-    }
-    
-    // Ensure API URL has /api/ suffix with trailing slash
-    if (!apiBaseUrl.includes('/api/')) {
-      if (apiBaseUrl.includes('/api')) {
-        apiBaseUrl = apiBaseUrl.replace('/api', '/api/');
-      } else {
-        apiBaseUrl = `${apiBaseUrl}/api/`;
-      }
-    }
-    
-    const mediaBaseUrl = apiBaseUrl.replace('/api/', '');
-    
+    // Development: Use local server
     return {
-      API_BASE_URL: apiBaseUrl,
-      WS_BASE_URL: wsBaseUrl,
-      MEDIA_BASE_URL: mediaBaseUrl,
+      API_BASE_URL: DEV_API_URL,
+      WS_BASE_URL: DEV_WS_URL,
+      MEDIA_BASE_URL: DEV_MEDIA_URL,
       IS_DEVELOPMENT: true,
       IS_PRODUCTION: false,
     };
   } else {
-    // Production: Use daremelive.pythonanywhere.com as the official production URL
-    const apiBaseUrl = 'https://daremelive.pythonanywhere.com/api/';
-    const wsBaseUrl = 'wss://daremelive.pythonanywhere.com';
-    const mediaBaseUrl = 'https://daremelive.pythonanywhere.com';
-    
+    // Production builds
     return {
-      API_BASE_URL: apiBaseUrl,
-      WS_BASE_URL: wsBaseUrl,
-      MEDIA_BASE_URL: mediaBaseUrl,
+      API_BASE_URL: PRODUCTION_API_URL,
+      WS_BASE_URL: PRODUCTION_WS_URL,
+      MEDIA_BASE_URL: PRODUCTION_MEDIA_URL,
       IS_DEVELOPMENT: false,
       IS_PRODUCTION: true,
     };
@@ -63,13 +49,6 @@ export const AppConfig = getConfig();
 console.log('🔧 [AppConfig] Environment Configuration:', {
   isDevelopment: AppConfig.IS_DEVELOPMENT,
   API_BASE_URL: AppConfig.API_BASE_URL,
-  WS_BASE_URL: AppConfig.WS_BASE_URL,
-  MEDIA_BASE_URL: AppConfig.MEDIA_BASE_URL,
-  envVars: {
-    EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
-    EXPO_PUBLIC_WS_BASE_URL: process.env.EXPO_PUBLIC_WS_BASE_URL,
-    EXPO_PUBLIC_PRODUCTION_API_URL: process.env.EXPO_PUBLIC_PRODUCTION_API_URL,
-  }
 });
 
 // Convenience exports for common use cases
@@ -87,11 +66,11 @@ export const buildProfilePictureURL = (profilePicture?: string | null): string =
   if (!profilePicture) {
     return '';
   }
-  
+
   if (profilePicture.startsWith('http')) {
     return profilePicture;
   }
-  
+
   const cleanPath = profilePicture.startsWith('/') ? profilePicture : `/${profilePicture}`;
   return `${MEDIA_BASE_URL}${cleanPath}`;
 };

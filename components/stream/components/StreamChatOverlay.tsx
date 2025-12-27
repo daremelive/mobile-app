@@ -1,35 +1,7 @@
 import React from 'react';
 import { View, Text, Image } from 'react-native';
 import type { StreamMessage } from '../../../src/store/streamsApi';
-
-export interface ChatMessage {
-  id: string;
-  username: string; // Keep for backward compatibility, but we'll prioritize full_name
-  full_name?: string; // Add full name field
-  message: string;
-  timestamp: string;
-  profilePicture?: string;
-  isHost?: boolean;
-  userId?: string;
-  // Gift-related fields for TikTok-style gift messages
-  message_type?: string;
-  gift_id?: number;
-  gift_name?: string;
-  gift_icon?: string;
-  gift_cost?: number;
-  gift?: any;
-}
-
-interface StreamChatOverlayProps {
-  messages?: (ChatMessage | StreamMessage)[];
-  isVisible?: boolean;
-  keyboardHeight?: number;
-  isKeyboardVisible?: boolean;
-  inputBarHeight?: number;
-  reservedTopGap?: number;
-  baseURL?: string;
-  hostId?: number | string | null;
-}
+import { ChatMessage, StreamChatOverlayProps } from './types';
 
 export const StreamChatOverlay = ({
   messages = [],
@@ -47,7 +19,7 @@ export const StreamChatOverlay = ({
 
   // Ensure messages is always an array
   const safeMessages = Array.isArray(messages) ? messages : [];
-  
+
   // Show only the 3 most recent messages (TikTok style)
   const recentMessages = safeMessages.slice(-3);
 
@@ -59,9 +31,9 @@ export const StreamChatOverlay = ({
     // Check if it's a StreamMessage (RTK Query format)
     if ('user' in msg && typeof msg.user === 'object') {
       const streamMsg = msg as StreamMessage;
-      
+
       const fullName = streamMsg.user.full_name || `${streamMsg.user.first_name || ''} ${streamMsg.user.last_name || ''}`.trim() || streamMsg.user.username || 'Unknown User';
-      
+
       // Construct profile URL with proper handling like in host.tsx
       const profileUrl = (() => {
         if (streamMsg.user.profile_picture_url) {
@@ -71,14 +43,14 @@ export const StreamChatOverlay = ({
           // Use baseURL to construct full URL, removing /api/ if present
           const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
           // Ensure no double slashes - normalize the path
-          const profilePath = streamMsg.user.profile_picture_url.startsWith('/') 
-            ? streamMsg.user.profile_picture_url 
+          const profilePath = streamMsg.user.profile_picture_url.startsWith('/')
+            ? streamMsg.user.profile_picture_url
             : `/${streamMsg.user.profile_picture_url}`;
           const fullUrl = `${webURL}${profilePath}`;
-          
+
           return fullUrl;
         }
-        
+
         // Check for profile_picture field as fallback
         if ((streamMsg.user as any).profile_picture) {
           const profilePicture = (streamMsg.user as any).profile_picture;
@@ -87,19 +59,19 @@ export const StreamChatOverlay = ({
           }
           const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
           // Ensure no double slashes - normalize the path
-          const profilePath = profilePicture.startsWith('/') 
-            ? profilePicture 
+          const profilePath = profilePicture.startsWith('/')
+            ? profilePicture
             : `/${profilePicture}`;
           return `${webURL}${profilePath}`;
         }
-        
+
         return undefined;
-        
+
         return undefined;
       })();
-      
+
       // Removed profile picture debug logging to reduce console output
-      
+
       return {
         id: streamMsg.id ? String(streamMsg.id) : `msg-${Date.now()}`,
         username: fullName, // Use full name as username for display
@@ -114,7 +86,7 @@ export const StreamChatOverlay = ({
     // Otherwise it's already a ChatMessage, but ensure we use full_name if available
     const chatMsg = msg as ChatMessage;
     const displayName = chatMsg.full_name || chatMsg.username || 'Unknown User';
-    
+
     return {
       ...chatMsg,
       username: displayName, // Use full name as display name
@@ -126,11 +98,11 @@ export const StreamChatOverlay = ({
 
   return (
     <View
-      style={{ 
-        position: 'absolute', 
-        left: 16, 
-        right: 16, 
-        bottom: bottomOffset + 20, 
+      style={{
+        position: 'absolute',
+        left: 16,
+        right: 16,
+        bottom: bottomOffset + 20,
         zIndex: 1000,
         pointerEvents: 'none'
       }}
@@ -141,42 +113,42 @@ export const StreamChatOverlay = ({
             const msg = getNormalizedMessage(msgData);
             return (
               <View key={`${msg.id}-${index}`} style={{ alignSelf: 'flex-start' }}>
-                <View style={{ 
-                  backgroundColor: 'rgba(0, 0, 0, 0.75)', 
-                  borderRadius: 20, 
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
+                <View style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  borderRadius: 16,
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
                   flexDirection: 'row',
                   alignItems: 'flex-start',
                   shadowColor: '#000',
                   shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.25,
-                  shadowRadius: 8,
+                  shadowOpacity: 0.15,
+                  shadowRadius: 4,
                   flexShrink: 1,
                   flexGrow: 0
                 }}>
-                  <View style={{ 
-                    width: 32, 
-                    height: 32, 
-                    borderRadius: 16, 
-                    marginRight: 12, 
+                  <View style={{
+                    width: 24,
+                    height: 24,
+                    borderRadius: 12,
+                    marginRight: 8,
                     overflow: 'hidden',
                     backgroundColor: '#4a5568'
                   }}>
                     {msg.profilePicture && msg.profilePicture.trim() ? (
                       <Image
                         source={{ uri: msg.profilePicture.trim() }}
-                        style={{ width: 32, height: 32 }}
+                        style={{ width: 24, height: 24 }}
                       />
                     ) : (
-                      <View style={{ 
-                        width: 32, 
-                        height: 32, 
+                      <View style={{
+                        width: 24,
+                        height: 24,
                         backgroundColor: '#4a5568',
-                        alignItems: 'center', 
-                        justifyContent: 'center' 
+                        alignItems: 'center',
+                        justifyContent: 'center'
                       }}>
-                        <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>
+                        <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
                           {(() => {
                             const username = msg.username || 'U';
                             return username.substring(0, 2).toUpperCase();
@@ -187,33 +159,33 @@ export const StreamChatOverlay = ({
                   </View>
                   <View style={{ flexShrink: 1, minWidth: 0 }}>
                     <Text style={{
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: '600',
                       color: '#ffffff',
-                      marginBottom: 2
+                      marginBottom: 1
                     }}>
                       {msg.username}
                     </Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       {/* Display gift icon if this is a gift message */}
                       {((msg as ChatMessage).gift_icon || (msg as ChatMessage).gift?.icon) && (
-                        <View style={{ marginRight: 8, marginBottom: 2 }}>
+                        <View style={{ marginRight: 6, marginBottom: 1 }}>
                           {/* Try to display gift icon image first */}
                           {(msg as ChatMessage).gift_icon && (msg as ChatMessage).gift_icon!.startsWith('http') ? (
-                            <Image 
+                            <Image
                               source={{ uri: (msg as ChatMessage).gift_icon }}
-                              style={{ width: 24, height: 24 }}
+                              style={{ width: 18, height: 18 }}
                               resizeMode="contain"
                             />
                           ) : (msg as ChatMessage).gift_icon && baseURL ? (
-                            <Image 
+                            <Image
                               source={{ uri: `${baseURL.replace('/api/', '')}/media/${(msg as ChatMessage).gift_icon!.replace(/^\//, '')}` }}
-                              style={{ width: 24, height: 24 }}
+                              style={{ width: 18, height: 18 }}
                               resizeMode="contain"
                             />
                           ) : (
                             /* Fallback to emoji icon */
-                            <Text style={{ fontSize: 20 }}>
+                            <Text style={{ fontSize: 16 }}>
                               {(msg as ChatMessage).gift?.icon || '🎁'}
                             </Text>
                           )}
@@ -222,8 +194,8 @@ export const StreamChatOverlay = ({
                       <View style={{ flexShrink: 1 }}>
                         <Text style={{
                           color: ((msg as ChatMessage).gift_icon || (msg as ChatMessage).gift?.icon) ? '#FFD700' : '#ffffff',
-                          fontSize: 15,
-                          lineHeight: 20,
+                          fontSize: 13,
+                          lineHeight: 18,
                           fontWeight: ((msg as ChatMessage).gift_icon || (msg as ChatMessage).gift?.icon) ? '600' : '400'
                         }}>
                           {msg.message}
@@ -232,9 +204,9 @@ export const StreamChatOverlay = ({
                         {(msg as ChatMessage).gift_cost && (
                           <Text style={{
                             color: '#FFD700',
-                            fontSize: 12,
+                            fontSize: 10,
                             fontWeight: '500',
-                            marginTop: 2
+                            marginTop: 1
                           }}>
                             💎 {(msg as ChatMessage).gift_cost} Riz
                           </Text>
@@ -247,7 +219,8 @@ export const StreamChatOverlay = ({
             );
           })}
         </View>
-      )}
-    </View>
+      )
+      }
+    </View >
   );
 };

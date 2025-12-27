@@ -4,20 +4,14 @@ import {
   Text, 
   TextInput, 
   TouchableOpacity, 
-  ScrollView, 
   Animated, 
-  Keyboard, 
   KeyboardAvoidingView, 
   Platform, 
-  ActivityIndicator,
-  Modal,
-  Dimensions,
   Image,
   StatusBar,
   SafeAreaView
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { API_BASE_URL } from '../../src/config/env';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../../src/store/authSlice';

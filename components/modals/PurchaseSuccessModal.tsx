@@ -5,11 +5,7 @@ import CancelIcon from '../../assets/icons/cancel.svg';
 import SuccessIcon from '../../assets/icons/success.svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-
-interface PurchaseSuccessModalProps {
-  visible: boolean;
-  onClose: () => void;
-}
+import { PurchaseSuccessModalProps } from './types';
 
 const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
   visible,

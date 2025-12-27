@@ -11,35 +11,30 @@ import { useConversationMessages } from '../../../src/hooks/useConversationMessa
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../../../src/store/authSlice';
 import { fonts } from '../../../constants/Fonts';
-import ipDetector from '../../../src/utils/ipDetector';
+import { API_BASE_URL } from '../../../src/config/env';
 
-// Sent icon SVG for send button
 const sentIcon = `<svg width="20" height="20" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M14.0318 2.03561C12.5798 0.4719 1.65764 4.30246 1.66666 5.70099C1.67689 7.28692 5.93205 7.77479 7.11146 8.10572C7.82072 8.30466 8.01066 8.50866 8.17419 9.25239C8.91486 12.6207 9.28672 14.296 10.1343 14.3334C11.4852 14.3931 15.4489 3.56166 14.0318 2.03561Z" stroke="#FFFFFF" stroke-width="1.5"/>
 <path d="M7.66666 8.33333L9.99999 6" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-// More menu icon - horizontal ellipse
 const moreIcon = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <circle cx="5" cy="12" r="1" fill="#ffffff"/>
 <circle cx="12" cy="12" r="1" fill="#ffffff"/>
 <circle cx="19" cy="12" r="1" fill="#ffffff"/>
 </svg>`;
 
-// Notification off icon
 const notificationIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M8 21h8" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M3 18h18l-2-2v-4a7 7 0 1 0-14 0v4l-2 2Z" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="m21 3-18 18" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-// Pin icon
 const pinIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M12 2a8 8 0 0 0-8 8c0 5.4 8 12 8 12s8-6.6 8-12a8 8 0 0 0-8-8Z" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="12" cy="10" r="3" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-// Delete icon
 const deleteIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="m3 6 18 0" stroke="#C42720" stroke-width="1.5" stroke-linecap="round"/>
 <path d="m19 6 0 14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" stroke="#C42720" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -61,22 +56,16 @@ export default function MessageDetailScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const textInputRef = useRef<TextInput>(null);
   
-  // Check if this is a new conversation
   const isNewConversation = conversationId.startsWith('new-');
   const recipientId = isNewConversation ? conversationId.replace('new-', '') : null;
   const [recipient, setRecipient] = useState<any>(null);
   
-  // Helper function to get server base URL for images
   const getServerBaseUrl = useCallback(async () => {
-    const detection = await ipDetector.detectIP();
-    return `http://${detection.ip}:8000`;
+    return API_BASE_URL.replace('/api/', ''); // Remove /api/ suffix for base URL
   }, []);
 
-  // Helper function to build avatar URL
   const buildAvatarUrl = useCallback(async (user: any) => {
     if (!user) return `https://ui-avatars.com/api/?name=U&background=C42720&color=fff&size=100`;
-    
-    console.log('🖼️ Building avatar URL for user:', user.username, 'profile_picture_url:', user.profile_picture_url);
     
     if (user.profile_picture_url) {
       if (user.profile_picture_url.startsWith('http')) {
@@ -84,28 +73,23 @@ export default function MessageDetailScreen() {
       } else {
         const serverBaseUrl = await getServerBaseUrl();
         const fullUrl = `${serverBaseUrl}${user.profile_picture_url}`;
-        console.log('🖼️ Built server URL:', fullUrl);
         return fullUrl;
       }
     }
     
     const name = encodeURIComponent(user.first_name || user.username || 'U');
     const fallbackUrl = `https://ui-avatars.com/api/?name=${name}&background=C42720&color=fff&size=100`;
-    console.log('🖼️ Using fallback URL:', fallbackUrl);
     return fallbackUrl;
   }, [getServerBaseUrl]);
 
-  // State for dynamic avatar URLs
   const [avatarUrls, setAvatarUrls] = useState<{[key: string]: string}>({});
   
   const { messages, loading, error, conversation, fetchMessages, fetchConversation, sendMessage } = useConversationMessages(conversationId);
 
-  // Memoize the handleInputChange to prevent navigation context issues
   const handleInputChange = useCallback((text: string) => {
     try {
       setInput(text);
     } catch (error) {
-      console.error('Input change error:', error);
     }
   }, []);
 
@@ -115,7 +99,7 @@ export default function MessageDetailScreen() {
     
     try {
       const token = await SecureStore.getItemAsync('accessToken');
-      const baseUrl = await ipDetector.getAPIBaseURL();
+      const baseUrl = API_BASE_URL;
       
       const response = await fetch(`${baseUrl}users/${recipientId}/`, {
         headers: {
@@ -129,20 +113,16 @@ export default function MessageDetailScreen() {
         setRecipient(userData);
       }
     } catch (error) {
-      console.error('Error fetching recipient:', error);
     }
   }, [isNewConversation, recipientId]);
 
-  // Get other participant from conversation
   const getOtherParticipant = useCallback(() => {
-    // For new conversations, return the fetched recipient
     if (isNewConversation && recipient) {
       return recipient;
     }
     
     if (!conversation || !currentUser) return null;
     
-    // Handle both the list view format (participant_1, participant_2) and detail view format (other_participant)
     if (conversation.other_participant) {
       return conversation.other_participant;
     }
@@ -152,22 +132,16 @@ export default function MessageDetailScreen() {
       : conversation.participant_1;
   }, [conversation, currentUser, isNewConversation, recipient]);
 
-  // Get other participant info
   const otherParticipant = getOtherParticipant();
 
-  // Update avatar URLs when participant changes
   useEffect(() => {
     const updateAvatarUrls = async () => {
       const urls: {[key: string]: string} = {};
       
-      console.log('🔄 Updating avatar URLs. Other participant:', otherParticipant);
-      
       if (otherParticipant) {
         urls['other'] = await buildAvatarUrl(otherParticipant);
-        console.log('✅ Set avatar URL for other participant:', urls['other']);
       }
       
-      // Update avatar URLs for all message senders
       for (const message of messages) {
         if (message.sender && !message.is_outgoing) {
           const senderId = `sender_${message.sender.id}`;
@@ -178,27 +152,22 @@ export default function MessageDetailScreen() {
       }
       
       setAvatarUrls(urls);
-      console.log('📸 Final avatar URLs:', urls);
     };
     
     updateAvatarUrls();
   }, [otherParticipant, messages, buildAvatarUrl]);
 
-  // Scroll to show newest messages when messages change
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
         try {
-          // For inverted ScrollView, scroll to top (y: 0) to show newest messages
           scrollViewRef.current?.scrollTo({ y: 0, animated: true });
         } catch (error) {
-          console.error('Auto-scroll error:', error);
         }
-      }, 200); // Increased delay to ensure state updates are rendered
+      }, 200);
     }
   }, [messages.length]);
   
-  // Keyboard event listeners
   useEffect(() => {
     try {
       const keyboardWillShowListener = Keyboard.addListener(
@@ -206,12 +175,10 @@ export default function MessageDetailScreen() {
         (event) => {
           try {
             setKeyboardVisible(true);
-            // Scroll to show newest messages when keyboard appears (for inverted ScrollView)
             setTimeout(() => {
               scrollViewRef.current?.scrollTo({ y: 0, animated: true });
             }, 100);
           } catch (error) {
-            console.error('Keyboard show error:', error);
           }
         }
       );
@@ -221,9 +188,7 @@ export default function MessageDetailScreen() {
         () => {
           try {
             setKeyboardVisible(false);
-            // Keep scroll position when keyboard hides
           } catch (error) {
-            console.error('Keyboard hide error:', error);
           }
         }
       );
@@ -233,28 +198,21 @@ export default function MessageDetailScreen() {
           keyboardWillShowListener.remove();
           keyboardWillHideListener.remove();
         } catch (error) {
-          console.error('Keyboard cleanup error:', error);
         }
       };
     } catch (error) {
-      console.error('Keyboard setup error:', error);
     }
   }, []);
   
-  // Fetch conversation and messages when the screen loads
   React.useEffect(() => {
     if (isNewConversation) {
-      // For new conversations, fetch recipient data
       fetchRecipient();
     } else if (conversationId && conversationId !== '0') {
-      // For existing conversations, fetch conversation and messages
-      console.log('🔍 Loading conversation:', conversationId);
       fetchConversation();
       fetchMessages();
     }
   }, [conversationId, isNewConversation, fetchRecipient, fetchConversation, fetchMessages]);
 
-  // Set up periodic refresh for real-time messaging
   React.useEffect(() => {
     if (conversationId === '0') {
       return;
@@ -265,12 +223,11 @@ export default function MessageDetailScreen() {
       if (conversationId && conversationId !== '0') {
         fetchMessages();
         messageCount++;
-        // Refresh conversation data every 5th message refresh (every 25 seconds)
         if (messageCount % 5 === 0) {
           fetchConversation();
         }
       }
-    }, 5000); // Refresh every 5 seconds
+    }, 5000);
 
     return () => {
       clearInterval(interval);
@@ -279,16 +236,13 @@ export default function MessageDetailScreen() {
 
   const handleBackPress = () => {
     try {
-      // Navigate back to main messages screen
       router.push('/(tabs)/messages');
     } catch (error) {
-      console.error('Navigation error:', error);
       try {
         if (router && typeof router.replace === 'function') {
           router.replace('/(tabs)/messages');
         }
       } catch (fallbackError) {
-        console.error('Fallback navigation failed:', fallbackError);
       }
     }
   };
@@ -303,7 +257,7 @@ export default function MessageDetailScreen() {
       if (isNewConversation && recipientId) {
         // For new conversations, send message directly to recipient
         const token = await SecureStore.getItemAsync('accessToken');
-        const baseUrl = await ipDetector.getAPIBaseURL();
+        const baseUrl = API_BASE_URL;
         
         const response = await fetch(`${baseUrl}messaging/send/`, {
           method: 'POST',
@@ -351,32 +305,25 @@ export default function MessageDetailScreen() {
           }
         }
       } else {
-        // For existing conversations, use the existing sendMessage function
-        console.log('📤 Sending message for existing conversation...');
         await sendMessage(input.trim());
         setInput('');
         
-        // Keep focus on input after sending
         setTimeout(() => {
           textInputRef.current?.focus();
         }, 100);
         
-        // Force a refresh of messages after sending
         setTimeout(() => {
           fetchMessages();
         }, 500);
       }
       
-      // Scroll to show newest messages after sending (for inverted ScrollView, scroll to top)
       setTimeout(() => {
         try {
           scrollViewRef.current?.scrollTo({ y: 0, animated: true });
         } catch (error) {
-          console.error('Post-send scroll error:', error);
         }
-      }, 600); // Delay to allow message to be added first
+      }, 600);
     } catch (error: any) {
-      console.error('❌ Failed to send message:', error);
       const errorMessage = error?.message || 'Unknown error occurred';
       Alert.alert(
         'Message Failed', 
@@ -390,27 +337,15 @@ export default function MessageDetailScreen() {
     }
   };
 
-  // Sort messages to show most recent at top (reverse chronological order)
   const sortedMessages = [...messages].sort((a, b) => 
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
-
-  // Debug logging
-  useEffect(() => {
-    console.log('📨 Messages state updated:', {
-      messageCount: messages.length,
-      sortedMessageCount: sortedMessages.length,
-      lastMessage: messages[messages.length - 1]?.content || 'No messages',
-      lastMessageOutgoing: messages[messages.length - 1]?.is_outgoing
-    });
-  }, [messages, sortedMessages]);
 
   return (
     <View className="flex-1 bg-black">
       <SafeAreaView className="flex-1">
         <StatusBar style="light" />
       
-      {/* Header - No background color, larger avatar */}
       <View className="flex-row items-center px-4 pt-3 pb-4">
         <TouchableOpacity 
           onPress={handleBackPress} 
@@ -419,7 +354,6 @@ export default function MessageDetailScreen() {
           <ArrowLeftIcon width={24} height={24} />
         </TouchableOpacity>
         
-        {/* Larger Avatar */}
         <Image 
           source={{ 
             uri: avatarUrls['other'] || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherParticipant?.first_name || otherParticipant?.username || 'U')}&background=C42720&color=fff&size=100`
@@ -446,12 +380,10 @@ export default function MessageDetailScreen() {
           </View>
         </View>
         
-        {/* Ellipse menu - no background color */}
         <TouchableOpacity onPress={() => setMenuVisible(true)}>
           <SvgXml xml={moreIcon} width={24} height={24} />
         </TouchableOpacity>
         
-        {/* Popup Menu */}
         <Modal
           visible={menuVisible}
           transparent
@@ -477,7 +409,6 @@ export default function MessageDetailScreen() {
         </Modal>
       </View>
 
-      {/* Messages Area - Most recent at top */}
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
@@ -492,7 +423,6 @@ export default function MessageDetailScreen() {
             flexGrow: 1 
           }}
           keyboardShouldPersistTaps="handled"
-          // Invert the scroll view to show recent messages at bottom
           style={{ transform: [{ scaleY: -1 }] }}
         >
           {loading && sortedMessages.length === 0 ? (
@@ -532,7 +462,6 @@ export default function MessageDetailScreen() {
             </View>
           ) : (
             <View className="py-2">
-              {/* Display messages in reverse order (most recent first, but inverted scroll makes them appear at bottom) */}
               {sortedMessages.map((msg, index) => (
                 <View key={msg.id} className={`mb-4 flex-row ${msg.is_outgoing ? 'justify-end' : 'justify-start'}`} style={{ transform: [{ scaleY: -1 }] }}>
                   {!msg.is_outgoing && (
@@ -583,7 +512,6 @@ export default function MessageDetailScreen() {
           )}
         </ScrollView>
 
-        {/* Input Bar - Dynamic padding based on keyboard state */}
         <View className={`px-4 py-2 bg-black ${isKeyboardVisible ? 'pb-4' : 'pb-28'}`}>
           <View className="flex-row items-center bg-[#1E1E1E] rounded-full px-4 py-3">
             <TextInput

@@ -3,11 +3,7 @@ import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useDispatch } from 'react-redux';
 import { useStreamActionMutation, streamsApi } from '../../../src/store/streamsApi';
-
-interface UseEndStreamProps {
-  streamId: string;
-  onStreamEnd?: () => void;
-}
+import { UseEndStreamProps } from './types';
 
 export const useEndStream = ({ streamId, onStreamEnd }: UseEndStreamProps) => {
   const router = useRouter();

@@ -17,7 +17,7 @@ import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { fonts } from '../constants/Fonts';
-import ipDetector from '../src/utils/ipDetector';
+import { MEDIA_BASE_URL } from '../src/config/env';
 
 interface ShareStreamModalProps {
   visible: boolean;
@@ -54,24 +54,16 @@ export default function ShareStreamModal({ visible, onClose, streamData }: Share
   const [copied, setCopied] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<string>('');
 
-  // Initialize stream URL with IP detection
+  // Initialize stream URL
   useEffect(() => {
     const initializeStreamUrl = async () => {
       try {
-        const detection = await ipDetector.detectIP();
-        let baseUrl;
-        // Check if it's production domain or local IP
-        if (detection.ip === 'daremelive.pythonanywhere.com') {
-          baseUrl = `https://${detection.ip}`;
-        } else {
-          baseUrl = `http://${detection.ip}:8000`;
-        }
-        // Create a user-friendly URL for stream sharing
-        const url = `${baseUrl}/stream/${streamData.id}?utm_source=mobile_share&utm_medium=social&host=${streamData.host.username}`;
+        // Use centralized config for stream URL
+        const url = `${MEDIA_BASE_URL}/stream/${streamData.id}?utm_source=mobile_share&utm_medium=social&host=${streamData.host.username}`;
         setStreamUrl(url);
         console.log('🔗 Share Stream URL initialized:', url);
       } catch (error) {
-        console.error('❌ Failed to detect IP for sharing:', error);
+        console.error('❌ Failed to initialize stream URL:', error);
         setStreamUrl(`https://daremelive.pythonanywhere.com/stream/${streamData.id}?utm_source=mobile_share&utm_medium=social&host=${streamData.host.username}`); // Production fallback
       }
     };

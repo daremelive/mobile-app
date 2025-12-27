@@ -2,14 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
-
-interface RealtimeStatusIndicatorProps {
-  isConnected: boolean;
-  lastUpdate: Date | null;
-  viewerCount: number;
-  onRefresh: () => void;
-  className?: string;
-}
+import { RealtimeStatusIndicatorProps } from './types';
 
 export const RealtimeStatusIndicator: React.FC<RealtimeStatusIndicatorProps> = ({
   isConnected,

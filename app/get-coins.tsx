@@ -39,22 +39,8 @@ const GetCoinsScreen = () => {
     return `₦${Math.round(numPrice).toLocaleString('en-NG')}`;
   };
 
-  // Debug logging
-  console.log('🔍 Get-Coins Debug Info:');
-  console.log('  Packages Loading:', packagesLoading);
-  console.log('  Packages Error:', packagesError);
-  console.log('  Packages Data:', coinPackages ? `${coinPackages.length} packages` : coinPackages === undefined ? 'undefined packages' : 'No packages');
-  console.log('  Wallet Loading:', walletLoading);
-  console.log('  Wallet Error:', walletError);
-  console.log('  Wallet Data:', walletSummary ? `${walletSummary.coins} coins` : 'No wallet data');
-  console.log('  Exchange Rate Loading:', exchangeLoading);
-  console.log('  Exchange Rate Error:', exchangeError);
-  console.log('  Exchange Rate Data:', exchangeRate ? exchangeRate.formatted_rate : 'No exchange rate');
-  console.log('  🔄 Full Exchange Rate Object:', exchangeRate);
-
   // Pull-to-refresh function
   const onRefresh = async () => {
-    console.log('🔄 Pull-to-refresh triggered');
     setRefreshing(true);
     try {
       await Promise.all([
@@ -63,7 +49,7 @@ const GetCoinsScreen = () => {
         refetchExchangeRate()
       ]);
     } catch (error) {
-      console.error('❌ Refresh failed:', error);
+      // Silent refresh failure
     } finally {
       setRefreshing(false);
     }

@@ -4,28 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CancelIcon from '../../../assets/icons/cancel.svg';
 import GiftModalIcon from '../../../assets/icons/gift-modal.svg';
 import GiftIcon from '../../../assets/icons/gift.svg';
-
-interface Gift {
-  id: number;
-  name: string;
-  icon_url: string;
-  cost: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-interface GiftModalProps {
-  visible: boolean;
-  onClose: () => void;
-  gifts: Gift[];
-  onSendGift: (gift: Gift) => void;
-  onBuyCoins: () => void;
-  walletBalance: number;
-  isRefreshing: boolean;
-  onRefresh: () => void;
-  baseURL: string;
-}
+import { Gift, GiftModalProps } from './types';
 
 export const GiftModal = ({
   visible,
