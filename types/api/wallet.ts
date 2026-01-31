@@ -157,6 +157,21 @@ export interface TestResponse {
   reference?: string;
 }
 
+// === Apple In-App Purchase Types ===
+export interface AppleReceiptValidationRequest {
+  receipt_data: string;
+  product_id: string;
+  transaction_id: string;
+}
+
+export interface AppleReceiptValidationResponse {
+  success: boolean;
+  message: string;
+  coins_added?: number;
+  new_balance?: number;
+  transaction_id?: string;
+}
+
 // === Legacy/Backward Compatibility ===
 // These are kept for backward compatibility with existing code
 export interface CoinTransaction {

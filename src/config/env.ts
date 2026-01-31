@@ -9,9 +9,9 @@ interface AppConfig {
 }
 
 // Production URLs - always use these for production builds
-const PRODUCTION_API_URL = 'https://daremelive.pythonanywhere.com/api/';
-const PRODUCTION_WS_URL = 'wss://daremelive.pythonanywhere.com';
-const PRODUCTION_MEDIA_URL = 'https://daremelive.pythonanywhere.com';
+const PRODUCTION_API_URL = 'https://api.daremelive.com/api/';
+const PRODUCTION_WS_URL = 'wss://api.daremelive.com';
+const PRODUCTION_MEDIA_URL = 'https://api.daremelive.com';
 
 // Development URLs - update this IP when your network changes
 const DEV_IP = '172.20.10.6';

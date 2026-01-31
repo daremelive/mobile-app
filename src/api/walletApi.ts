@@ -18,6 +18,8 @@ import type {
   PurchaseCoinsResponse,
   WithdrawMoneyResponse,
   TestResponse,
+  AppleReceiptValidationRequest,
+  AppleReceiptValidationResponse,
 } from '../../types/api/wallet';
 
 // Re-export for backward compatibility
@@ -34,6 +36,8 @@ export type {
   PurchaseCoinsResponse,
   WithdrawMoneyResponse,
   TestResponse,
+  AppleReceiptValidationRequest,
+  AppleReceiptValidationResponse,
 };
 
 // Create base query for wallet endpoints
@@ -148,6 +152,25 @@ export const walletApi = createApi({
       }),
       invalidatesTags: ['Wallet', 'Transactions'],
     }),
+
+    // Validate Apple IAP Receipt (for iOS In-App Purchases)
+    validateAppleReceipt: builder.mutation<AppleReceiptValidationResponse, AppleReceiptValidationRequest>({
+      query: (body) => ({
+        url: 'validate-apple-receipt/',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Wallet', 'Transactions'],
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          // Invalidate levels-related cache since tier might have changed
+          dispatch({ type: 'levelsApi/util/invalidateTags', payload: ['UserLevel', 'StreamPrivileges'] });
+        } catch (error) {
+          // Handle error if needed
+        }
+      },
+    }),
   }),
 });
 
@@ -162,4 +185,5 @@ export const {
   useAddTestCoinsMutation,
   useAddTestBalanceMutation,
   useWithdrawMoneyMutation,
+  useValidateAppleReceiptMutation,
 } = walletApi;

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,18 +13,37 @@ import {
   useGetCoinExchangeRateQuery,
   usePurchaseCoinsMutation 
 } from '../src/api/walletApi';
+import { useIAP } from '../src/hooks/useIAP';
+import { IAPProduct } from '../src/services/iapService';
 
 const GetCoinsScreen = () => {
   const router = useRouter();
   const [selectedPackage, setSelectedPackage] = useState<number | null>(null);
+  const [selectedIAPProduct, setSelectedIAPProduct] = useState<IAPProduct | null>(null);
   const [isSuccessModalVisible, setSuccessModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  // RTK Query hooks
+  // Apple IAP Hook (only active on iOS)
+  const { 
+    isInitialized: iapInitialized,
+    isLoading: iapLoading,
+    isPurchasing: iapPurchasing,
+    products: iapProducts,
+    purchaseProduct,
+    restorePurchases,
+    refreshProducts,
+    isIOS,
+    isAvailable: iapAvailable,
+  } = useIAP();
+
+  // RTK Query hooks (used for non-iOS or fallback)
   const { data: coinPackages, isLoading: packagesLoading, error: packagesError, refetch: refetchPackages } = useGetCoinPackagesQuery();
   const { data: walletSummary, isLoading: walletLoading, error: walletError, refetch: refetchWallet } = useGetWalletSummaryQuery();
   const { data: exchangeRate, isLoading: exchangeLoading, error: exchangeError, refetch: refetchExchangeRate } = useGetCoinExchangeRateQuery();
   const [purchaseCoins, { isLoading: purchasing }] = usePurchaseCoinsMutation();
+
+  // Determine if we should use IAP (iOS with available products)
+  const useAppleIAP = isIOS && iapAvailable && iapProducts.length > 0;
 
   // Function to calculate Riz equivalent of coins
   const calculateRizEquivalent = (coins: number) => {
@@ -43,11 +62,18 @@ const GetCoinsScreen = () => {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
+      const refreshPromises = [
         refetchPackages(),
         refetchWallet(),
         refetchExchangeRate()
-      ]);
+      ];
+      
+      // Also refresh IAP products on iOS
+      if (isIOS && iapInitialized) {
+        refreshPromises.push(refreshProducts());
+      }
+      
+      await Promise.all(refreshPromises);
     } catch (error) {
       // Silent refresh failure
     } finally {
@@ -55,7 +81,28 @@ const GetCoinsScreen = () => {
     }
   };
 
-  const handlePurchase = async () => {
+  // Handle Apple IAP purchase
+  const handleIAPPurchase = async () => {
+    if (!selectedIAPProduct) {
+      Alert.alert('Error', 'Please select a package');
+      return;
+    }
+
+    try {
+      const result = await purchaseProduct(selectedIAPProduct.productId);
+      
+      if (result.success) {
+        setSuccessModalVisible(true);
+        setSelectedIAPProduct(null);
+      }
+      // Error handling is done in the hook
+    } catch (error: any) {
+      // Already handled in hook
+    }
+  };
+
+  // Handle legacy/fallback purchase (Paystack)
+  const handleLegacyPurchase = async () => {
     if (selectedPackage !== null && coinPackages) {
       try {
         const result = await purchaseCoins({ 
@@ -83,12 +130,32 @@ const GetCoinsScreen = () => {
     }
   };
 
+  // Unified purchase handler
+  const handlePurchase = async () => {
+    if (useAppleIAP) {
+      await handleIAPPurchase();
+    } else {
+      await handleLegacyPurchase();
+    }
+  };
+
+  // Handle restore purchases (iOS only)
+  const handleRestorePurchases = async () => {
+    if (isIOS && iapInitialized) {
+      await restorePurchases();
+    }
+  };
+
   // Handle authentication errors
   const isAuthError = (error: any) => {
     return error?.status === 401 || error?.data?.detail?.includes('Authentication');
   };
 
-  if (packagesLoading || walletLoading) {
+  // Combined loading state
+  const isLoading = packagesLoading || walletLoading || (isIOS && iapLoading);
+  const isPurchasingAny = purchasing || iapPurchasing;
+
+  if (isLoading) {
     return (
       <SafeAreaView className="flex-1 bg-[#090909] justify-center items-center">
         <StatusBar style="light" />
@@ -158,6 +225,9 @@ const GetCoinsScreen = () => {
     );
   }
 
+  // Determine which products to display
+  const displayProducts = useAppleIAP ? iapProducts : coinPackages;
+
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
       <StatusBar style="light" />
@@ -206,36 +276,57 @@ const GetCoinsScreen = () => {
             />
           }
         >
-          <View className="flex-row flex-wrap justify-between">
-            {coinPackages && coinPackages.map((pkg, index) => (
-              <TouchableOpacity
-                key={pkg.id}
-                onPress={() => setSelectedPackage(index)}
-                className={`w-[31%] mb-4 bg-[#1A1A1A] rounded-2xl p-4 ${selectedPackage === index ? 'border-2 border-[#FF0000] bg-[#3D1F1F]' : ''}`}
-              >
-                <View className="items-center">
-                  <DiamondIcon width={32} height={32} />
-                  <Text className="text-white text-lg font-semibold mt-2">{pkg.total_coins.toLocaleString()}</Text>
-                  {/* {pkg.bonus_coins > 0 && (
-                    <Text className="text-green-400 text-xs">+{pkg.bonus_coins} bonus</Text>
-                  )} */}
-                  <Text className="text-white text-base bg-[#414141] rounded-lg px-2 py-1 mt-2">{calculateRizEquivalent(pkg.total_coins)}</Text>
-                  {/* {exchangeRate && (
-                    <Text className="text-gray-400 text-xs mt-1">
-                      ≈ {calculateRizEquivalent(pkg.total_coins)}
-                    </Text>
-                  )} */}
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+          {/* IAP Products (iOS) */}
+          {useAppleIAP && (
+            <View className="flex-row flex-wrap justify-between">
+              {iapProducts.map((product, index) => (
+                <TouchableOpacity
+                  key={product.productId}
+                  onPress={() => {
+                    setSelectedIAPProduct(product);
+                    setSelectedPackage(null);
+                  }}
+                  className={`w-[31%] mb-4 bg-[#1A1A1A] rounded-2xl p-4 ${selectedIAPProduct?.productId === product.productId ? 'border-2 border-[#FF0000] bg-[#3D1F1F]' : ''}`}
+                >
+                  <View className="items-center">
+                    <DiamondIcon width={32} height={32} />
+                    <Text className="text-white text-lg font-semibold mt-2">{product.rizAmount.toLocaleString()}</Text>
+                    <Text className="text-white text-base bg-[#414141] rounded-lg px-2 py-1 mt-2">{product.price}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Legacy Packages (non-iOS or fallback) */}
+          {!useAppleIAP && (
+            <View className="flex-row flex-wrap justify-between">
+              {coinPackages && coinPackages.map((pkg, index) => (
+                <TouchableOpacity
+                  key={pkg.id}
+                  onPress={() => {
+                    setSelectedPackage(index);
+                    setSelectedIAPProduct(null);
+                  }}
+                  className={`w-[31%] mb-4 bg-[#1A1A1A] rounded-2xl p-4 ${selectedPackage === index ? 'border-2 border-[#FF0000] bg-[#3D1F1F]' : ''}`}
+                >
+                  <View className="items-center">
+                    <DiamondIcon width={32} height={32} />
+                    <Text className="text-white text-lg font-semibold mt-2">{pkg.total_coins.toLocaleString()}</Text>
+                    <Text className="text-white text-base bg-[#414141] rounded-lg px-2 py-1 mt-2">{calculateRizEquivalent(pkg.total_coins)}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           <View className="mb-24 mt-6">
             <TouchableOpacity 
-              className={`rounded-full py-4 ${purchasing ? 'bg-gray-500' : 'bg-white'}`}
+              className={`rounded-full py-4 ${isPurchasingAny ? 'bg-gray-500' : 'bg-white'}`}
               onPress={handlePurchase}
-              disabled={purchasing || selectedPackage === null}
+              disabled={isPurchasingAny || (useAppleIAP ? !selectedIAPProduct : selectedPackage === null)}
             >
-              {purchasing ? (
+              {isPurchasingAny ? (
                 <View className="flex-row justify-center items-center">
                   <ActivityIndicator size="small" color="#090909" />
                   <Text className="text-gray-800 text-center text-base font-semibold ml-2">
@@ -244,10 +335,26 @@ const GetCoinsScreen = () => {
                 </View>
               ) : (
                 <Text className="text-gray-800 text-center text-base font-semibold">
-                  {selectedPackage !== null ? `Get ${coinPackages?.[selectedPackage]?.total_coins?.toLocaleString()} Riz Now` : 'Select a package'}
+                  {useAppleIAP 
+                    ? (selectedIAPProduct ? `Get ${selectedIAPProduct.rizAmount.toLocaleString()} Riz Now` : 'Select a package')
+                    : (selectedPackage !== null ? `Get ${coinPackages?.[selectedPackage]?.total_coins?.toLocaleString()} Riz Now` : 'Select a package')
+                  }
                 </Text>
               )}
             </TouchableOpacity>
+
+            {/* Restore Purchases Button (iOS only) */}
+            {isIOS && iapInitialized && (
+              <TouchableOpacity 
+                className="mt-4 py-3"
+                onPress={handleRestorePurchases}
+                disabled={iapLoading}
+              >
+                <Text className="text-gray-400 text-center text-sm underline">
+                  Restore Purchases
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
       </View>

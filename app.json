@@ -22,7 +22,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mobile.daremelive",
-      "buildNumber": "47",
+      "buildNumber": "51",
       "icon": "./assets/images/icon.png",
       "splash": {
         "image": "./assets/images/splash-icon.png",
@@ -65,6 +65,7 @@
       "expo-router",
       "expo-splash-screen",
       "expo-web-browser",
+      "expo-in-app-purchases",
       [
         "expo-image-picker",
         {
