@@ -1,13 +1,40 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, KeyboardAvoidingView, Platform } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { CommentInput } from './CommentInput';
 import GiftIcon from '../../../assets/icons/gift.svg';
+import MagicWandIcon from '../../../assets/icons/magic-wand.svg';
+import AddTeamIcon from '../../../assets/icons/add-team.svg';
 import { StreamInputBarProps } from './types';
+
+/** Design tokens from the live stream design. */
+const CONTROL = 'rgba(38,38,38,0.5)';
+
+/** Circular control sitting beside the comment field. */
+const RoundControl = ({
+  Icon,
+  label,
+  onPress,
+}: {
+  Icon: React.FC<any>;
+  label: string;
+  onPress?: () => void;
+}) => (
+  <TouchableOpacity
+    className="rounded-[36px] p-3"
+    style={{ backgroundColor: CONTROL }}
+    onPress={onPress}
+    accessibilityRole="button"
+    accessibilityLabel={label}
+  >
+    <Icon width={24} height={24} />
+  </TouchableOpacity>
+);
 
 export const StreamInputBar = ({
   onSendMessage,
   onGiftPress,
+  onBeautifyPress,
+  onAddParticipant,
   hasJoined,
   keyboardHeight = 0,
   isKeyboardVisible = false,
@@ -21,25 +48,21 @@ export const StreamInputBar = ({
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10 }}
     >
-      <View 
-        className="left-2 right-4 flex-row items-center mb-4" 
-        style={{ 
-          paddingHorizontal: 16,
-          paddingBottom: Platform.OS === 'ios' ? 8 : 8,
-        }}
+      <View
+        className="flex-row items-center gap-3 px-4 pb-6"
       >
-        <CommentInput
-          onSendMessage={onSendMessage}
-          placeholder="Say something..."
-        />
-        
+        <CommentInput onSendMessage={onSendMessage} />
+
+        {onBeautifyPress && (
+          <RoundControl Icon={MagicWandIcon} label="Beautify" onPress={onBeautifyPress} />
+        )}
+
         {showGiftButton && (
-          <TouchableOpacity 
-            onPress={onGiftPress}
-            className="w-12 h-12 rounded-full items-center justify-center mr-3 bg-gray-600"
-          >
-            <GiftIcon width={24} height={24} />
-          </TouchableOpacity>
+          <RoundControl Icon={GiftIcon} label="Send a gift" onPress={onGiftPress} />
+        )}
+
+        {onAddParticipant && (
+          <RoundControl Icon={AddTeamIcon} label="Invite guests" onPress={onAddParticipant} />
         )}
       </View>
     </KeyboardAvoidingView>

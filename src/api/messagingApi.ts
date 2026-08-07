@@ -1,5 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { API_BASE_URL } from '../config/env';
+import { logger } from '../utils/logger';
 import {
   // Types
   Message,
@@ -27,21 +29,21 @@ import {
   DeleteConversationResponse,
 } from '../../types/api/messaging';
 
-const getBaseUrl = () => {
-  if (__DEV__) {
-    return 'http://127.0.0.1:8000';
-  }
-  return 'https://dareme-backend-0f6e1ff3ba51.herokuapp.com';
-};
-
 export const messagingApi = createApi({
   reducerPath: 'messagingApi',
   baseQuery: fetchBaseQuery({
-    baseUrl: `${getBaseUrl()}/messaging`,
+    // Shares the configured host with every other API. It used to hardcode
+    // 127.0.0.1, which on a real device points at the phone itself.
+    baseUrl: `${API_BASE_URL}messaging/`,
+    timeout: 30000, // 30 second timeout
     prepareHeaders: async (headers) => {
-      const token = await AsyncStorage.getItem('authToken');
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
+      try {
+        const token = await SecureStore.getItemAsync('accessToken');
+        if (token) {
+          headers.set('authorization', `Bearer ${token}`);
+        }
+      } catch (error) {
+        logger.error('[MessagingAPI] Error getting auth token:', error);
       }
       headers.set('content-type', 'application/json');
       return headers;
@@ -107,7 +109,7 @@ export const messagingApi = createApi({
 
     markMessagesAsRead: builder.mutation<MarkAsReadResponse, MarkMessagesAsReadRequest>({
       query: ({ conversationId }) => ({
-        url: `/conversations/${conversationId}/mark_read/`,
+        url: `/conversations/${conversationId}/mark-read/`,
         method: 'POST',
       }),
       invalidatesTags: (result, error, { conversationId }) => [
@@ -130,7 +132,7 @@ export const messagingApi = createApi({
       query: ({ query }) => {
         const queryParams = new URLSearchParams();
         queryParams.append('query', query);
-        return `/search_users/?${queryParams.toString()}`;
+        return `/search-users/?${queryParams.toString()}`;
       },
       providesTags: ['User'],
     }),

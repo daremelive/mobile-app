@@ -1,16 +1,21 @@
 import React, { useState, useCallback, useRef } from 'react';
 import { View, TextInput } from 'react-native';
+import { fonts } from '../../../constants/Fonts';
 import { CommentInputProps } from './types';
 
-export const CommentInput = React.memo(({ 
-  onSendMessage, 
-  placeholder = "Say something...",
+/** Design tokens from the live stream design. */
+const FIELD = 'rgba(38,38,38,0.5)';
+const TEXT = '#EDEEF9';
+
+export const CommentInput = React.memo(({
+  onSendMessage,
+  placeholder = "Type comment here...",
   maxLength = 200,
   disabled = false
 }: CommentInputProps) => {
   const [localComment, setLocalComment] = useState('');
   const inputRef = useRef<TextInput | null>(null);
-  
+
   const handleSend = useCallback(() => {
     if (localComment.trim() && !disabled) {
       onSendMessage(localComment.trim());
@@ -19,20 +24,24 @@ export const CommentInput = React.memo(({
       requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [localComment, onSendMessage, disabled]);
-  
+
   const handleChangeText = useCallback((text: string) => {
     setLocalComment(text);
   }, []);
-  
+
   return (
-    <View className="flex-1 bg-black/60 rounded-full px-4 py-4 mr-3">
+    <View
+      className="h-12 flex-1 justify-center rounded-[36px] px-3"
+      style={{ backgroundColor: FIELD }}
+    >
       <TextInput
         ref={inputRef}
         placeholder={placeholder}
-        placeholderTextColor="#999"
+        placeholderTextColor={TEXT}
         value={localComment}
         onChangeText={handleChangeText}
-        className="text-white text-sm"
+        className="text-sm"
+        style={{ color: TEXT, fontFamily: fonts.regular, lineHeight: 22.4 }}
         multiline={false}
         maxLength={maxLength}
         returnKeyType="send"

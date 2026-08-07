@@ -11,19 +11,9 @@ config.transformer = {
   unstable_allowRequireContext: true, // <-- CRITICAL LINE
 };
 
-// Reduce Fast Refresh sensitivity to prevent blinking
 config.server = {
   ...config.server,
   unstable_serverRoot: __dirname,
-  // Disable web server completely
-  enableVisualizer: false,
-};
-
-// Add refresh configuration
-config.watchOptions = {
-  ...config.watchOptions,
-  watchman: true,
-  ignored: /node_modules/,
 };
 
 config.resolver = {

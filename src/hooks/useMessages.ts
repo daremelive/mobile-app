@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   useGetConversationsQuery,
   useGetConversationDetailQuery,
@@ -10,6 +10,16 @@ import {
   useGetUserStatusQuery,
   useCreateConversationMutation,
 } from '../api/messagingApi';
+import { logger } from '../utils/logger';
+
+/**
+ * One shared empty array for every "no data yet" case.
+ *
+ * Returning a fresh `[]` gave consumers a new array identity on every render,
+ * so any effect listing the result in its dependencies re-ran forever — which
+ * pinned the JS thread and left screens stuck on their loading spinner.
+ */
+const EMPTY_LIST: any[] = [];
 
 export const useConversations = (searchQuery?: string) => {
   const [isSearching, setIsSearching] = useState(false);
@@ -50,7 +60,10 @@ export const useConversations = (searchQuery?: string) => {
   }, [refetchConversations]);
 
   // Return search results if searching, otherwise regular conversations
-  const conversations = isSearching && searchData ? searchData.conversations : conversationsData?.results || [];
+  const conversations = useMemo(
+    () => (isSearching && searchData ? searchData.conversations : conversationsData?.results ?? EMPTY_LIST),
+    [isSearching, searchData, conversationsData]
+  );
   const loading = isSearching ? searchLoading : conversationsLoading;
   const error = isSearching ? searchError : conversationsError;
 
@@ -97,7 +110,7 @@ export const useConversationDetail = (conversationId: number) => {
     try {
       await markAsReadMutation({ conversationId }).unwrap();
     } catch (err) {
-      console.error('Failed to mark messages as read:', err);
+      logger.error('Failed to mark messages as read:', err);
     }
   }, [markAsReadMutation, conversationId]);
 
@@ -173,7 +186,10 @@ export const useUsers = (searchQuery?: string) => {
   }, [refetchUsers]);
 
   // Return search results if searching, otherwise regular users
-  const users = isSearching && searchData ? searchData.results : usersData?.results || [];
+  const users = useMemo(
+    () => (isSearching && searchData ? searchData.results : usersData?.results ?? EMPTY_LIST),
+    [isSearching, searchData, usersData]
+  );
   const loading = isSearching ? searchLoading : usersLoading;
   const error = isSearching ? searchError : usersError;
 
