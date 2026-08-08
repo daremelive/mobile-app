@@ -606,7 +606,7 @@ export default function UnifiedViewerStreamScreen() {
     }
   }, [streamDetails?.host]);
 
-  // 🎉 Check if current user has been promoted to guest and redirect
+  // Check if current user has been promoted to guest and redirect
   useEffect(() => {
     if (streamDetails?.participants && userData?.id) {
       const currentUserParticipant = streamDetails.participants.find(
@@ -638,7 +638,7 @@ export default function UnifiedViewerStreamScreen() {
     }
   }, [streamDetails?.participants, userData?.id, streamId, streamMode, router]);
 
-  // 🔄 Listen for promotion events via WebSocket to refetch stream details
+  // Listen for promotion events via WebSocket to refetch stream details
   // Note: Removed socket-based promotion events as they're no longer supported
   // in the current Stream Chat implementation
   /*
@@ -722,12 +722,12 @@ export default function UnifiedViewerStreamScreen() {
     if (!walletSummary || walletSummary.coins < gift.cost) {
       const coinsNeeded = gift.cost - (walletSummary?.coins || 0);
       Alert.alert(
-        '💎 Need More Coins!',
+        'Need more Riz',
         `You need ${coinsNeeded} more coins to send "${gift.name}".\n\nYour balance: ${walletSummary?.coins || 0} coins\nGift cost: ${gift.cost} coins`,
         [
           { text: 'Maybe Later', style: 'cancel' },
           {
-            text: '🛒 Get Coins',
+            text: 'Get Riz',
             style: 'default',
             onPress: () => {
               setGiftModalVisible(false);
@@ -805,14 +805,14 @@ export default function UnifiedViewerStreamScreen() {
         [{ text: 'Awesome!', style: 'default' }]
       );
     } catch (error: any) {
-      if (error?.data?.error === 'Insufficient coins') {
+      if (error?.data?.error === 'Insufficient Riz') {
         Alert.alert(
-          '💎 Insufficient Coins',
-          'Your coin balance has changed. Please refresh and try again.',
+          'Insufficient Riz',
+          'Your Riz balance has changed. Please refresh and try again.',
           [
             { text: 'OK', style: 'cancel' },
             {
-              text: 'Get More Coins',
+              text: 'Get more Riz',
               onPress: () => {
                 setShouldOpenGiftModalAfterPurchase(true);
                 setGiftModalVisible(false);
@@ -857,7 +857,7 @@ export default function UnifiedViewerStreamScreen() {
         setShouldOpenGiftModalAfterPurchase(false);
       }
     } catch (error: any) {
-      Alert.alert('Purchase Failed', 'Failed to purchase coins. Please try again.');
+      Alert.alert('Purchase Failed', 'Failed to purchase Riz. Please try again.');
     } finally {
       setIsPurchasing(false);
     }

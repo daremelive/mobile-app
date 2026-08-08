@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from '../hooks/useTranslation';
 import { SUPPORTED_LANGUAGES, saveLanguagePreference, isRTLLanguage } from '../i18n';
+import { logger } from '../utils/logger';
 
 interface LanguageSelectorProps {
   visible: boolean;
@@ -56,10 +57,10 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       // Note: For full RTL support, app restart might be needed
       if (isRTL !== I18nManager.isRTL) {
         // You might want to show a restart prompt here
-        console.log('RTL layout change requires app restart for full effect');
+        logger.log('RTL layout change requires app restart for full effect');
       }
     } catch (error) {
-      console.error('Failed to change language:', error);
+      logger.error('Failed to change language:', error);
     } finally {
       setIsChanging(false);
     }

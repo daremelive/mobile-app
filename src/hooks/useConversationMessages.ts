@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../store/authSlice';
 import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../config/env';
+import { logger } from '../utils/logger';
 
 interface Message {
   id: number;
@@ -32,7 +33,7 @@ export const useConversationMessages = (conversationId: string) => {
   const currentUser = useSelector(selectCurrentUser);
 
   const getBaseUrl = async () => {
-    console.log('🔗 Using API Base URL:', API_BASE_URL);
+    logger.log('Using API Base URL:', API_BASE_URL);
     return API_BASE_URL;
   };
 
@@ -41,7 +42,7 @@ export const useConversationMessages = (conversationId: string) => {
     
     // Handle new conversation case (ID is "0" or starts with "new-")
     if (conversationId === '0' || conversationId.startsWith('new-')) {
-      console.log('📝 New conversation - no existing data to fetch');
+      logger.log('New conversation - no existing data to fetch');
       return null;
     }
 
@@ -49,7 +50,7 @@ export const useConversationMessages = (conversationId: string) => {
       const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
       
-      console.log('🔍 Fetching conversation:', {
+      logger.log('Fetching conversation:', {
         conversationId,
         baseUrl,
         hasToken: !!token,
@@ -70,7 +71,7 @@ export const useConversationMessages = (conversationId: string) => {
       
       clearTimeout(timeoutId1);
 
-      console.log('🔍 Conversation fetch response:', {
+      logger.log('Conversation fetch response:', {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok
@@ -78,7 +79,7 @@ export const useConversationMessages = (conversationId: string) => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Conversation fetch failed:', {
+        logger.error('Conversation fetch failed:', {
           status: response.status,
           statusText: response.statusText,
           errorText
@@ -87,18 +88,18 @@ export const useConversationMessages = (conversationId: string) => {
       }
 
       const data = await response.json();
-      console.log('🗣️ Conversation API Response:', data);
+      logger.log('Conversation API Response:', data);
       setConversation(data);
       
       // If the conversation includes messages, use those instead of fetching separately
       if (data.messages && Array.isArray(data.messages)) {
-        console.log('📨 Using messages from conversation data:', data.messages.length);
+        logger.log('Using messages from conversation data:', data.messages.length);
         setMessages(data.messages);
       }
       
       return data;
     } catch (err: any) {
-      console.error('❌ Error fetching conversation:', err);
+      logger.error('Error fetching conversation:', err);
       setError(err.message);
       return null;
     }
@@ -109,7 +110,7 @@ export const useConversationMessages = (conversationId: string) => {
     
     // Handle new conversation case (ID is "0" or starts with "new-")
     if (conversationId === '0' || conversationId.startsWith('new-')) {
-      console.log('📝 New conversation - no messages to fetch');
+      logger.log('New conversation - no messages to fetch');
       setMessages([]);
       setLoading(false);
       return;
@@ -122,7 +123,7 @@ export const useConversationMessages = (conversationId: string) => {
       const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
       
-      console.log('📨 Fetching messages:', {
+      logger.log('Fetching messages:', {
         conversationId,
         baseUrl,
         hasToken: !!token,
@@ -143,7 +144,7 @@ export const useConversationMessages = (conversationId: string) => {
       
       clearTimeout(timeoutId2);
 
-      console.log('📨 Messages fetch response:', {
+      logger.log('Messages fetch response:', {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok
@@ -151,7 +152,7 @@ export const useConversationMessages = (conversationId: string) => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Messages fetch failed:', {
+        logger.error('Messages fetch failed:', {
           status: response.status,
           statusText: response.statusText,
           errorText
@@ -160,12 +161,12 @@ export const useConversationMessages = (conversationId: string) => {
       }
 
       const data = await response.json();
-      console.log('📨 Messages API Response:', data);
+      logger.log('Messages API Response:', data);
       
       // Handle both paginated and non-paginated responses
       const messagesArray = Array.isArray(data) ? data : (data.results || []);
-      console.log('📨 Messages Array:', messagesArray.length, 'messages');
-      console.log('📨 First few messages:', messagesArray.slice(0, 3).map((m: any) => ({ 
+      logger.log('Messages Array:', messagesArray.length, 'messages');
+      logger.log('First few messages:', messagesArray.slice(0, 3).map((m: any) => ({ 
         id: m.id, 
         content: m.content?.substring(0, 20), 
         is_outgoing: m.is_outgoing,
@@ -173,7 +174,7 @@ export const useConversationMessages = (conversationId: string) => {
       })));
       setMessages(messagesArray);
     } catch (err: any) {
-      console.error('❌ Error fetching messages:', err);
+      logger.error('Error fetching messages:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -182,7 +183,7 @@ export const useConversationMessages = (conversationId: string) => {
 
   const sendMessage = useCallback(async (text: string) => {
     if (!conversationId || !text.trim() || !currentUser) {
-      console.error('❌ SendMessage validation failed:', {
+      logger.error('SendMessage validation failed:', {
         conversationId: !!conversationId,
         textTrim: !!text.trim(),
         currentUser: !!currentUser
@@ -194,7 +195,7 @@ export const useConversationMessages = (conversationId: string) => {
       const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
       
-      console.log('📤 Sending message:', {
+      logger.log('Sending message:', {
         conversationId,
         baseUrl,
         hasToken: !!token,
@@ -217,26 +218,26 @@ export const useConversationMessages = (conversationId: string) => {
       
       clearTimeout(timeoutId3);
 
-      console.log('🗣️ Conversation response status:', conversationResponse.status);
+      logger.log('Conversation response status:', conversationResponse.status);
 
       if (!conversationResponse.ok) {
         const errorText = await conversationResponse.text();
-        console.error('❌ Failed to get conversation:', errorText);
+        logger.error('Failed to get conversation:', errorText);
         throw new Error(`Failed to get conversation details: ${conversationResponse.status}`);
       }
 
       const conversation = await conversationResponse.json();
-      console.log('🗣️ Conversation data:', conversation);
+      logger.log('Conversation data:', conversation);
       
       // The detailed conversation endpoint returns 'other_participant' directly
       const recipient = conversation.other_participant;
 
       if (!recipient || !recipient.id) {
-        console.error('❌ Could not find other participant:', conversation);
+        logger.error('Could not find other participant:', conversation);
         throw new Error('Could not find conversation recipient');
       }
 
-      console.log('👤 Sending message to recipient:', recipient.id);
+      logger.log('Sending message to recipient:', recipient.id);
 
       // Create timeout controller for React Native compatibility
       const controller4 = new AbortController();
@@ -258,16 +259,16 @@ export const useConversationMessages = (conversationId: string) => {
       
       clearTimeout(timeoutId4);
 
-      console.log('📤 Send message response status:', response.status);
+      logger.log('Send message response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ Failed to send message:', errorText);
+        logger.error('Failed to send message:', errorText);
         throw new Error(`Failed to send message: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('✅ Message sent successfully:', data);
+      logger.log('Message sent successfully:', data);
       
       // Ensure the message has the correct format
       const messageWithCorrectFormat = {
@@ -282,15 +283,15 @@ export const useConversationMessages = (conversationId: string) => {
         }
       };
       
-      console.log('📝 Adding message to state:', messageWithCorrectFormat);
+      logger.log('Adding message to state:', messageWithCorrectFormat);
       setMessages(prev => {
         const newMessages = [...prev, messageWithCorrectFormat];
-        console.log('📨 New messages array length:', newMessages.length);
+        logger.log('New messages array length:', newMessages.length);
         return newMessages;
       });
       return data;
     } catch (err) {
-      console.error('❌ Error sending message:', err);
+      logger.error('Error sending message:', err);
       throw err;
     }
   }, [conversationId, currentUser]);

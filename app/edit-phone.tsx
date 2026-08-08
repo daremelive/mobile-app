@@ -10,6 +10,7 @@ import ChevronDownIcon from '../assets/icons/chevron-down.svg';
 import CountryPicker, { Country, CountryCode } from 'react-native-country-picker-modal';
 import PhoneIcon from '../assets/icons/phone.svg';
 import CancelIcon from '../assets/icons/cancel.svg';
+import { logger } from '../src/utils/logger';
 
 const EditPhoneScreen = () => {
   const router = useRouter();
@@ -67,7 +68,7 @@ const EditPhoneScreen = () => {
       Alert.alert('Success', 'Phone number updated successfully');
       router.back();
     } catch (error: any) {
-      console.error('Failed to update phone number:', error);
+      logger.error('Failed to update phone number:', error);
       if (error.data?.phone_number?.[0]) {
         Alert.alert('Error', error.data.phone_number[0]);
       } else {

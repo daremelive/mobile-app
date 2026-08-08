@@ -21,6 +21,7 @@ import type {
   ClearNotificationResponse,
   MarkAllReadResponse,
 } from '../../types/api/notifications';
+import { logger } from '../utils/logger';
 
 // Re-export for backward compatibility
 export type {
@@ -40,7 +41,7 @@ const baseQuery = fetchBaseQuery({
         headers.set('authorization', `Bearer ${token}`);
       }
     } catch (error) {
-      console.error('❌ [NotificationAPI] Error getting auth token:', error);
+      logger.error('[NotificationAPI] Error getting auth token:', error);
     }
     return headers;
   },

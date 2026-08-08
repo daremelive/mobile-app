@@ -13,6 +13,7 @@ import type {
   UnblockUserResponse,
   SearchBlockedUsersParams,
 } from '../../types/api/blocked';
+import { logger } from '../utils/logger';
 
 // Re-export for backward compatibility
 export type {
@@ -30,7 +31,7 @@ const baseQuery = fetchBaseQuery({
         headers.set('authorization', `Bearer ${token}`);
       }
     } catch (error) {
-      console.error('❌ [BlockedAPI] Error getting auth token:', error);
+      logger.error('[BlockedAPI] Error getting auth token:', error);
     }
     return headers;
   },

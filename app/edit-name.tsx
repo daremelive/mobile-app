@@ -6,6 +6,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser, setUser } from '../src/store/authSlice';
 import { useUpdateProfileMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
+import { logger } from '../src/utils/logger';
 
 const EditNameScreen = () => {
   const router = useRouter();
@@ -39,7 +40,7 @@ const EditNameScreen = () => {
       Alert.alert('Success', 'Name updated successfully');
       router.back();
     } catch (error: any) {
-      console.error('Failed to update name:', error);
+      logger.error('Failed to update name:', error);
       Alert.alert('Error', 'Failed to update name. Please try again.');
     }
   };

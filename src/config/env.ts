@@ -1,5 +1,3 @@
-import Constants from 'expo-constants';
-
 interface AppConfig {
   API_BASE_URL: string;
   WS_BASE_URL: string;
@@ -8,53 +6,57 @@ interface AppConfig {
   IS_PRODUCTION: boolean;
 }
 
-// Production URLs - always use these for production builds
-const PRODUCTION_API_URL = 'https://api.daremelive.com/api/';
-const PRODUCTION_WS_URL = 'wss://api.daremelive.com';
-const PRODUCTION_MEDIA_URL = 'https://api.daremelive.com';
+// Fallbacks used when the matching EXPO_PUBLIC_* variable is absent.
+// Development defaults to localhost, which the iOS simulator and Android
+// emulator both reach on the host machine. Set EXPO_PUBLIC_API_BASE_URL in
+// .env to this machine's LAN IP when running on a physical device.
+const DEV_HOST = 'http://localhost:8000';
+const PRODUCTION_HOST = 'https://api.daremelive.com';
 
-// Development URLs - update this IP when your network changes
-const DEV_IP = '172.20.10.6';
-const DEV_API_URL = `http://${DEV_IP}:8000/api/`;
-const DEV_WS_URL = `ws://${DEV_IP}:8000`;
-const DEV_MEDIA_URL = `http://${DEV_IP}:8000`;
+const stripTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
+
+/** Normalises to exactly one trailing slash, e.g. `http://host:8000/api/`. */
+const withTrailingSlash = (value: string): string => `${stripTrailingSlash(value)}/`;
+
+/**
+ * EXPO_PUBLIC_API_BASE_URL is written both with and without the `/api` suffix
+ * across existing .env files, so normalise to always include it exactly once.
+ */
+const withApiSuffix = (value: string): string => {
+  const base = stripTrailingSlash(value);
+  return base.endsWith('/api') ? base : `${base}/api`;
+};
 
 const getConfig = (): AppConfig => {
   const isDev = __DEV__;
+  const host = isDev ? DEV_HOST : PRODUCTION_HOST;
 
-  if (isDev) {
-    // Development: Use local server
-    return {
-      API_BASE_URL: DEV_API_URL,
-      WS_BASE_URL: DEV_WS_URL,
-      MEDIA_BASE_URL: DEV_MEDIA_URL,
-      IS_DEVELOPMENT: true,
-      IS_PRODUCTION: false,
-    };
-  } else {
-    // Production builds
-    return {
-      API_BASE_URL: PRODUCTION_API_URL,
-      WS_BASE_URL: PRODUCTION_WS_URL,
-      MEDIA_BASE_URL: PRODUCTION_MEDIA_URL,
-      IS_DEVELOPMENT: false,
-      IS_PRODUCTION: true,
-    };
-  }
+  const apiBaseUrl = withApiSuffix(process.env.EXPO_PUBLIC_API_BASE_URL ?? `${host}/api`);
+  const wsBaseUrl = process.env.EXPO_PUBLIC_WS_BASE_URL ?? host.replace(/^http/, 'ws');
+  const mediaBaseUrl = process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? host;
+
+  return {
+    API_BASE_URL: withTrailingSlash(apiBaseUrl),
+    WS_BASE_URL: stripTrailingSlash(wsBaseUrl),
+    MEDIA_BASE_URL: stripTrailingSlash(mediaBaseUrl),
+    IS_DEVELOPMENT: isDev,
+    IS_PRODUCTION: !isDev,
+  };
 };
 
 export const AppConfig = getConfig();
-
-// Debug logging to verify correct URLs are being used
-console.log('🔧 [AppConfig] Environment Configuration:', {
-  isDevelopment: AppConfig.IS_DEVELOPMENT,
-  API_BASE_URL: AppConfig.API_BASE_URL,
-});
 
 // Convenience exports for common use cases
 export const API_BASE_URL = AppConfig.API_BASE_URL;
 export const WS_BASE_URL = AppConfig.WS_BASE_URL;
 export const MEDIA_BASE_URL = AppConfig.MEDIA_BASE_URL;
+
+/**
+ * API root without a trailing slash. Use this as the `baseUrl` for RTK Query
+ * services whose endpoints declare leading-slash paths (`/auth/login/`);
+ * pairing those with API_BASE_URL yields a double slash, which Django 404s.
+ */
+export const API_ROOT = stripTrailingSlash(AppConfig.API_BASE_URL);
 
 // Helper functions
 export const getAPIBaseURL = (): string => AppConfig.API_BASE_URL;

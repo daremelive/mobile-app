@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Platform, Alert } from 'react-native';
 import { iapService, IAPProduct, IAPPurchaseResult, ALL_PRODUCT_IDS } from '../services/iapService';
 import { useGetWalletSummaryQuery } from '../api/walletApi';
+import { logger } from '../utils/logger';
 
 export interface UseIAPReturn {
   // State
@@ -44,7 +45,7 @@ export const useIAP = (): UseIAPReturn => {
    */
   const initialize = useCallback(async () => {
     if (!isIOS) {
-      console.log('📦 IAP not available on non-iOS platforms');
+      logger.log('IAP not available on non-iOS platforms');
       return;
     }
 

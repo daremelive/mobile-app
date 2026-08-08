@@ -9,6 +9,7 @@ import { useStreamCleanup } from '../src/hooks/useStreamCleanup';
 import { useAuthRouting } from '../src/hooks/useAuthRouting';
 import { I18nextProvider } from 'react-i18next';
 import i18n, { initializeLanguage } from '../src/i18n';
+import { logger } from '../src/utils/logger';
 import '../global.css';
 
 // Initialize Sentry for production error tracking
@@ -31,10 +32,10 @@ function AppLayout() {
     const setupLanguage = async () => {
       try {
         const selectedLanguage = await initializeLanguage();
-        console.log('🎯 Language setup complete:', selectedLanguage);
+        logger.log('Language setup complete:', selectedLanguage);
         setLanguageReady(true);
       } catch (error) {
-        console.error('Language setup failed:', error);
+        logger.error('Language setup failed:', error);
         setLanguageReady(true); // Continue anyway
       }
     };
@@ -74,8 +75,6 @@ function AppLayout() {
       <Stack.Screen name="language" options={{ headerShown: false }} />
       <Stack.Screen name="enter-bank-details" options={{ headerShown: false }} />
       <Stack.Screen name="identity-verification" options={{ headerShown: false }} />
-      <Stack.Screen name="stream" options={{ headerShown: false }} />
-      <Stack.Screen name="auth-debug" options={{ headerShown: false }} />
     </Stack>
   );
 }

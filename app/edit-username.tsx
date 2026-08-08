@@ -7,6 +7,7 @@ import { selectCurrentUser, setUser } from '../src/store/authSlice';
 import { useUpdateProfileMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import CancelIcon from '../assets/icons/cancel.svg';
+import { logger } from '../src/utils/logger';
 
 const EditUsernameScreen = () => {
   const router = useRouter();
@@ -53,7 +54,7 @@ const EditUsernameScreen = () => {
       Alert.alert('Success', 'Username updated successfully');
       router.back();
     } catch (error: any) {
-      console.error('Failed to update username:', error);
+      logger.error('Failed to update username:', error);
       if (error.data?.username?.[0]) {
         Alert.alert('Error', error.data.username[0]);
       } else {

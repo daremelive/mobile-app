@@ -1,5 +1,6 @@
 import { useTranslation as useI18nTranslation } from 'react-i18next';
 import { useCallback, useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 
 // Award-winning translation hook with enhanced features and forced re-rendering
 export const useTranslation = (namespace?: string) => {
@@ -9,7 +10,7 @@ export const useTranslation = (namespace?: string) => {
   // Force component re-render when language changes
   useEffect(() => {
     const handleLanguageChange = () => {
-      console.log('🔄 [useTranslation] Language changed, forcing re-render:', i18n.language);
+      logger.log('[useTranslation] Language changed, forcing re-render:', i18n.language);
       forceUpdate({}); // Force re-render
     };
 
@@ -25,12 +26,12 @@ export const useTranslation = (namespace?: string) => {
       const translation = t(key, options);
       // If translation returns the key itself, it means it's missing
       if (translation === key && !options?.fallback) {
-        console.warn(`Missing translation for key: ${key} (current language: ${i18n.language})`);
+        logger.warn(`Missing translation for key: ${key} (current language: ${i18n.language})`);
         return key.split('.').pop() || key; // Return last part of key as fallback
       }
       return translation;
     } catch (error) {
-      console.error(`Translation error for key: ${key}`, error);
+      logger.error(`Translation error for key: ${key}`, error);
       return key;
     }
   }, [t, i18n.language]); // Add i18n.language dependency to re-create when language changes
@@ -38,11 +39,11 @@ export const useTranslation = (namespace?: string) => {
   // Language utilities
   const changeLanguage = useCallback(async (languageCode: string) => {
     try {
-      console.log('🌍 [useTranslation] Changing language to:', languageCode);
+      logger.log('[useTranslation] Changing language to:', languageCode);
       await i18n.changeLanguage(languageCode);
-      console.log('✅ [useTranslation] Language changed successfully to:', languageCode);
+      logger.log('[useTranslation] Language changed successfully to:', languageCode);
     } catch (error) {
-      console.error('❌ [useTranslation] Failed to change language:', error);
+      logger.error('[useTranslation] Failed to change language:', error);
     }
   }, [i18n]);
 

@@ -18,6 +18,7 @@ import PremiumBadge from '../assets/icons/premium.svg';
 import VIPBadge from '../assets/icons/vip.svg';
 import VVIPBadge from '../assets/icons/vvip.svg';
 import UnlockVVIPModal from '../components/modals/UnlockVVIPModal';
+import { logger } from '../src/utils/logger';
 
 const UnlockLevelScreen = () => {
   const router = useRouter();
@@ -100,7 +101,7 @@ const UnlockLevelScreen = () => {
       dispatch({ type: 'levelsApi/util/invalidateTags', payload: ['StreamPrivileges'] });
       
     } catch (error) {
-      console.error('Refresh error:', error);
+      logger.error('Refresh error:', error);
     } finally {
       setIsRefreshing(false);
     }

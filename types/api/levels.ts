@@ -66,6 +66,7 @@ export interface StreamChannel {
   image_url?: string;
   max_participants: number;
   allow_recording: boolean;
+  allow_screen_share?: boolean;
   required_tiers: string[];
   required_tiers_display: string;
   is_accessible: boolean;

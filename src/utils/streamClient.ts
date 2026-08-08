@@ -1,6 +1,7 @@
 import { StreamVideoClient, User } from '@stream-io/video-react-native-sdk';
 import { store } from '../store';
 import { streamsApi } from '../store/streamsApi';
+import { logger } from './logger';
 
 // Simple debug logging functions to replace the removed debug utilities
 const debugLog = (step: string, message: string, data?: any) => {
@@ -93,8 +94,8 @@ export const getConnectionState = () => ({
 export const fetchStreamToken = async (): Promise<{token: string, apiKey: string, appId: string}> => {
   try {
     logGetStreamStep('TOKEN_FETCH_START', true, { environment: __DEV__ ? 'dev' : 'prod' });
-    console.log('Fetching GetStream token from backend...');
-    console.log('Environment check:', { isDev: __DEV__, env: __DEV__ ? 'development' : 'production' });
+    logger.log('Fetching GetStream token from backend...');
+    logger.log('Environment check:', { isDev: __DEV__, env: __DEV__ ? 'development' : 'production' });
     
     const result = await store.dispatch(streamsApi.endpoints.getStreamToken.initiate()).unwrap();
     
@@ -105,7 +106,7 @@ export const fetchStreamToken = async (): Promise<{token: string, apiKey: string
       hasAppId: !!result.app_id
     });
     
-    console.log('GetStream token received from backend:', {
+    logger.log('GetStream token received from backend:', {
       hasToken: !!result.token,
       tokenLength: result.token?.length || 0,
       apiKey: result.api_key?.substring(0, 8) + '***',
@@ -166,18 +167,18 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
     try {
       await client.disconnectUser();
     } catch (e) {
-      console.log('Previous client disconnect error (non-critical):', e);
+      logger.log('Previous client disconnect error (non-critical):', e);
     }
     client = null;
   }
 
   try {
-    console.log('Starting GetStream client creation for user:', appUser.username);
-    console.log('Environment:', __DEV__ ? 'Development' : 'Production');
+    logger.log('Starting GetStream client creation for user:', appUser.username);
+    logger.log('Environment:', __DEV__ ? 'Development' : 'Production');
     
     // Fetch token and credentials from backend instead of using environment variables
     const { token, apiKey, appId } = await fetchStreamToken();
-    console.log('Retrieved GetStream credentials from backend:', { 
+    logger.log('Retrieved GetStream credentials from backend:', { 
       apiKey: apiKey?.substring(0, 8) + '***', 
       appId: appId?.substring(0, 12) + '***',
       tokenLength: token?.length || 0 
@@ -190,7 +191,7 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
     
     // Create GetStream user object from app user
     const streamUser: User = createStreamUser(appUser);
-    console.log('Created GetStream user:', { 
+    logger.log('Created GetStream user:', { 
       id: streamUser.id, 
       name: streamUser.name, 
       hasImage: !!streamUser.image 
@@ -203,7 +204,7 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
         timeout: __DEV__ ? 15000 : 30000, // Extended timeout for production
         logger: (logLevel, message, extraData) => {
           if (logLevel === 'error' || logLevel === 'warn') {
-            console.log(`GetStream ${logLevel}:`, message, extraData ? JSON.stringify(extraData) : '');
+            logger.log(`GetStream ${logLevel}:`, message, extraData ? JSON.stringify(extraData) : '');
           }
         },
         // Production-specific optimizations
@@ -217,10 +218,10 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
         })
       },
     });
-    console.log('StreamVideoClient initialized with apiKey');
+    logger.log('StreamVideoClient initialized with apiKey');
 
     // Connect user with token - add extended timeout for production and retry logic
-    console.log('Connecting to GetStream servers...');
+    logger.log('Connecting to GetStream servers...');
     
     const maxRetries = 2; // Reduced retries to prevent rate limiting
     let retryCount = 0;
@@ -234,14 +235,14 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
         );
         
         await Promise.race([connectionPromise, timeoutPromise]);
-        console.log('GetStream client created and user connected successfully');
+        logger.log('GetStream client created and user connected successfully');
         
         // Reset connection state on success
         resetConnectionState();
         return client;
       } catch (error: any) {
         retryCount++;
-        console.log(`Connection attempt ${retryCount}/${maxRetries} failed:`, error?.message);
+        logger.log(`Connection attempt ${retryCount}/${maxRetries} failed:`, error?.message);
         
         // Check if this is a rate limiting error
         const isRateLimit = error?.message?.includes('rate') || 
@@ -258,7 +259,7 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
         if (retryCount < maxRetries) {
           // For non-rate-limit errors, shorter wait with exponential backoff
           const waitTime = Math.min(1000 * Math.pow(2, retryCount), 5000); // 2s, 4s max
-          console.log(`Retrying in ${waitTime/1000}s...`);
+          logger.log(`Retrying in ${waitTime/1000}s...`);
           debugLog('GETSTREAM_RETRY', `Connection failed - retrying in ${waitTime/1000}s`, { 
             attempt: retryCount, 
             errorMessage: error?.message 
@@ -277,7 +278,7 @@ export const createStreamClient = async (appUser: any): Promise<StreamVideoClien
     connectionState.isConnecting = false;
     throw new Error('Failed to connect after all retries');
   } catch (error: any) {
-    console.error('❌ Failed to create GetStream client:', {
+    logger.error('Failed to create GetStream client:', {
       error: error?.message || error,
       stack: error?.stack,
       appUserId: appUser?.id,
@@ -318,9 +319,9 @@ export const disconnectStreamClient = async (): Promise<void> => {
     try {
       await client.disconnectUser();
       client = null;
-      console.log('GetStream client disconnected');
+      logger.log('GetStream client disconnected');
     } catch (error) {
-      console.error('❌ Error disconnecting GetStream client:', error);
+      logger.error('Error disconnecting GetStream client:', error);
     }
   }
 };

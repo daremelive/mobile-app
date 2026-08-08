@@ -7,6 +7,7 @@ import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import { useTranslation } from '../src/hooks/useTranslation';
 import LanguageSelector from '../src/components/LanguageSelector';
 import { SUPPORTED_LANGUAGES } from '../src/i18n';
+import { logger } from '../src/utils/logger';
 
 const LanguageScreen = () => {
   const router = useRouter();
@@ -19,7 +20,7 @@ const LanguageScreen = () => {
   };
 
   const handleLanguageChange = (languageCode: string) => {
-    console.log('Language changed to:', languageCode);
+    logger.log('Language changed to:', languageCode);
     // Could trigger a success toast here
   };
 

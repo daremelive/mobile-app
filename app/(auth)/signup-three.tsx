@@ -9,6 +9,7 @@ import { useUpdateProfileMutation } from '../../src/store/authApi';
 import { useDispatch, useSelector } from 'react-redux';
 import { setUser, selectCurrentUser } from '../../src/store/authSlice';
 import { markAccountCreated } from '../../src/hooks/useAuthRouting';
+import { logger } from '../../src/utils/logger';
 
 const INTERESTS = [
   'Education', 'Art & Creativity', 'Sports', 'Health', 'DIY',
@@ -25,7 +26,7 @@ export default function SignupThreeScreen() {
 
   // Log authentication status for debugging
   React.useEffect(() => {
-    console.log('🔍 Signup-three mounted:', {
+    logger.log('Signup-three mounted:', {
       currentUser: !!currentUser,
       email: currentUser?.email,
       username: currentUser?.username,
@@ -50,9 +51,9 @@ export default function SignupThreeScreen() {
       // Convert array to comma-separated string as backend expects
       const interestsString = selectedInterests.join(', ');
       
-      console.log('🎯 Saving interests:', selectedInterests);
-      console.log('🎯 Interests string:', interestsString);
-      console.log('🎯 Current user before save:', {
+      logger.log('Saving interests:', selectedInterests);
+      logger.log('Interests string:', interestsString);
+      logger.log('Current user before save:', {
         email: currentUser?.email,
         username: currentUser?.username,
         id: currentUser?.id,
@@ -64,38 +65,38 @@ export default function SignupThreeScreen() {
         interests: interestsString,
       }).unwrap();
 
-      console.log('✅ Interests saved successfully:', result);
-      console.log('🎯 Updated user profile_completed:', result.profile_completed);
+      logger.log('Interests saved successfully:', result);
+      logger.log('Updated user profile_completed:', result.profile_completed);
 
       // Update user data in store
       dispatch(setUser(result));
 
-      // 🚀 MARK ACCOUNT CREATION COMPLETE
+      // MARK ACCOUNT CREATION COMPLETE
       await markAccountCreated();
 
-      console.log('🏠 Navigating to home screen');
+      logger.log('Navigating to home screen');
       // Navigate to home with a clean slate
       router.dismissAll();
       router.replace('/(tabs)/home');
     } catch (error: any) {
-      console.error('❌ Failed to save interests:', error);
+      logger.error('Failed to save interests:', error);
       Alert.alert('Error', 'Failed to save interests. Please try again.');
     }
   };
 
   const handleSkip = () => {
-    console.log('⏭️ Skipping interests selection');
-    console.log('🎯 Current user before skip:', {
+    logger.log('⏭ Skipping interests selection');
+    logger.log('Current user before skip:', {
       email: currentUser?.email,
       username: currentUser?.username,
       profile_completed: currentUser?.profile_completed,
       interests: currentUser?.interests
     });
     
-    // 🚀 MARK ACCOUNT CREATION COMPLETE (even when skipping)
+    // MARK ACCOUNT CREATION COMPLETE (even when skipping)
     markAccountCreated();
     
-    console.log('🏠 Navigating to home screen (skip)');
+    logger.log('Navigating to home screen (skip)');
     // Navigate to home with a clean slate
     router.dismissAll();
     router.replace('/(tabs)/home');
@@ -112,7 +113,7 @@ export default function SignupThreeScreen() {
         <View className="px-6">
             <TouchableOpacity
               onPress={() => {
-                console.log('🔙 Back button pressed from signup-three');
+                logger.log('Back button pressed from signup-three');
                 router.replace('/(auth)/signup-two');
               }}
               className="w-14 h-14 rounded-full bg-[#1C1C1E] items-center justify-center mb-6 self-start"

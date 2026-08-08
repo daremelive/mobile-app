@@ -124,7 +124,7 @@ const GetCoinsScreen = () => {
           ]
         );
       } catch (error: any) {
-        const errorMessage = error?.data?.message || error?.data?.detail || 'Failed to purchase coins. Please try again.';
+        const errorMessage = error?.data?.message || error?.data?.detail || 'Failed to purchase Riz. Please try again.';
         Alert.alert('Purchase Failed', errorMessage);
       }
     }
@@ -160,7 +160,7 @@ const GetCoinsScreen = () => {
       <SafeAreaView className="flex-1 bg-[#090909] justify-center items-center">
         <StatusBar style="light" />
         <ActivityIndicator size="large" color="#FF0000" />
-        <Text className="text-white mt-4">Loading coin packages...</Text>
+        <Text className="text-white mt-4">Loading Riz packages...</Text>
       </SafeAreaView>
     );
   }
@@ -193,7 +193,7 @@ const GetCoinsScreen = () => {
       <SafeAreaView className="flex-1 bg-[#090909] justify-center items-center">
         <StatusBar style="light" />
         <ActivityIndicator size="large" color="#FF0000" />
-        <Text className="text-white mt-4">Loading coin packages...</Text>
+        <Text className="text-white mt-4">Loading Riz packages...</Text>
       </SafeAreaView>
     );
   }
@@ -203,7 +203,7 @@ const GetCoinsScreen = () => {
     return (
       <SafeAreaView className="flex-1 bg-[#090909] justify-center items-center px-6">
         <StatusBar style="light" />
-        <Text className="text-white text-xl font-semibold mb-4 text-center">Unable to Load Coin Packages</Text>
+        <Text className="text-white text-xl font-semibold mb-4 text-center">Unable to Load Riz Packages</Text>
         <Text className="text-gray-400 text-center mb-6">
           There was an error loading coin packages{exchangeError ? ' or exchange rate' : ''}. Please try again.
         </Text>
@@ -220,7 +220,7 @@ const GetCoinsScreen = () => {
       <SafeAreaView className="flex-1 bg-[#090909] justify-center items-center">
         <StatusBar style="light" />
         <ActivityIndicator size="large" color="#FF0000" />
-        <Text className="text-white mt-4">Loading coin packages...</Text>
+        <Text className="text-white mt-4">Loading Riz packages...</Text>
       </SafeAreaView>
     );
   }

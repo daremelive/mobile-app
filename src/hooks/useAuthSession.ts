@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import * as SecureStore from 'expo-secure-store';
 import { restoreSession, logout } from '../store/authSlice';
 import type { User } from '../store/authApi';
+import { logger } from '../utils/logger';
 
 export const useAuthSession = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +30,7 @@ export const useAuthSession = () => {
           }));
         }
       } catch (error) {
-        console.error('Failed to restore session:', error);
+        logger.error('Failed to restore session:', error);
         // Clear potentially corrupted data
         dispatch(logout());
       } finally {

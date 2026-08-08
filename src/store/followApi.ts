@@ -1,7 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
 import type { RootState } from './index';
-import { API_BASE_URL } from '../config/env';
+import { API_ROOT } from '../config/env';
 
 // Import centralized types
 import type {
@@ -29,7 +29,7 @@ export type {
 
 // Create API with base query that includes token
 const baseQuery = fetchBaseQuery({
-  baseUrl: API_BASE_URL,
+  baseUrl: API_ROOT,
   timeout: 15000, // 15 second timeout for faster failure detection
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;

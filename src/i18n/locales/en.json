@@ -76,7 +76,7 @@
     },
     "slide3": {
       "title": "Earn Rewards",
-      "description": "Complete challenges and earn Riz coins"
+      "description": "Complete challenges and earn Riz"
     }
   },
   "navigation": {
@@ -146,9 +146,13 @@
     "thisYear": "This Year",
     "allTime": "All Time",
     "noTransactions": "No transactions found",
-    "rizCoins": "Riz Coins",
+    "rizCoins": "Riz",
     "earned": "Earned",
-    "spent": "Spent"
+    "spent": "Spent",
+    "confirmAction": "Confirm this action",
+    "errorLoadingBalance": "Error loading balance",
+    "pleaseEnterAmountAndConfirm": "Please enter an amount and confirm the action",
+    "pleaseEnterValidAmount": "Please enter a valid amount"
   },
   "streams": {
     "liveStreams": "Live Streams",
@@ -312,7 +316,7 @@
   },
   "currency": {
     "riz": "Riz",
-    "coins": "Coins",
+    "coins": "Riz",
     "balance": "Balance",
     "earned": "Earned",
     "spent": "Spent",

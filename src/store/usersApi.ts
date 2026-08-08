@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { RootState } from './index';
-import { API_BASE_URL } from '../config/env';
+import { API_ROOT } from '../config/env';
 
 // Import centralized types
 import {
@@ -15,7 +15,7 @@ import {
 
 // Create base query
 const baseQuery = fetchBaseQuery({
-  baseUrl: API_BASE_URL,
+  baseUrl: API_ROOT,
   timeout: 15000, // 15 second timeout for faster failure detection
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;

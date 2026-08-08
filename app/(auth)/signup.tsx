@@ -13,6 +13,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri, exchangeCodeAsync, TokenResponse, ResponseType } from 'expo-auth-session';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { logger } from '../../src/utils/logger';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -36,9 +37,17 @@ export default function SignupScreen() {
     };
   }, []);
   const extra = (Constants?.expoConfig as any)?.extra || (Constants?.manifest as any)?.extra || {};
-  const googleClientId = extra?.GOOGLE_CLIENT_ID || extra?.googleClientId || undefined;
-  const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || undefined;
-  const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || undefined;
+  // These are intentionally '' rather than undefined when unset:
+  // expo-auth-session throws on an undefined client id for the current
+  // platform, and it throws during render, which crashes the app on launch.
+  const googleClientId = extra?.GOOGLE_CLIENT_ID || extra?.googleClientId || '';
+  const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || '';
+  const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || '';
+
+  // Google sign-in is only offered where a client id exists for the platform.
+  const platformClientId =
+    Platform.OS === 'ios' ? iosClientId : Platform.OS === 'android' ? androidClientId : googleClientId;
+  const isGoogleConfigured = platformClientId.length > 0;
 
   // Build the native redirect URI required by Google on iOS/Android
   const toNativeRedirect = (cid?: string) =>
@@ -98,7 +107,7 @@ export default function SignupScreen() {
           const result = await googleAuth({ id_token: idToken } as any).unwrap();
           dispatch(setCredentials(result));
           
-          // 🚀 MARK ACCOUNT CREATION - Google signup counts as account creation
+          // MARK ACCOUNT CREATION - Google signup counts as account creation
           await markAccountCreated();
           
           if (!result.user.profile_completed) {
@@ -107,7 +116,7 @@ export default function SignupScreen() {
             router.replace('/(tabs)/home');
           }
         } catch (e: any) {
-          console.error('Google signup error:', e);
+          logger.error('Google signup error:', e);
           const msg = e?.data?.message || e?.data?.error || 'Google authentication failed';
           Alert.alert('Google Sign-In', msg);
         }
@@ -333,13 +342,10 @@ export default function SignupScreen() {
         </View>
 
         {/* Google Continue Button */}
+        {isGoogleConfigured && (
         <TouchableOpacity
           className="w-full h-[52px] bg-[#1C1C1E] border border-[#2C2C2E] rounded-full flex-row items-center justify-center mb-8"
           onPress={async () => {
-            if (!iosClientId && !androidClientId && !googleClientId) {
-              Alert.alert('Google Sign-In', 'Google client IDs are not configured.');
-              return;
-            }
             setTimeout(() => {
               promptAsync();
             }, 100);
@@ -352,6 +358,7 @@ export default function SignupScreen() {
           />
           <Text className="text-white text-[17px] font-medium ml-3">{isGoogleLoading ? 'Signing in...' : 'Continue with Google'}</Text>
         </TouchableOpacity>
+        )}
 
         {/* Sign In Link */}
         <View className="flex-row justify-center mt-8 mb-8">

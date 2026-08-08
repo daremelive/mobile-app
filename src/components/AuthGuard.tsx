@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import { Redirect } from 'expo-router';
 import { selectIsAuthenticated, selectCurrentUser } from '../store/authSlice';
 import { useAuthSession } from '../hooks/useAuthSession';
+import { logger } from '../utils/logger';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -39,7 +40,7 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
                            currentUser.gender && currentUser.country && 
                            currentUser.has_accepted_terms;
     
-    console.log('🔒 AuthGuard: Profile incomplete, checking redirect logic:', {
+    logger.log('AuthGuard: Profile incomplete, checking redirect logic:', {
       hasBasicProfile,
       username: !!currentUser.username,
       phone_number: !!currentUser.phone_number,
@@ -51,10 +52,10 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({
     });
     
     if (hasBasicProfile && !currentUser.interests) {
-      console.log('🔒 AuthGuard: Redirecting to signup-three');
+      logger.log('AuthGuard: Redirecting to signup-three');
       return <Redirect href="/(auth)/signup-three" />;
     } else {
-      console.log('🔒 AuthGuard: Redirecting to signup-two');
+      logger.log('AuthGuard: Redirecting to signup-two');
       return <Redirect href="/(auth)/signup-two" />;
     }
   }
