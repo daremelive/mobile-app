@@ -10,6 +10,7 @@ import LockPasswordIcon from '../assets/icons/lock-password.svg';
 import EyeOffIcon from '../assets/icons/eye-off.svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import CheckIcon from '../assets/icons/check.svg';
+import { logger } from '../src/utils/logger';
 
 const ResetPasswordScreen = () => {
   const router = useRouter();
@@ -72,7 +73,7 @@ const ResetPasswordScreen = () => {
         router.replace('/(auth)/signin');
       }, 2000);
     } catch (error: any) {
-      console.error('Password reset error:', error);
+      logger.error('Password reset error:', error);
       if (error.data?.new_password?.[0]) {
         Alert.alert('Error', error.data.new_password[0]);
       } else if (error.data?.non_field_errors?.[0]) {

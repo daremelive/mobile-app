@@ -1,7 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import * as SecureStore from 'expo-secure-store';
 import type { RootState } from './index';
-import { API_BASE_URL } from '../config/env';
+import { API_ROOT } from '../config/env';
 
 // Import centralized types
 import type {
@@ -42,11 +42,9 @@ export type {
   PasswordResetConfirmRequest,
 };
 
-// Silent operation - no logging
-
 // Create base query for authenticated requests
 const baseQuery = fetchBaseQuery({
-  baseUrl: API_BASE_URL,
+  baseUrl: API_ROOT,
   timeout: 15000, // 15 second timeout for faster failure detection
   prepareHeaders: (headers, { getState }) => {
     const state = getState() as RootState;
@@ -61,46 +59,15 @@ const baseQuery = fetchBaseQuery({
   },
 });
 
-// Create base query for public endpoints (no auth) with debug wrapper
-const rawPublicBaseQuery = fetchBaseQuery({
-  baseUrl: API_BASE_URL,
+// Create base query for public endpoints (no auth)
+const publicBaseQuery = fetchBaseQuery({
+  baseUrl: API_ROOT,
   timeout: 15000,
   prepareHeaders: (headers) => {
     headers.set('content-type', 'application/json');
     return headers;
   },
 });
-
-// Wrapped public base query with debugging
-const publicBaseQuery = async (args: any, api: any, extraOptions: any) => {
-  const url = typeof args === 'string' ? args : args?.url;
-  console.log('[AuthAPI] publicBaseQuery starting:', {
-    url,
-    baseUrl: API_BASE_URL,
-    fullUrl: `${API_BASE_URL}${url}`,
-    method: args?.method || 'GET',
-  });
-
-  const startTime = Date.now();
-  const result = await rawPublicBaseQuery(args, api, extraOptions);
-  const duration = Date.now() - startTime;
-
-  if (result.error) {
-    console.error('[AuthAPI] publicBaseQuery error:', {
-      url,
-      duration: `${duration}ms`,
-      status: result.error.status,
-      error: result.error,
-    });
-  } else {
-    console.log('[AuthAPI] publicBaseQuery success:', {
-      url,
-      duration: `${duration}ms`,
-    });
-  }
-
-  return result;
-};
 
 // Base query with automatic token refresh
 const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
@@ -121,10 +88,7 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
   const endpoint = extraOptions?.endpoint || args?.endpoint;
   const isPublicEndpoint = publicEndpoints.includes(endpoint);
 
-  console.log('[AuthAPI] baseQueryWithReauth:', { endpoint, isPublicEndpoint, status: result.error?.status });
-
   if (result.error && result.error.status === 401 && !isPublicEndpoint) {
-    console.log('[AuthAPI] Attempting token refresh for protected endpoint:', endpoint);
     // Try to get a new token
     const refreshToken = (api.getState() as RootState).auth.refreshToken;
     if (refreshToken) {
@@ -150,8 +114,6 @@ const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
         api.dispatch(authApi.util.resetApiState());
       }
     }
-  } else if (result.error && result.error.status === 401 && isPublicEndpoint) {
-    console.log('[AuthAPI] 401 on public endpoint - this should not happen:', endpoint);
   }
 
   return result;

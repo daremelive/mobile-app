@@ -1,7 +1,17 @@
 import React from 'react';
 import { View, Text, Image } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { fonts } from '../../../constants/Fonts';
 import type { StreamMessage } from '../../../src/store/streamsApi';
 import { ChatMessage, StreamChatOverlayProps } from './types';
+
+/** Design tokens from the live stream design. */
+const BUBBLE = 'rgba(38,38,38,0.5)';
+const AVATAR_BG = '#19171A';
+const NAME = '#E1E2ED';
+const MESSAGE = '#EDEEF9';
+/** The design caps a bubble at 320 of the 343 available to the overlay. */
+const BUBBLE_MAX_WIDTH = 320;
 
 export const StreamChatOverlay = ({
   messages = [],
@@ -20,8 +30,8 @@ export const StreamChatOverlay = ({
   // Ensure messages is always an array
   const safeMessages = Array.isArray(messages) ? messages : [];
 
-  // Show only the 3 most recent messages (TikTok style)
-  const recentMessages = safeMessages.slice(-3);
+  // Show only the 4 most recent messages, as the design stacks them
+  const recentMessages = safeMessages.slice(-4);
 
   // Dynamic bottom spacing accounts for keyboard & input bar
   const bottomOffset = (isKeyboardVisible ? keyboardHeight : 0) + inputBarHeight + 8;
@@ -108,32 +118,32 @@ export const StreamChatOverlay = ({
       }}
     >
       {recentMessages.length === 0 ? null : (
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: 8, alignItems: 'flex-start' }}>
           {recentMessages.map((msgData, index) => {
             const msg = getNormalizedMessage(msgData);
             return (
-              <View key={`${msg.id}-${index}`} style={{ alignSelf: 'flex-start' }}>
-                <View style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                  borderRadius: 16,
+              <BlurView
+                key={`${msg.id}-${index}`}
+                intensity={8}
+                tint="dark"
+                style={{
+                  maxWidth: BUBBLE_MAX_WIDTH,
+                  backgroundColor: BUBBLE,
+                  borderRadius: 12,
+                  overflow: 'hidden',
                   paddingHorizontal: 12,
                   paddingVertical: 8,
                   flexDirection: 'row',
                   alignItems: 'flex-start',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 4,
-                  flexShrink: 1,
-                  flexGrow: 0
-                }}>
+                  gap: 8,
+                }}
+              >
                   <View style={{
                     width: 24,
                     height: 24,
                     borderRadius: 12,
-                    marginRight: 8,
                     overflow: 'hidden',
-                    backgroundColor: '#4a5568'
+                    backgroundColor: AVATAR_BG
                   }}>
                     {msg.profilePicture && msg.profilePicture.trim() ? (
                       <Image
@@ -144,11 +154,10 @@ export const StreamChatOverlay = ({
                       <View style={{
                         width: 24,
                         height: 24,
-                        backgroundColor: '#4a5568',
                         alignItems: 'center',
                         justifyContent: 'center'
                       }}>
-                        <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>
+                        <Text style={{ color: MESSAGE, fontSize: 10, fontFamily: fonts.semiBold }}>
                           {(() => {
                             const username = msg.username || 'U';
                             return username.substring(0, 2).toUpperCase();
@@ -157,12 +166,12 @@ export const StreamChatOverlay = ({
                       </View>
                     )}
                   </View>
-                  <View style={{ flexShrink: 1, minWidth: 0 }}>
+                  <View style={{ flexShrink: 1, minWidth: 0, gap: 4 }}>
                     <Text style={{
                       fontSize: 12,
-                      fontWeight: '600',
-                      color: '#ffffff',
-                      marginBottom: 1
+                      lineHeight: 12,
+                      fontFamily: fonts.regular,
+                      color: NAME
                     }}>
                       {msg.username}
                     </Text>
@@ -193,10 +202,10 @@ export const StreamChatOverlay = ({
                       )}
                       <View style={{ flexShrink: 1 }}>
                         <Text style={{
-                          color: ((msg as ChatMessage).gift_icon || (msg as ChatMessage).gift?.icon) ? '#FFD700' : '#ffffff',
-                          fontSize: 13,
-                          lineHeight: 18,
-                          fontWeight: ((msg as ChatMessage).gift_icon || (msg as ChatMessage).gift?.icon) ? '600' : '400'
+                          color: ((msg as ChatMessage).gift_icon || (msg as ChatMessage).gift?.icon) ? '#FFD700' : MESSAGE,
+                          fontSize: 12,
+                          lineHeight: 19.2,
+                          fontFamily: fonts.semiBold
                         }}>
                           {msg.message}
                         </Text>
@@ -205,7 +214,7 @@ export const StreamChatOverlay = ({
                           <Text style={{
                             color: '#FFD700',
                             fontSize: 10,
-                            fontWeight: '500',
+                            fontFamily: fonts.medium,
                             marginTop: 1
                           }}>
                             💎 {(msg as ChatMessage).gift_cost} Riz
@@ -214,8 +223,7 @@ export const StreamChatOverlay = ({
                       </View>
                     </View>
                   </View>
-                </View>
-              </View>
+              </BlurView>
             );
           })}
         </View>

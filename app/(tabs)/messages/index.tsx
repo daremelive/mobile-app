@@ -18,6 +18,8 @@ const chatIcon = `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xm
 <path d="M15.75 7.875C15.75 11.3617 12.7367 14.25 9 14.25C8.25 14.25 7.5 14.1 6.75 13.8L2.25 15.75L4.2 11.25C3.9 10.5 3.75 9.75 3.75 9C3.75 5.51328 6.76328 2.625 10.5 2.625" stroke="#EDEEF9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
 </svg>`;
 
+const EMPTY_FOLLOWING: any[] = [];
+
 export default function MessagesScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
@@ -47,7 +49,10 @@ export default function MessagesScreen() {
 
   const [avatarUrls, setAvatarUrls] = useState<{[key: string]: string}>({});
 
-  const { data: followingUsers = [], isLoading: followingLoading } = useGetFollowingQuery({ search: '' });
+  // The default has to be a stable reference: an inline [] is a new array on
+  // every render, which restarts the avatar effect below in a loop.
+  const { data: followingUsers = EMPTY_FOLLOWING, isLoading: followingLoading } =
+    useGetFollowingQuery({ search: '' });
   
   const { 
     conversations, 

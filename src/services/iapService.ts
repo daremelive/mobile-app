@@ -9,6 +9,7 @@ import * as InAppPurchases from 'expo-in-app-purchases';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from '../config/env';
 import * as SecureStore from 'expo-secure-store';
+import { logger } from '../utils/logger';
 
 // IAP Product IDs - These must match the products in App Store Connect
 export const IAP_PRODUCT_IDS = {
@@ -70,18 +71,18 @@ class IAPService {
    */
   async initialize(): Promise<boolean> {
     if (this.isInitialized) {
-      console.log('📦 IAP Service already initialized');
+      logger.log('IAP Service already initialized');
       return true;
     }
 
     // Only initialize on iOS
     if (Platform.OS !== 'ios') {
-      console.log('📦 IAP Service: Skipping initialization on non-iOS platform');
+      logger.log('IAP Service: Skipping initialization on non-iOS platform');
       return false;
     }
 
     try {
-      console.log('📦 Initializing IAP Service...');
+      logger.log('Initializing IAP Service...');
       
       // Connect to the App Store
       await InAppPurchases.connectAsync();
@@ -90,14 +91,14 @@ class IAPService {
       InAppPurchases.setPurchaseListener(this.handlePurchaseUpdate.bind(this));
       
       this.isInitialized = true;
-      console.log('✅ IAP Service initialized successfully');
+      logger.log('IAP Service initialized successfully');
       
       // Fetch products
       await this.fetchProducts();
       
       return true;
     } catch (error) {
-      console.error('❌ Failed to initialize IAP Service:', error);
+      logger.error('Failed to initialize IAP Service:', error);
       return false;
     }
   }
@@ -112,9 +113,9 @@ class IAPService {
     try {
       await InAppPurchases.disconnectAsync();
       this.isInitialized = false;
-      console.log('📦 IAP Service disconnected');
+      logger.log('IAP Service disconnected');
     } catch (error) {
-      console.error('❌ Failed to disconnect IAP Service:', error);
+      logger.error('Failed to disconnect IAP Service:', error);
     }
   }
 
@@ -123,12 +124,12 @@ class IAPService {
    */
   async fetchProducts(): Promise<IAPProduct[]> {
     if (!this.isInitialized) {
-      console.warn('⚠️ IAP Service not initialized');
+      logger.warn('IAP Service not initialized');
       return [];
     }
 
     try {
-      console.log('📦 Fetching IAP products...');
+      logger.log('Fetching IAP products...');
       
       const { results, responseCode } = await InAppPurchases.getProductsAsync(ALL_PRODUCT_IDS);
       
@@ -143,14 +144,14 @@ class IAPService {
           rizAmount: PRODUCT_RIZ_AMOUNTS[product.productId] || 0,
         }));
         
-        console.log(`✅ Fetched ${this.products.length} IAP products`);
+        logger.log(`Fetched ${this.products.length} IAP products`);
         return this.products;
       } else {
-        console.warn('⚠️ Failed to fetch products, response code:', responseCode);
+        logger.warn('Failed to fetch products, response code:', responseCode);
         return [];
       }
     } catch (error) {
-      console.error('❌ Error fetching IAP products:', error);
+      logger.error('Error fetching IAP products:', error);
       return [];
     }
   }
@@ -175,7 +176,7 @@ class IAPService {
     }
 
     try {
-      console.log(`📦 Starting purchase for product: ${productId}`);
+      logger.log(`Starting purchase for product: ${productId}`);
       
       await InAppPurchases.purchaseItemAsync(productId);
       
@@ -187,7 +188,7 @@ class IAPService {
         rizAmount: PRODUCT_RIZ_AMOUNTS[productId] 
       };
     } catch (error: any) {
-      console.error('❌ Purchase error:', error);
+      logger.error('Purchase error:', error);
       
       // Handle user cancellation
       if (error.code === 'E_USER_CANCELLED') {
@@ -202,14 +203,14 @@ class IAPService {
    * Handle purchase updates from the App Store
    */
   private async handlePurchaseUpdate(queryResponse: InAppPurchases.IAPQueryResponse<InAppPurchases.InAppPurchase>): Promise<void> {
-    console.log('📦 Purchase update received:', queryResponse);
+    logger.log('Purchase update received:', queryResponse);
 
     const { responseCode, results } = queryResponse;
 
     if (responseCode === InAppPurchases.IAPResponseCode.OK && results) {
       for (const purchase of results) {
         if (!purchase.acknowledged) {
-          console.log('📦 Processing purchase:', purchase.productId);
+          logger.log('Processing purchase:', purchase.productId);
           
           // Validate the receipt with our backend
           const validation = await this.validateReceipt(purchase);
@@ -217,20 +218,20 @@ class IAPService {
           if (validation.success) {
             // Finish the transaction
             await InAppPurchases.finishTransactionAsync(purchase, true);
-            console.log('✅ Purchase completed and acknowledged');
+            logger.log('Purchase completed and acknowledged');
           } else {
-            console.error('❌ Receipt validation failed:', validation.message);
+            logger.error('Receipt validation failed:', validation.message);
             // Still finish the transaction to prevent duplicate charges
             await InAppPurchases.finishTransactionAsync(purchase, false);
           }
         }
       }
     } else if (responseCode === InAppPurchases.IAPResponseCode.USER_CANCELED) {
-      console.log('📦 Purchase cancelled by user');
+      logger.log('Purchase cancelled by user');
     } else if (responseCode === InAppPurchases.IAPResponseCode.DEFERRED) {
-      console.log('📦 Purchase deferred (Ask to Buy)');
+      logger.log('Purchase deferred (Ask to Buy)');
     } else {
-      console.error('❌ Purchase failed with code:', responseCode);
+      logger.error('Purchase failed with code:', responseCode);
     }
   }
 
@@ -276,7 +277,7 @@ class IAPService {
         };
       }
     } catch (error: any) {
-      console.error('❌ Receipt validation error:', error);
+      logger.error('Receipt validation error:', error);
       return {
         success: false,
         message: error.message || 'Network error during validation',
@@ -290,17 +291,17 @@ class IAPService {
    */
   async restorePurchases(): Promise<boolean> {
     if (!this.isInitialized) {
-      console.warn('⚠️ IAP Service not initialized');
+      logger.warn('IAP Service not initialized');
       return false;
     }
 
     try {
-      console.log('📦 Restoring purchases...');
+      logger.log('Restoring purchases...');
       
       const { results, responseCode } = await InAppPurchases.getPurchaseHistoryAsync();
       
       if (responseCode === InAppPurchases.IAPResponseCode.OK && results) {
-        console.log(`✅ Found ${results.length} previous purchases`);
+        logger.log(`Found ${results.length} previous purchases`);
         
         // Re-validate each purchase with our backend
         for (const purchase of results) {
@@ -312,7 +313,7 @@ class IAPService {
       
       return false;
     } catch (error) {
-      console.error('❌ Error restoring purchases:', error);
+      logger.error('Error restoring purchases:', error);
       return false;
     }
   }

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useNotificationWebSocket } from '../hooks/useNotificationWebSocket';
 import { notificationApi, useGetNotificationStatsQuery } from '../api/notificationApi';
 import { useDispatch } from 'react-redux';
+import { logger } from '../utils/logger';
 
 interface NotificationContextType {
   isConnected: boolean;
@@ -51,7 +52,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     requestStats
   } = useNotificationWebSocket({
     onNewNotification: (notification, newStats) => {
-      console.log('🔔 [NotificationProvider] New notification received:', notification);
+      logger.log('[NotificationProvider] New notification received:', notification);
       
       // Prevent duplicate notifications by checking ID
       if (lastNotificationId !== notification.id) {
@@ -63,30 +64,30 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     },
     
     onNotificationUpdated: (notification, newStats) => {
-      console.log('📝 [NotificationProvider] Notification updated:', notification);
+      logger.log('[NotificationProvider] Notification updated:', notification);
       dispatch(notificationApi.util.invalidateTags(['InboxNotifications', 'NotificationStats']));
     },
     
     onNotificationDeleted: (notificationId, newStats) => {
-      console.log('🗑️ [NotificationProvider] Notification deleted:', notificationId);
+      logger.log('[NotificationProvider] Notification deleted:', notificationId);
       dispatch(notificationApi.util.invalidateTags(['InboxNotifications', 'NotificationStats']));
     },
     
     onNotificationsCleared: (newStats) => {
-      console.log('🧹 [NotificationProvider] All notifications cleared');
+      logger.log('[NotificationProvider] All notifications cleared');
       dispatch(notificationApi.util.invalidateTags(['InboxNotifications', 'NotificationStats']));
     },
     
     onStatsUpdate: (newStats) => {
-      console.log('📊 [NotificationProvider] Stats updated:', newStats);
+      logger.log('[NotificationProvider] Stats updated:', newStats);
       dispatch(notificationApi.util.invalidateTags(['NotificationStats']));
     },
     
     onError: (error) => {
-      console.error('❌ [NotificationProvider] WebSocket error:', error);
+      logger.error('[NotificationProvider] WebSocket error:', error);
       // Enable polling fallback if WebSocket fails
       if (error.includes('WebSocket not supported') || error.includes('404')) {
-        console.log('🔄 [NotificationProvider] Enabling polling fallback');
+        logger.log('[NotificationProvider] Enabling polling fallback');
         setUsingPollingFallback(true);
       }
     },

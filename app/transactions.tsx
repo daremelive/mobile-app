@@ -6,6 +6,7 @@ import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import ChartIncreaseIcon from '../assets/icons/chart-increase.svg';
 import ChartDecreaseIcon from '../assets/icons/chart-decrease.svg';
 import { useGetWalletTransactionsQuery } from '../src/api/walletApi';
+import { logger } from '../src/utils/logger';
 
 const TransactionScreen = () => {
   const router = useRouter();
@@ -14,7 +15,7 @@ const TransactionScreen = () => {
   const { data: transactions, isLoading, error, refetch } = useGetWalletTransactionsQuery();
 
   // Debug logging
-  console.log('🔄 Transactions Debug:', {
+  logger.log('Transactions Debug:', {
     isLoading,
     error: error ? JSON.stringify(error) : null,
     dataExists: !!transactions,

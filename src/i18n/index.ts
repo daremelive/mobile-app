@@ -14,6 +14,7 @@ import zh from './locales/zh.json';
 import ja from './locales/ja.json';
 import hi from './locales/hi.json';
 import ru from './locales/ru.json';
+import { logger } from '../utils/logger';
 
 // Award-winning language detection with fallback
 const getDeviceLanguage = (): string => {
@@ -23,11 +24,11 @@ const getDeviceLanguage = (): string => {
     const deviceLocales = RNLocalize.getLocales();
     if (deviceLocales && deviceLocales.length > 0) {
       const primaryLocale = deviceLocales[0];
-      console.log('🌍 Device language detected via RNLocalize:', primaryLocale.languageCode);
+      logger.log('Device language detected via RNLocalize:', primaryLocale.languageCode);
       return primaryLocale.languageCode;
     }
   } catch (error) {
-    console.log('react-native-localize not available, using platform fallback');
+    logger.log('react-native-localize not available, using platform fallback');
   }
 
   // Fallback to platform-specific detection
@@ -39,12 +40,12 @@ const getDeviceLanguage = (): string => {
                    NativeModules.SettingsManager?.settings?.AppleLanguages?.[0] ||
                    'en';
     deviceLanguage = locale.split('_')[0];
-    console.log('🍎 iOS device language detected:', deviceLanguage);
+    logger.log('iOS device language detected:', deviceLanguage);
   } else if (Platform.OS === 'android') {
     // Android fallback
     const locale = NativeModules.I18nManager?.localeIdentifier || 'en';
     deviceLanguage = locale.split('_')[0];
-    console.log('🤖 Android device language detected:', deviceLanguage);
+    logger.log('Android device language detected:', deviceLanguage);
   }
 
   return deviceLanguage;
@@ -115,41 +116,41 @@ export const saveLanguagePreference = async (languageCode: string) => {
     await AsyncStorage.setItem('@user_language', languageCode);
     await i18n.changeLanguage(languageCode);
   } catch (error) {
-    console.error('Failed to save language preference:', error);
+    logger.error('Failed to save language preference:', error);
   }
 };
 
 export const loadLanguagePreference = async () => {
   try {
-    console.log('🔄 Loading language preference...');
+    logger.log('Loading language preference...');
     
     // First, check for saved language preference
     const savedLanguage = await AsyncStorage.getItem('@user_language');
-    console.log('💾 Saved language from storage:', savedLanguage);
+    logger.log('Saved language from storage:', savedLanguage);
     
     if (savedLanguage && SUPPORTED_LANGUAGES.find(lang => lang.code === savedLanguage)) {
-      console.log('✅ Using saved language:', savedLanguage);
+      logger.log('Using saved language:', savedLanguage);
       await i18n.changeLanguage(savedLanguage);
       return savedLanguage;
     }
     
     // If no saved preference, detect device language
     const deviceLang = getDeviceLanguage();
-    console.log('📱 Device language detected:', deviceLang);
+    logger.log('Device language detected:', deviceLang);
     
     // Check if device language is supported
     if (SUPPORTED_LANGUAGES.find(lang => lang.code === deviceLang)) {
-      console.log('✅ Device language is supported, switching to:', deviceLang);
+      logger.log('Device language is supported, switching to:', deviceLang);
       await i18n.changeLanguage(deviceLang);
       // Save the detected language for next time
       await AsyncStorage.setItem('@user_language', deviceLang);
       return deviceLang;
     }
     
-    console.log('⚠️ Device language not supported, using English fallback');
+    logger.log('Device language not supported, using English fallback');
     return 'en'; // Ultimate fallback
   } catch (error) {
-    console.error('❌ Failed to load language preference:', error);
+    logger.error('Failed to load language preference:', error);
     return 'en';
   }
 };
@@ -162,12 +163,12 @@ export const isRTLLanguage = (languageCode: string): boolean => {
 // Initial language setup - call this when app starts
 export const initializeLanguage = async () => {
   try {
-    console.log('🚀 Initializing language system...');
+    logger.log('Initializing language system...');
     const selectedLanguage = await loadLanguagePreference();
-    console.log('🌍 Final language selection:', selectedLanguage);
+    logger.log('Final language selection:', selectedLanguage);
     return selectedLanguage;
   } catch (error) {
-    console.error('❌ Language initialization failed:', error);
+    logger.error('Language initialization failed:', error);
     return 'en';
   }
 };

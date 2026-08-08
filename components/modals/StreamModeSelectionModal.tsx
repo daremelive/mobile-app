@@ -1,12 +1,99 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSelector } from 'react-redux';
-import { User, Users, Video, Gamepad2, HelpCircle, MessageCircle, Armchair, Lock, X } from 'lucide-react-native';
-import { useGetUserStreamPrivilegesQuery, StreamChannel } from '../../src/api/levelsApi';
+import { BlurView } from 'expo-blur';
+import { SvgUri, type SvgProps } from 'react-native-svg';
+import { useGetUserStreamPrivilegesQuery } from '../../src/api/levelsApi';
 import { useGetProfileQuery } from '../../src/store/authApi';
 import { selectCurrentUser } from '../../src/store/authSlice';
 import { StreamModeSelectionModalProps } from './types';
+
+import UserIcon from '../../assets/icons/user.svg';
+import UsersIcon from '../../assets/icons/users.svg';
+import VideoIcon from '../../assets/icons/video.svg';
+import GameIcon from '../../assets/icons/game.svg';
+import TruthOrDareIcon from '../../assets/icons/truth-or-dare.svg';
+import BanterIcon from '../../assets/icons/banter.svg';
+import CancelIcon from '../../assets/icons/cancel.svg';
+import SeatIcon from '../../assets/icons/seat-selector.svg';
+
+/** Design tokens from the stream-mode design. */
+const SURFACE = 'rgba(237,238,249,0.08)';
+const SURFACE_BORDER = 'rgba(237,238,249,0.12)';
+const SELECTED_SURFACE = 'rgba(196,39,32,0.12)';
+const SELECTED_BORDER = '#C42720';
+
+const CHANNEL_ICONS: Record<string, React.FC<SvgProps>> = {
+  video: VideoIcon,
+  game: GameIcon,
+  'truth-or-dare': TruthOrDareIcon,
+  banter: BanterIcon,
+};
+
+/** Uploaded icons may be SVG, which needs a different renderer to raster. */
+const isSvgUrl = (url: string) => url.split('?')[0].toLowerCase().endsWith('.svg');
+
+/**
+ * Circular icon chip shared by the mode and channel cards.
+ *
+ * A channel's admin-uploaded image wins when present, so new channels get their
+ * own artwork without a code change. `Icon` is the bundled fallback used until
+ * an image is uploaded.
+ */
+const IconChip = ({ Icon, imageUrl }: { Icon: React.FC<SvgProps>; imageUrl?: string }) => (
+  <View
+    className="rounded-full border p-[10px]"
+    style={{ backgroundColor: SURFACE, borderColor: SURFACE_BORDER }}
+  >
+    {!imageUrl ? (
+      <Icon width={16} height={16} />
+    ) : isSvgUrl(imageUrl) ? (
+      // React Native's Image cannot decode SVG; SvgUri renders it properly.
+      <SvgUri uri={imageUrl} width={16} height={16} />
+    ) : (
+      <Image
+        source={{ uri: imageUrl }}
+        style={{ width: 16, height: 16 }}
+        resizeMode="contain"
+        accessibilityIgnoresInvertColors
+      />
+    )}
+  </View>
+);
+
+/** Selectable card used for both stream modes and channels. */
+const SelectableCard = ({
+  Icon,
+  imageUrl,
+  label,
+  selected,
+  disabled,
+  onPress,
+}: {
+  Icon: React.FC<SvgProps>;
+  imageUrl?: string;
+  label: string;
+  selected: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+}) => (
+  <TouchableOpacity
+    className="flex-1 items-center justify-center gap-3 rounded-lg border p-4"
+    style={{
+      backgroundColor: selected ? SELECTED_SURFACE : SURFACE,
+      borderColor: selected ? SELECTED_BORDER : SURFACE_BORDER,
+      opacity: disabled ? 0.5 : 1,
+    }}
+    onPress={onPress}
+    disabled={disabled}
+    accessibilityRole="button"
+    accessibilityState={{ selected, disabled: !!disabled }}
+  >
+    <IconChip Icon={Icon} imageUrl={imageUrl} />
+    <Text className="text-center text-xs text-[#EDEEF9]">{label}</Text>
+  </TouchableOpacity>
+);
 
 const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
   visible,
@@ -17,62 +104,54 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<number | null>(null);
 
-  const { data: privileges, isLoading: privilegesLoading, error: privilegesError, refetch: refetchPrivileges } = useGetUserStreamPrivilegesQuery(undefined, {
-    // Force refetch to ensure fresh data
-    refetchOnMountOrArgChange: true,
-    refetchOnFocus: true,
-    refetchOnReconnect: true,
-  });
+  const { data: privileges, isLoading: privilegesLoading, refetch: refetchPrivileges } =
+    useGetUserStreamPrivilegesQuery(undefined, {
+      refetchOnMountOrArgChange: true,
+      refetchOnFocus: true,
+      refetchOnReconnect: true,
+    });
   const { data: currentUserProfile } = useGetProfileQuery();
   const currentUser = useSelector(selectCurrentUser);
 
+  // Mirrors MIN_MULTI_SEATS in streams/serializers.py.
+  const MIN_MULTI_SEATS = 2;
+
+  // Only channels this user can actually stream in are offered.
+  const channels = privileges?.accessible_channels ?? [];
+
+  /**
+   * Seat choices offered for a multi-live stream, capped by the channel's
+   * max_participants. The server validates the same bound, so every option
+   * shown here is one the API will accept.
+   */
   const getDynamicSeatOptions = (): number[] => {
-    if (!selectedChannel || !privileges?.all_channels) {
-      return [4, 6, 8, 12];
+    const candidates = [2, 4, 6, 8, 12, 16, 20, 30, 50, 100];
+    const defaults = [4, 6, 8, 12];
+
+    const channel = selectedChannel
+      ? channels.find(ch => ch.code === selectedChannel)
+      : undefined;
+
+    // No channel selected yet, or the channel is unlimited (0).
+    if (!channel?.max_participants) {
+      return defaults;
     }
 
-    const channel = privileges.all_channels.find(ch => ch.code === selectedChannel);
-    if (!channel) {
-      return [4, 6, 8, 12];
-    }
+    const withinCap = candidates.filter(
+      option => option >= MIN_MULTI_SEATS && option <= channel.max_participants
+    );
 
-    const maxParticipants = channel.max_participants;
-
-    const baseOptions = [4, 6, 8, 12];
-    const additionalOptions = [];
-
-    if (maxParticipants >= 16) additionalOptions.push(16);
-    if (maxParticipants >= 20) additionalOptions.push(20);
-    if (maxParticipants >= 30) additionalOptions.push(30);
-    if (maxParticipants >= 50) additionalOptions.push(50);
-    if (maxParticipants >= 100) additionalOptions.push(100);
-
-    const allOptions = [...baseOptions, ...additionalOptions]
-      .filter(option => option <= maxParticipants)
-      .sort((a, b) => a - b);
-
-    const uniqueOptions = Array.from(new Set(allOptions));
-    return uniqueOptions.length >= 4 ? uniqueOptions : baseOptions;
+    // A cap below the smallest option still needs one usable choice.
+    return withinCap.length > 0 ? withinCap : [MIN_MULTI_SEATS];
   };
 
   const seatOptions = getDynamicSeatOptions();
 
   React.useEffect(() => {
     if (visible && !privilegesLoading) {
-      console.log('🔄 Refetching privileges when modal becomes visible...');
       refetchPrivileges();
     }
   }, [visible, refetchPrivileges, privilegesLoading]);
-
-  React.useEffect(() => {
-    console.log('🔍 Privileges data updated:', {
-      privileges,
-      privilegesLoading,
-      privilegesError,
-      all_channels: privileges?.all_channels,
-      all_channels_length: privileges?.all_channels?.length
-    });
-  }, [privileges, privilegesLoading, privilegesError]);
 
   React.useEffect(() => {
     if (selectedChannel) {
@@ -84,7 +163,6 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
     // Get user data - prioritize fresh profile data over cached user
     const userData = currentUserProfile || currentUser;
 
-    // Check if user has uploaded a profile picture
     const hasProfilePicture = !!(
       userData?.profile_picture_url ||
       userData?.profile_picture
@@ -92,12 +170,12 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
 
     if (!hasProfilePicture) {
       Alert.alert(
-        '📸 Profile Picture Required',
-        'To create a professional stream experience, please upload your profile picture first. This helps viewers connect with you and makes your stream look amazing!',
+        'Profile picture required',
+        'Add a profile picture before going live so viewers can recognise you.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Upload Photo',
+            text: 'Upload photo',
             onPress: () => {
               onClose();
               router.push('/(tabs)/profile');
@@ -110,34 +188,12 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
 
     if (!privileges?.can_create_streams) {
       Alert.alert(
-        'Stream Creation Restricted',
-        `Your current tier (${privileges?.tier_display_name || 'Unknown'}) does not allow stream creation. Please upgrade your level to create streams.`,
+        'Stream creation restricted',
+        'Your current level does not allow creating streams.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
-            text: 'Upgrade Level', onPress: () => {
-              onClose();
-              router.push('/unlock-level');
-            }
-          }
-        ]
-      );
-      return;
-    }
-
-    const hasChannelAccess = privileges?.accessible_channels.some(
-      channel => channel.code === selectedChannel
-    );
-
-    if (!hasChannelAccess) {
-      const channelName = getChannelDisplayName(selectedChannel);
-      Alert.alert(
-        'Channel Access Restricted',
-        `Your current tier (${privileges?.tier_display_name || 'Unknown'}) does not have access to the '${channelName}' channel. Please upgrade your level to access this channel.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Upgrade Level', onPress: () => {
+            text: 'Upgrade level', onPress: () => {
               onClose();
               router.push('/unlock-level');
             }
@@ -149,12 +205,10 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
 
     if (selectedMode === 'single' && selectedChannel) {
       onClose();
+      // Single live has its own title step: no seat preview, no guest invites.
       router.push({
-        pathname: '/(stream)/stream-title',
-        params: {
-          mode: selectedMode,
-          channel: selectedChannel
-        }
+        pathname: '/(stream)/single-stream-title',
+        params: { mode: selectedMode, channel: selectedChannel }
       });
     } else if (selectedMode === 'multi' && selectedChannel && selectedSeats) {
       onClose();
@@ -169,35 +223,23 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
     }
   };
 
-  const getChannelDisplayName = (channelCode: string | null) => {
-    const channel = privileges?.accessible_channels.find(ch => ch.code === channelCode);
-    return channel?.name || 'Unknown';
-  };
-
-  const isChannelAccessible = (channelCode: string) => {
-    if (!privileges) return false;
-    return privileges.accessible_channels.some(channel => channel.code === channelCode);
-  };
-
-  const getChannelIcon = (channelCode: string) => {
-    switch (channelCode) {
-      case 'video': return Video;
-      case 'game': return Gamepad2;
-      case 'truth-or-dare': return HelpCircle;
-      case 'banter': return MessageCircle;
-      default: return Video;
-    }
-  };
-
   const handleCancel = () => {
     onClose();
     router.replace('/(tabs)/home');
   };
 
-  const handleSingleSelect = () => {
-    setSelectedMode('single');
+  const selectMode = (mode: 'single' | 'multi') => {
+    setSelectedMode(mode);
     setSelectedChannel(null);
+    setSelectedSeats(null);
   };
+
+  const canProceed =
+    selectedMode === 'single'
+      ? !!selectedChannel
+      : selectedMode === 'multi' && !!selectedChannel && !!selectedSeats;
+
+  const canCreate = privileges?.can_create_streams !== false;
 
   return (
     <Modal
@@ -206,252 +248,120 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
       visible={visible}
       onRequestClose={onClose}
     >
-      <View className="flex-1 justify-center items-center bg-black/80">
-        <View className="bg-[#1A1A1A] rounded-2xl w-[90%] max-h-[85%] relative p-6">
-          <TouchableOpacity
-            className="absolute right-4 top-4 z-10"
-            onPress={handleCancel}
-          >
-            <X size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <Text className="text-white text-xl font-semibold mb-4">
-            Choose Your Stream Mode
-          </Text>
-
-          {/* Show loading or privilege error states */}
-          {privilegesLoading && (
-            <View className="mb-4 p-3 bg-yellow-500/20 rounded-lg">
-              <Text className="text-yellow-400 text-sm">Loading stream privileges...</Text>
-            </View>
-          )}
-
-          {privileges && !privileges.can_create_streams && (
-            <View className="mb-4 p-3 bg-red-500/20 rounded-lg border border-red-500/30">
-              <Text className="text-red-400 text-sm font-medium">
-                Stream Creation Restricted
-              </Text>
-              <Text className="text-red-300 text-xs mt-1">
-                Your current tier ({privileges.tier_display_name}) does not allow stream creation.
-              </Text>
-            </View>
-          )}
-
-          <View className="flex-row gap-4 mb-6">
-            <TouchableOpacity
-              className={`flex-1 bg-[#1A1A1A] rounded-xl border p-4 items-center
-                ${selectedMode === 'single' ? 'border-[#C42720] bg-[#C42720]/20' : 'border-[#2A2A2A]'}
-                ${privileges && !privileges.can_create_streams ? 'opacity-50' : ''}`}
-              onPress={handleSingleSelect}
-              disabled={privileges && !privileges.can_create_streams}
-            >
-              <View className="w-16 h-16 rounded-full bg-[#2A2A2A] items-center justify-center mb-2">
-                <User size={32} color="#FFFFFF" />
-              </View>
-              <Text className="text-white text-base font-medium">Single Live</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className={`flex-1 bg-[#1A1A1A] rounded-xl border p-4 items-center
-                ${selectedMode === 'multi' ? 'border-[#C42720] bg-[#C42720]/20' : 'border-[#2A2A2A]'}
-                ${privileges && !privileges.can_create_streams ? 'opacity-50' : ''}`}
-              onPress={() => {
-                setSelectedMode('multi');
-                setSelectedChannel(null);
-                setSelectedSeats(null);
-              }}
-              disabled={privileges && !privileges.can_create_streams}
-            >
-              <View className="w-16 h-16 rounded-full bg-[#2A2A2A] items-center justify-center mb-2">
-                <Users size={32} color="#FFFFFF" />
-              </View>
-              <Text className="text-white text-base font-medium">Multi Live</Text>
+      <BlurView intensity={20} tint="dark" className="flex-1 items-center justify-center px-4">
+        <View
+          className="w-full max-w-[343px] gap-5 overflow-hidden rounded-xl px-4 py-6"
+          style={{ backgroundColor: 'rgba(38,38,38,0.94)' }}
+        >
+          <View className="flex-row items-start justify-between">
+            <Text className="text-lg font-semibold text-[#EDEEF9]">
+              Choose Your Stream Mode
+            </Text>
+            <TouchableOpacity onPress={handleCancel} accessibilityLabel="Close">
+              <CancelIcon width={24} height={24} />
             </TouchableOpacity>
           </View>
 
-          {(selectedMode === 'single' || selectedMode === 'multi') && (
+          <View className="flex-row gap-4">
+            <SelectableCard
+              Icon={UserIcon}
+              label="Single Live"
+              selected={selectedMode === 'single'}
+              disabled={!canCreate}
+              onPress={() => selectMode('single')}
+            />
+            <SelectableCard
+              Icon={UsersIcon}
+              label="Multi Live"
+              selected={selectedMode === 'multi'}
+              disabled={!canCreate}
+              onPress={() => selectMode('multi')}
+            />
+          </View>
+
+          {selectedMode && (
             <ScrollView
               showsVerticalScrollIndicator={false}
-              className="max-h-[400px]"
-              contentContainerStyle={{ paddingBottom: 20 }}
+              className="max-h-[360px]"
+              contentContainerStyle={{ gap: 12 }}
             >
-              <Text className="text-white text-base font-medium mb-4">
+              <Text className="text-sm font-semibold text-[#EDEEF9]">
                 Select Stream Channel
               </Text>
 
-              <View className="mb-6">
-                <View className="flex-row flex-wrap justify-between">
-                  {privileges?.all_channels?.map((channel, index) => {
-                    const IconComponent = getChannelIcon(channel.code);
-                    const isSelected = selectedChannel === channel.code;
-                    const isLocked = channel.is_locked;
-
-                    const handleChannelPress = () => {
-                      if (isLocked) {
-                        Alert.alert(
-                          `🔒 Unlock ${channel.name}`,
-                          channel.unlock_message || `Upgrade to ${channel.unlock_tier} to access this channel!`,
-                          [
-                            { text: 'Maybe Later', style: 'cancel' },
-                            {
-                              text: `💰 Get Riz`,
-                              onPress: () => {
-                                onClose();
-                                router.push('/get-coins');
-                              }
-                            },
-                            {
-                              text: `💎 Upgrade Now`,
-                              onPress: () => {
-                                onClose();
-                                router.push('/unlock-level');
-                              }
-                            }
-                          ]
-                        );
-                      } else {
-                        setSelectedChannel(channel.code);
-                      }
-                    };
-
-                    return (
-                      <TouchableOpacity
-                        key={channel.id}
-                        className={`w-[48%] rounded-xl border p-4 items-center mb-4 relative
-                          ${isSelected && !isLocked ? 'border-[#C42720] bg-[#C42720]/20' : 'border-[#2A2A2A]'}
-                          ${isLocked ? 'bg-[#1A1A1A]/50 border-orange-500/30' : 'bg-[#1A1A1A]'}`}
-                        onPress={handleChannelPress}
-                      >
-                        {isLocked && (
-                          <View className="absolute top-2 right-2 bg-orange-500/20 rounded-full p-1">
-                            <Lock size={12} color="#F97316" />
-                          </View>
-                        )}
-
-                        <View className={`w-16 h-16 rounded-full items-center justify-center mb-2
-                          ${isLocked ? 'bg-[#2A2A2A]/50' : 'bg-[#2A2A2A]'}`}>
-                          <IconComponent
-                            size={32}
-                            color={isLocked ? '#9CA3AF' : '#FFFFFF'}
-                          />
-                        </View>
-
-                        <Text className={`text-base font-medium text-center mb-1
-                          ${isLocked ? 'text-gray-400' : 'text-white'}`}>
-                          {channel.name}
-                        </Text>
-
-                        {isLocked ? (
-                          <View className="items-center">
-                            <Text className="text-orange-400 text-xs font-semibold">
-                              🔒 {channel.unlock_tier}
-                            </Text>
-                            {channel.coins_needed_to_unlock > 0 && (
-                              <Text className="text-orange-300 text-xs">
-                                {channel.coins_needed_to_unlock} more Riz
-                              </Text>
-                            )}
-                          </View>
-                        ) : (
-                          channel.description && (
-                            <Text className="text-green-400 text-xs text-center">
-                              {channel.description}
-                            </Text>
-                          )
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
+              {privilegesLoading && channels.length === 0 ? (
+                <ActivityIndicator color="#EDEEF9" className="py-6" />
+              ) : channels.length === 0 ? (
+                <Text className="py-4 text-center text-xs text-[#62636E]">
+                  No channels are available for your level yet.
+                </Text>
+              ) : (
+                <View className="gap-4">
+                  {Array.from(
+                    { length: Math.ceil(channels.length / 2) },
+                    (_, row) => channels.slice(row * 2, row * 2 + 2)
+                  ).map((pair, row) => (
+                    <View key={row} className="flex-row gap-4">
+                      {pair.map((channel) => (
+                        <SelectableCard
+                          key={channel.id}
+                          Icon={CHANNEL_ICONS[channel.code] ?? VideoIcon}
+                          imageUrl={channel.image_url}
+                          label={channel.name}
+                          selected={selectedChannel === channel.code}
+                          onPress={() => setSelectedChannel(channel.code)}
+                        />
+                      ))}
+                      {/* Keep a lone card at half width on an odd final row. */}
+                      {pair.length === 1 && <View className="flex-1" />}
+                    </View>
+                  ))}
                 </View>
+              )}
 
-                {privileges?.locked_channels && privileges.locked_channels.length > 0 && (
-                  <View className="p-4 bg-gradient-to-r from-orange-500/20 to-yellow-500/20 rounded-lg border border-orange-500/30 mb-4">
-                    <Text className="text-orange-400 text-center font-semibold mb-1">
-                      🎯 Unlock More Channels!
-                    </Text>
-                    <Text className="text-orange-300 text-xs text-center">
-                      You currently have {privileges.current_tier_display} access.
-                      Upgrade to unlock {privileges.locked_channels.length} premium channels!
-                    </Text>
+              {selectedMode === 'multi' && selectedChannel && (
+                <View className="gap-3">
+                  <Text className="text-sm font-semibold text-[#EDEEF9]">
+                    Select No of Seats
+                  </Text>
+                  <View className="flex-row flex-wrap gap-3">
+                    {seatOptions.map((seats) => {
+                      const selected = selectedSeats === seats;
+                      return (
+                        <TouchableOpacity
+                          key={seats}
+                          className="h-11 flex-row items-center justify-center gap-2 rounded-lg border px-4"
+                          style={{
+                            backgroundColor: selected ? SELECTED_SURFACE : SURFACE,
+                            borderColor: selected ? SELECTED_BORDER : SURFACE_BORDER,
+                          }}
+                          onPress={() => setSelectedSeats(seats)}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                        >
+                          <SeatIcon width={14} height={14} />
+                          <Text className="text-xs text-[#EDEEF9]">{seats}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                )}
-
-                {/* Fallback if no channels available */}
-                {(!privileges?.all_channels || privileges.all_channels.length === 0) && (
-                  <View className="p-4 bg-yellow-500/20 rounded-lg">
-                    <Text className="text-yellow-400 text-center text-base mb-2">
-                      🚫 No channels available
-                    </Text>
-                    <Text className="text-yellow-300 text-center text-sm">
-                      {privilegesLoading ? 'Loading channels...' :
-                        privilegesError ? `Error: ${JSON.stringify(privilegesError)}` :
-                          !privileges ? 'Failed to load channels. Check your connection.' :
-                            'Contact support for assistance.'}
-                    </Text>
-                    {__DEV__ && (
-                      <Text className="text-gray-400 text-xs text-center mt-2">
-                        Debug: privileges={JSON.stringify(privileges, null, 2)}
-                      </Text>
-                    )}
-                  </View>
-                )}
-              </View>
-
-              {/* Only show seat selection for multi streams */}
-              {selectedMode === 'multi' && (
-                <>
-                  <View className="mb-4">
-                    <Text className="text-white text-base font-medium mb-2">
-                      Select No of Seats
-                    </Text>
-                    {selectedChannel && privileges?.all_channels && (
-                      <View className="mb-3">
-                        {(() => {
-                          const channel = privileges.all_channels.find(ch => ch.code === selectedChannel);
-                          return channel ? (
-                            <Text className="text-gray-400 text-sm">
-                              {channel.name} supports up to {channel.max_participants} participants
-                            </Text>
-                          ) : null;
-                        })()}
-                      </View>
-                    )}
-                  </View>
-
-                  <View className="flex-row flex-wrap gap-3 mb-6">
-                    {seatOptions.map((seats) => (
-                      <TouchableOpacity
-                        key={seats}
-                        className={`min-w-[20%] h-12 rounded-xl border items-center justify-center flex-row gap-2 px-3
-                          ${selectedSeats === seats ? 'border-[#C42720] bg-[#C42720]/20' : 'border-[#2A2A2A] bg-[#1A1A1A]'}`}
-                        onPress={() => setSelectedSeats(seats)}
-                      >
-                        <Armchair size={16} color="#FFFFFF" />
-                        <Text className="text-white font-medium">{seats}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
+                </View>
               )}
 
               <TouchableOpacity
-                className={`w-full h-12 rounded-full items-center justify-center
-                  ${(selectedMode === 'single' && selectedChannel) || (selectedMode === 'multi' && selectedChannel && selectedSeats)
-                    ? 'bg-white' : 'bg-white/50'}`}
+                className="mt-2 h-12 items-center justify-center rounded-full"
+                style={{ backgroundColor: canProceed ? '#EDEEF9' : 'rgba(237,238,249,0.4)' }}
                 onPress={handleProceed}
-                disabled={
-                  (selectedMode === 'single' && !selectedChannel) ||
-                  (selectedMode === 'multi' && (!selectedChannel || !selectedSeats))
-                }
+                disabled={!canProceed}
               >
-                <Text className="text-black text-base font-semibold">Proceed</Text>
+                <Text className="text-base font-semibold text-[#090909]">Proceed</Text>
               </TouchableOpacity>
             </ScrollView>
           )}
         </View>
-      </View>
+      </BlurView>
     </Modal>
   );
 };
 
-export default StreamModeSelectionModal; 
+export default StreamModeSelectionModal;

@@ -223,6 +223,7 @@ export interface StreamHeaderProps {
   hostProfilePicture?: string;
   viewerCount?: number;
   likesCount?: number;
+  giftsCount?: number;          // Gifts received; hidden when not provided
   isFollowing?: boolean;
   disableFollow?: boolean;
   onFollow?: () => void;
@@ -243,6 +244,8 @@ export interface StreamHeaderProps {
 export interface StreamInputBarProps {
   onSendMessage: (message: string) => void;
   onGiftPress: () => void;
+  onBeautifyPress?: () => void;    // Control is rendered only when handled
+  onAddParticipant?: () => void;   // Control is rendered only when handled
   hasJoined: boolean;
   keyboardHeight?: number;
   isKeyboardVisible?: boolean;

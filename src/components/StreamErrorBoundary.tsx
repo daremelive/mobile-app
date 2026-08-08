@@ -1,6 +1,7 @@
 import React, { Component, ReactNode } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import * as Sentry from '@sentry/react-native';
+import { logger } from '../utils/logger';
 
 interface Props {
   children: ReactNode;
@@ -24,7 +25,7 @@ export class StreamErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: any) {
-    console.error('🚨 Stream Error Boundary caught error:', error);
+    logger.error('Stream Error Boundary caught error:', error);
     
     // Report to Sentry
     Sentry.captureException(error, {

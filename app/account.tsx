@@ -12,6 +12,7 @@ import ChangePasswordConfirmationModal from '../components/modals/ChangePassword
 import { useGetProfileQuery, useDeactivateAccountMutation } from '../src/store/authApi';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser, selectRefreshToken, logout } from '../src/store/authSlice';
+import { logger } from '../src/utils/logger';
 
 type ListItem = {
   key: string;
@@ -95,7 +96,7 @@ const AccountScreen = () => {
       setHelpModalVisible(false);
       router.replace('/(auth)/signin');
     } catch (error: any) {
-      console.error('Deactivation error:', error);
+      logger.error('Deactivation error:', error);
       Alert.alert('Error', 'Failed to deactivate account. Please try again.');
     }
   };

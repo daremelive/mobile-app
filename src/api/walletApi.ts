@@ -21,6 +21,7 @@ import type {
   AppleReceiptValidationRequest,
   AppleReceiptValidationResponse,
 } from '../../types/api/wallet';
+import { logger } from '../utils/logger';
 
 // Re-export for backward compatibility
 export type {
@@ -51,7 +52,7 @@ const baseQuery = fetchBaseQuery({
         headers.set('authorization', `Bearer ${token}`);
       }
     } catch (error) {
-      console.error('❌ [WalletAPI] Error getting auth token:', error);
+      logger.error('[WalletAPI] Error getting auth token:', error);
     }
     return headers;
   },
@@ -93,12 +94,12 @@ export const walletApi = createApi({
     getWalletTransactions: builder.query<WalletTransaction[], void>({
       query: () => 'transactions/',
       transformResponse: (response: any) => {
-        console.log('🔄 Transactions raw response:', response);
+        logger.log('Transactions raw response:', response);
         if (response && response.results) {
-          console.log('✅ Extracted results:', response.results.length, 'transactions');
+          logger.log('Extracted results:', response.results.length, 'transactions');
           return response.results;
         }
-        console.log('⚠️ No results found in response');
+        logger.log('No results found in response');
         return [];
       },
       providesTags: ['Transactions'],

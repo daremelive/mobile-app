@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { selectIsAuthenticated, selectCurrentUser } from '../store/authSlice';
+import { logger } from '../utils/logger';
 
 /**
  * 🚀 INDUSTRY-STANDARD AUTH ROUTING HOOK
@@ -37,7 +38,7 @@ export const useAuthRouting = (authLoading: boolean = false) => {
   useEffect(() => {
     // Don't run routing while auth is still loading
     if (authLoading) {
-      console.log('⏳ Auth still loading, waiting...');
+      logger.log('⏳ Auth still loading, waiting...');
       return;
     }
 
@@ -58,7 +59,7 @@ export const useAuthRouting = (authLoading: boolean = false) => {
           AsyncStorage.getItem(AUTH_STORAGE_KEYS.HAS_CREATED_ACCOUNT),
         ]);
 
-        console.log('🔍 Auth Routing Debug:', {
+        logger.log('Auth Routing Debug:', {
           isAuthenticated,
           hasUser: !!currentUser,
           hasSeenOnboarding: !!hasSeenOnboarding,
@@ -69,7 +70,7 @@ export const useAuthRouting = (authLoading: boolean = false) => {
 
         // Case 1: User is fully authenticated - go to main app
         if (isAuthenticated && currentUser) {
-          console.log('✅ Authenticated user - navigating to home');
+          logger.log('Authenticated user - navigating to home');
           setHasNavigated(true);
           setTimeout(() => router.replace('/(tabs)/home'), 50);
           return;
@@ -77,7 +78,7 @@ export const useAuthRouting = (authLoading: boolean = false) => {
 
         // Case 2: User has created account before (even if logged out) - go to login
         if (hasCreatedAccount) {
-          console.log('🔄 Returning user - navigating to login');
+          logger.log('Returning user - navigating to login');
           setHasNavigated(true);
           setTimeout(() => router.replace('/(auth)/signin'), 50);
           return;
@@ -85,20 +86,20 @@ export const useAuthRouting = (authLoading: boolean = false) => {
 
         // Case 3: User has seen onboarding but no account created - go to login first
         if (hasSeenOnboarding) {
-          console.log('📝 Seen onboarding - navigating to login (can switch to signup)');
+          logger.log('Seen onboarding - navigating to login (can switch to signup)');
           setHasNavigated(true);
           setTimeout(() => router.replace('/(auth)/signin'), 50);
           return;
         }
 
         // Case 4: Brand new user - stay on onboarding (default)
-        console.log('🆕 First-time user - staying on onboarding');
+        logger.log('🆕 First-time user - staying on onboarding');
         // No navigation needed - user is already on index.tsx (onboarding)
 
       } catch (error) {
-        console.error('❌ Auth routing error:', error);
+        logger.error('Auth routing error:', error);
         // Fallback: treat as new user if storage fails
-        console.log('⚠️ Storage error - defaulting to onboarding');
+        logger.log('Storage error - defaulting to onboarding');
       } finally {
         setIsRoutingReady(true);
       }
@@ -120,18 +121,18 @@ export const useAuthRouting = (authLoading: boolean = false) => {
 export const markOnboardingSeen = async () => {
   try {
     await AsyncStorage.setItem(AUTH_STORAGE_KEYS.HAS_SEEN_ONBOARDING, 'true');
-    console.log('✓ Onboarding marked as seen');
+    logger.log('Onboarding marked as seen');
   } catch (error) {
-    console.error('❌ Failed to mark onboarding as seen:', error);
+    logger.error('Failed to mark onboarding as seen:', error);
   }
 };
 
 export const markAccountCreated = async () => {
   try {
     await AsyncStorage.setItem(AUTH_STORAGE_KEYS.HAS_CREATED_ACCOUNT, 'true');
-    console.log('✓ Account creation marked');
+    logger.log('Account creation marked');
   } catch (error) {
-    console.error('❌ Failed to mark account creation:', error);
+    logger.error('Failed to mark account creation:', error);
   }
 };
 
@@ -141,9 +142,9 @@ export const clearAuthHistory = async () => {
       AsyncStorage.removeItem(AUTH_STORAGE_KEYS.HAS_SEEN_ONBOARDING),
       AsyncStorage.removeItem(AUTH_STORAGE_KEYS.HAS_CREATED_ACCOUNT),
     ]);
-    console.log('✓ Auth history cleared');
+    logger.log('Auth history cleared');
   } catch (error) {
-    console.error('❌ Failed to clear auth history:', error);
+    logger.error('Failed to clear auth history:', error);
   }
 };
 
@@ -165,7 +166,7 @@ export const getAuthState = async () => {
       hasCreatedAccount: !!hasCreatedAccount,
     };
   } catch (error) {
-    console.error('❌ Failed to get auth state:', error);
+    logger.error('Failed to get auth state:', error);
     return {
       hasSeenOnboarding: false,
       hasCreatedAccount: false,

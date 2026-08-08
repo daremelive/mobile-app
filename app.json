@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Daremelive",
-    "slug": "mobile",
+    "slug": "daremelive-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -35,7 +35,8 @@
         "NSCameraUsageDescription": "This app needs access to camera for live streaming.",
         "NSMicrophoneUsageDescription": "This app needs access to microphone for live streaming audio.",
         "NSPhotoLibraryUsageDescription": "This app needs access to photo library to let you change your profile picture."
-      }
+      },
+      "bitcode": false
     },
     "android": {
       "icon": "./assets/images/icon.png",
@@ -54,7 +55,17 @@
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
       ]
     },
     "web": {
@@ -65,7 +76,6 @@
       "expo-router",
       "expo-splash-screen",
       "expo-web-browser",
-      "expo-in-app-purchases",
       [
         "expo-image-picker",
         {
@@ -77,6 +87,14 @@
         {
           "cameraPermission": "Allow this app to access your camera for live streaming.",
           "microphonePermission": "Allow this app to access your microphone for live streaming audio."
+        }
+      ],
+      "@config-plugins/react-native-webrtc",
+      [
+        "@stream-io/video-react-native-sdk",
+        {
+          "enableScreenshare": true,
+          "appleTeamId": "VNFUB55J7S"
         }
       ],
       [
@@ -105,9 +123,9 @@
       "GOOGLE_CLIENT_ID": "158183037990-2bou57ddq1nmlt8a57nsn6j5jj01qc51.apps.googleusercontent.com",
       "GOOGLE_EXPO_CLIENT_ID": "",
       "eas": {
-        "projectId": "39ab9449-579e-436c-b19f-ed95dcc724e5"
+        "projectId": "a9a7c332-ca39-426e-a998-2f473c1eb701"
       }
     },
-    "owner": "doose"
+    "owner": "daremelive-limited"
   }
 }

@@ -8,6 +8,7 @@ import { useUpdateProfileMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import CheckIcon from '../assets/icons/check.svg';
 import SearchIcon from '../assets/icons/search.svg';
+import { logger } from '../src/utils/logger';
 
 // This is a sample list of countries. In a real app, this would be more comprehensive
 const countries = [
@@ -56,7 +57,7 @@ export default function EditCountryScreen() {
       Alert.alert('Success', 'Country updated successfully');
       router.back();
     } catch (error: any) {
-      console.error('Failed to update country:', error);
+      logger.error('Failed to update country:', error);
       Alert.alert('Error', 'Failed to update country. Please try again.');
     }
   };

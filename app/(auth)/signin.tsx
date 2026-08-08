@@ -15,6 +15,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import { makeRedirectUri, exchangeCodeAsync, TokenResponse, ResponseType } from 'expo-auth-session';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { logger } from '../../src/utils/logger';
 
 export default function SigninScreen() {
   const [email, setEmail] = useState('');
@@ -37,9 +38,17 @@ export default function SigninScreen() {
     };
   }, []);
   const extra = (Constants?.expoConfig as any)?.extra || (Constants?.manifest as any)?.extra || {};
-  const googleClientId = extra?.GOOGLE_CLIENT_ID || extra?.googleClientId || undefined;
-  const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || undefined;
-  const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || undefined;
+  // These are intentionally '' rather than undefined when unset:
+  // expo-auth-session throws on an undefined client id for the current
+  // platform, and it throws during render, which crashes the app on launch.
+  const googleClientId = extra?.GOOGLE_CLIENT_ID || extra?.googleClientId || '';
+  const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || '';
+  const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || '';
+
+  // Google sign-in is only offered where a client id exists for the platform.
+  const platformClientId =
+    Platform.OS === 'ios' ? iosClientId : Platform.OS === 'android' ? androidClientId : googleClientId;
+  const isGoogleConfigured = platformClientId.length > 0;
 
   // Build the native redirect URI required by Google on iOS/Android
   const toNativeRedirect = (cid?: string) =>
@@ -98,7 +107,7 @@ export default function SigninScreen() {
           }
 
           // Debug: Log API call details
-          console.log('[GoogleAuth] Starting backend auth request:', {
+          logger.log('[GoogleAuth] Starting backend auth request:', {
             apiUrl: API_BASE_URL,
             endpoint: '/auth/google/',
             idTokenLength: idToken?.length,
@@ -108,13 +117,13 @@ export default function SigninScreen() {
           const startTime = Date.now();
           const result = await googleAuth({ id_token: idToken } as any).unwrap();
 
-          console.log('[GoogleAuth] Backend auth successful:', {
+          logger.log('[GoogleAuth] Backend auth successful:', {
             duration: `${Date.now() - startTime}ms`,
             userId: result?.user?.id,
           });
           dispatch(setCredentials(result));
 
-          // 🚀 MARK ACCOUNT EXISTS - Google signin means they have an account
+          // MARK ACCOUNT EXISTS - Google signin means they have an account
           await markAccountCreated();
 
           if (!result.user.profile_completed) {
@@ -124,7 +133,7 @@ export default function SigninScreen() {
           }
         } catch (e: any) {
           // Detailed error logging for debugging
-          console.error('[GoogleAuth] Error details:', {
+          logger.error('[GoogleAuth] Error details:', {
             status: e?.status,
             error: e?.error,
             data: e?.data,
@@ -189,7 +198,7 @@ export default function SigninScreen() {
       // Store authentication data
       dispatch(setCredentials(result));
 
-      // 🚀 MARK ACCOUNT EXISTS - Successful signin means they have an account
+      // MARK ACCOUNT EXISTS - Successful signin means they have an account
       await markAccountCreated();
 
       // Check if profile completion is required
@@ -329,13 +338,10 @@ export default function SigninScreen() {
             <View className="flex-1 h-px bg-gray-600" />
           </View>
 
+          {isGoogleConfigured && (
           <TouchableOpacity
             className="w-full h-14 bg-[#1C1C1E] border border-[#333333] rounded-full flex-row items-center justify-center mb-8"
             onPress={async () => {
-              if (!iosClientId && !androidClientId && !googleClientId) {
-                Alert.alert('Google Sign-In', 'Google client IDs are not configured.');
-                return;
-              }
               setTimeout(() => {
                 promptAsync();
               }, 100);
@@ -345,6 +351,7 @@ export default function SigninScreen() {
             <Image source={require('../../assets/icons/google.png')} className="w-6 h-6 mr-3" />
             <Text className="text-white text-lg font-semibold">{isGoogleLoading ? 'Signing in...' : 'Continue with Google'}</Text>
           </TouchableOpacity>
+          )}
 
           <View className="flex-row justify-center">
             <Text className="text-gray-400">Don't have an account? </Text>

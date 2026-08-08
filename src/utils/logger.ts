@@ -1,61 +1,67 @@
+import * as Sentry from '@sentry/react-native';
+
 /**
- * Production-optimized logging utility
- * Only logs in development mode to improve production performance
+ * Application logger.
+ *
+ * Diagnostic levels (`debug`, `log`, `info`, `warn`) are development-only:
+ * they compile to no-ops in release builds, so shipping a log costs nothing at
+ * runtime. `error` is always reported — to the console in development and to
+ * Sentry in production, where there is no console to read.
+ *
+ * Prefer this over calling `console` directly. Release builds additionally run
+ * babel-plugin-transform-remove-console, so any stray `console` call is
+ * stripped rather than shipped.
  */
 
-interface LogData {
-  [key: string]: any;
-}
+const isDev = __DEV__;
 
-class Logger {
-  private isDev = __DEV__;
-
-  log(message: string, data?: LogData) {
-    if (this.isDev) {
-      if (data) {
-        console.log(message, data);
-      } else {
-        console.log(message);
-      }
+export const logger = {
+  debug(...args: unknown[]): void {
+    if (isDev) {
+      console.debug(...args);
     }
-  }
+  },
 
-  error(message: string, error?: any) {
-    if (this.isDev) {
-      if (error) {
-        console.error(message, error);
-      } else {
-        console.error(message);
-      }
-    } else {
-      // In production, still log critical errors but minimal data
-      if (error?.message) {
-        console.error(`${message}: ${error.message}`);
-      } else {
-        console.error(message);
-      }
+  log(...args: unknown[]): void {
+    if (isDev) {
+      console.log(...args);
     }
-  }
+  },
 
-  warn(message: string, data?: LogData) {
-    if (this.isDev) {
-      if (data) {
-        console.warn(message, data);
-      } else {
-        console.warn(message);
-      }
+  info(...args: unknown[]): void {
+    if (isDev) {
+      console.info(...args);
     }
-  }
+  },
 
-  // Always log critical errors regardless of environment
-  critical(message: string, error?: any) {
-    if (error) {
-      console.error(`[CRITICAL] ${message}`, error);
-    } else {
-      console.error(`[CRITICAL] ${message}`);
+  warn(...args: unknown[]): void {
+    if (isDev) {
+      console.warn(...args);
     }
-  }
-}
+  },
 
-export const logger = new Logger();
+  /**
+   * Reports an error. In production this is the only level that survives, so
+   * it should carry enough context to diagnose the failure without a console.
+   */
+  error(...args: unknown[]): void {
+    if (isDev) {
+      console.error(...args);
+      return;
+    }
+
+    const cause = args.find((arg): arg is Error => arg instanceof Error);
+    const message = args
+      .filter((arg) => typeof arg === 'string')
+      .join(' ')
+      .trim();
+
+    if (cause) {
+      Sentry.captureException(cause, message ? { extra: { message } } : undefined);
+    } else if (message) {
+      Sentry.captureMessage(message, 'error');
+    }
+  },
+};
+
 export default logger;

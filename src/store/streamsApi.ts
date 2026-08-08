@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { RootState } from './index';
-import { API_BASE_URL } from '../config/env';
+import { API_ROOT } from '../config/env';
 
 import {
   Stream,
@@ -50,7 +50,7 @@ import {
 
 // Base query with production-optimized timeouts and retry logic
 const baseQuery = fetchBaseQuery({
-  baseUrl: API_BASE_URL,
+  baseUrl: API_ROOT,
   timeout: __DEV__ ? 15000 : 45000, // Extended timeout for production (45s)
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;

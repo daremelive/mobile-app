@@ -56,12 +56,12 @@ export const useGiftSystem = ({ streamId, onGiftSent }: UseGiftSystemProps) => {
     if (walletSummary && walletSummary.coins < gift.cost) {
       const coinsNeeded = gift.cost - walletSummary.coins;
       Alert.alert(
-        '💎 Need More Coins!',
+        'Need more Riz',
         `You need ${coinsNeeded} more coins to send "${gift.name}".\n\nYour balance: ${walletSummary.coins} coins\nGift cost: ${gift.cost} coins`,
         [
           { text: 'Maybe Later', style: 'cancel' },
           { 
-            text: '🛒 Get Coins', 
+            text: 'Get Riz', 
             style: 'default',
             onPress: () => {
               setGiftModalVisible(false);
@@ -125,10 +125,10 @@ export const useGiftSystem = ({ streamId, onGiftSent }: UseGiftSystemProps) => {
         setShouldOpenGiftModalAfterPurchase(false);
       }
 
-      Alert.alert('Success', `Successfully purchased ${packageData.coins} coins!`);
+      Alert.alert('Success', `Successfully purchased ${packageData.coins} Riz!`);
     } catch (error: any) {
-      console.error('❌ Coin purchase error:', error);
-      Alert.alert('Error', 'Failed to purchase coins. Please try again.');
+      console.error('Riz purchase error:', error);
+      Alert.alert('Error', 'Failed to purchase Riz. Please try again.');
     }
   }, [purchaseCoins, refetchWallet, shouldOpenGiftModalAfterPurchase]);
 

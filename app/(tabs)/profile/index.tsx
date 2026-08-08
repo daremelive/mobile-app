@@ -31,9 +31,10 @@ import SentIcon from '../../../assets/icons/sent.svg';
 import { useLogoutMutation, useGetProfileQuery, useUploadProfilePictureMutation } from '../../../src/store/authApi';
 import { useGetMyStreamsQuery, useStreamActionMutation, streamsApi } from '../../../src/store/streamsApi';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout, selectRefreshToken, selectCurrentUser } from '../../../src/store/authSlice';
+import { logout, setUser, selectRefreshToken, selectCurrentUser } from '../../../src/store/authSlice';
 import LogoutConfirmationModal from '../../../components/modals/LogoutConfirmationModal';
 import { MEDIA_BASE_URL } from '../../../src/config/env';
+import { logger } from '../../../src/utils/logger';
 
 type MenuItem = {
   title: string;
@@ -54,6 +55,9 @@ const ProfileScreen = () => {
   const [logoutMutation, { isLoading: isLoggingOut }] = useLogoutMutation();
   const { data: profileData, isLoading: isLoadingProfile, refetch: refetchProfile } = useGetProfileQuery();
   const [uploadProfilePicture, { isLoading: isUploadingPicture }] = useUploadProfilePictureMutation();
+  // Locally picked image, shown immediately so the new avatar appears without
+  // waiting for the upload round trip. Cleared once the server copy lands.
+  const [pendingPictureUri, setPendingPictureUri] = useState<string | null>(null);
   const { data: myStreams } = useGetMyStreamsQuery();
   const [streamAction] = useStreamActionMutation();
 
@@ -99,6 +103,7 @@ const ProfileScreen = () => {
 
       if (!result.canceled && result.assets[0]) {
         const image = result.assets[0];
+        setPendingPictureUri(image.uri);
         
         const formData = new FormData();
         formData.append('profile_picture', {
@@ -107,13 +112,21 @@ const ProfileScreen = () => {
           name: 'profile.jpg',
         } as any);
 
-        await uploadProfilePicture(formData).unwrap();
-        
-        refetchProfile();
-        
+        const { user } = await uploadProfilePicture(formData).unwrap();
+
+        // Push the updated user into the auth slice as well as the query cache:
+        // screens read the picture from either, and a stale slice leaves the
+        // old avatar on screen until the next sign-in.
+        dispatch(setUser(user));
+        // Keep showing the local preview until the refreshed profile has landed,
+        // otherwise the stale cached URL flashes back for a frame.
+        await refetchProfile();
+        setPendingPictureUri(null);
+
         Alert.alert('Success', 'Profile picture updated successfully!');
       }
     } catch (error: any) {
+      setPendingPictureUri(null);
       Alert.alert(
         'Upload Failed', 
         error?.data?.error || 'Failed to upload profile picture. Please try again.'
@@ -128,7 +141,7 @@ const ProfileScreen = () => {
         const activeStreams = myStreams.filter(stream => stream.status === 'live');
         
         if (activeStreams.length > 0) {
-          console.log(`Ending ${activeStreams.length} active stream(s) before logout...`);
+          logger.log(`Ending ${activeStreams.length} active stream(s) before logout...`);
           
           // End all active streams with individual timeouts
           const streamEndPromises = activeStreams.map(stream =>
@@ -136,7 +149,7 @@ const ProfileScreen = () => {
               streamAction({ streamId: stream.id, action: { action: 'end' } }).unwrap(),
               new Promise((_, reject) => setTimeout(() => reject(new Error('Stream end timeout')), 3000))
             ]).catch(error => {
-              console.error(`Failed to end stream ${stream.id}:`, error);
+              logger.error(`Failed to end stream ${stream.id}:`, error);
             })
           );
           
@@ -155,11 +168,11 @@ const ProfileScreen = () => {
             setTimeout(() => reject(new Error('Logout API timeout')), 5000)
           )
         ]).catch(error => {
-          console.log('Logout API call failed or timed out, proceeding with local logout:', error);
+          logger.log('Logout API call failed or timed out, proceeding with local logout:', error);
         });
       }
     } catch (error) {
-      console.error('Logout process error:', error);
+      logger.error('Logout process error:', error);
       // Continue with logout even if server call fails
     } finally {
       // Always perform local logout regardless of API status
@@ -180,7 +193,7 @@ const ProfileScreen = () => {
         url: profileUrl,
       });
     } catch (error) {
-      console.error('Failed to share profile:', error);
+      logger.error('Failed to share profile:', error);
       Alert.alert('Share Failed', 'Unable to share profile. Please try again.');
     }
   };
@@ -230,10 +243,14 @@ const ProfileScreen = () => {
       >
         <View className="items-center px-4">
           <View className="relative">
-            {(profileData?.profile_picture_url || currentUser?.profile_picture_url) ? (
+            {(pendingPictureUri || profileData?.profile_picture_url || currentUser?.profile_picture_url) ? (
               <Image
-                source={{ 
-                  uri: profileData?.profile_picture_url || currentUser?.profile_picture_url || ''
+                source={{
+                  uri:
+                    pendingPictureUri ||
+                    profileData?.profile_picture_url ||
+                    currentUser?.profile_picture_url ||
+                    ''
                 }}
                 className="w-28 h-28 rounded-full border-2 border-[#C42720]"
               />

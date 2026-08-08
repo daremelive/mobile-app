@@ -22,6 +22,7 @@ import RadioUnchecked from '../../assets/icons/radio-unchecked.svg';
 import { useCompleteProfileMutation } from '../../src/store/authApi';
 import { useDispatch, useSelector } from 'react-redux';
 import { setUser, selectCurrentUser } from '../../src/store/authSlice';
+import { logger } from '../../src/utils/logger';
 
 export default function SignupTwoScreen() {
   const [username, setUsername] = useState('');
@@ -133,7 +134,7 @@ export default function SignupTwoScreen() {
       // Navigate to interests selection or main app
       router.replace('/(auth)/signup-three');
     } catch (error: any) {
-      console.error('Profile completion error:', error);
+      logger.error('Profile completion error:', error);
       if (error.data?.username?.[0]) {
         setErrors(prev => ({ ...prev, username: error.data.username[0] }));
       } else if (error.data?.phone_number?.[0]) {

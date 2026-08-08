@@ -29,7 +29,7 @@
     "ajv": "^8.12.0",
     "ajv-formats": "^3.0.1",
     "ajv-keywords": "^5.1.0",
-    "expo": "~53.0.25",
+    "expo": "^53.0.27",
     "expo-auth-session": "^6.2.1",
     "expo-blur": "~14.1.5",
     "expo-build-properties": "~0.14.8",
@@ -45,7 +45,7 @@
     "expo-in-app-purchases": "^14.5.0",
     "expo-linear-gradient": "~14.1.5",
     "expo-linking": "~7.1.5",
-    "expo-router": "~5.1.10",
+    "expo-router": "~5.1.11",
     "expo-secure-store": "~14.2.4",
     "expo-sharing": "~13.1.5",
     "expo-splash-screen": "~0.30.9",
@@ -70,7 +70,6 @@
     "react-native-gesture-handler": "~2.24.0",
     "react-native-incall-manager": "^4.2.1",
     "react-native-localize": "^3.5.2",
-    "react-native-push-notification": "^8.1.1",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-screens": "~4.11.1",
@@ -91,19 +90,27 @@
     "@types/react": "~19.0.10",
     "@types/react-test-renderer": "^18.0.7",
     "babel-plugin-module-resolver": "^5.0.2",
+    "babel-plugin-transform-remove-console": "^6.9.4",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~9.2.0",
     "typescript": "~5.8.3"
   },
   "private": true,
   "expo": {
+    "autolinking": {
+      "android": {
+        "comment": "expo-in-app-purchases is deprecated and its Android sources still use the pre-SDK-50 module API (ExportedModule/@ExpoMethod), which expo-modules-core 2.x removed, so Gradle cannot compile it. Purchases are iOS-only (see src/services/iapService.ts), so Android never loads it — excluding it here keeps the Android build green with no change in behaviour.",
+        "exclude": [
+          "expo-in-app-purchases"
+        ]
+      }
+    },
     "doctor": {
       "reactNativeDirectoryCheck": {
         "exclude": [
           "@react-native-community/push-notification-ios",
           "react-native-chart-kit",
           "react-native-incall-manager",
-          "react-native-push-notification",
           "@config-plugins/react-native-webrtc",
           "@hugeicons/core-free-icons",
           "@hugeicons/react-native",

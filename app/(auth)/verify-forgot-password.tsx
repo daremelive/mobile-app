@@ -8,6 +8,7 @@ import { selectPendingEmail, clearPendingEmail } from '../../src/store/authSlice
 import { useResendOTPMutation } from '../../src/store/authApi';
 import ArrowLeft from '../../assets/icons/arrow-left.svg';
 import Mail from '../../assets/icons/mail.svg';
+import { logger } from '../../src/utils/logger';
 
 export default function VerifyScreen() {
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
@@ -82,7 +83,7 @@ export default function VerifyScreen() {
       Alert.alert('Success', 'Reset code sent again');
       setOtp(['', '', '', '', '', '']);
     } catch (error: any) {
-      console.error('Resend OTP error:', error);
+      logger.error('Resend OTP error:', error);
       Alert.alert('Error', 'Failed to resend code. Please try again.');
     }
   };

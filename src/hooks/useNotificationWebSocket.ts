@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { selectAccessToken, selectCurrentUser } from '../store/authSlice';
 import { WS_BASE_URL } from '../config/env';
+import { logger } from '../utils/logger';
 
 interface NotificationStats {
   total_notifications: number;
@@ -51,14 +52,14 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
 
   const connect = async () => {
     if (!accessToken || !currentUser) {
-      console.log('🔗 [NotificationWS] Cannot connect: missing auth token or user');
+      logger.log('[NotificationWS] Cannot connect: missing auth token or user');
       return;
     }
 
     try {
       // Use centralized WebSocket configuration
       const wsUrl = `${WS_BASE_URL}/ws/notifications/`;
-      console.log('🔗 [NotificationWS] Using WebSocket URL:', wsUrl);
+      logger.log('[NotificationWS] Using WebSocket URL:', wsUrl);
 
       // Close existing connection
       if (wsRef.current) {
@@ -69,7 +70,7 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('✅ [NotificationWS] Connected to notification WebSocket');
+        logger.log('[NotificationWS] Connected to notification WebSocket');
         setIsConnected(true);
         setConnectionError(null);
         reconnectAttempts.current = 0;
@@ -84,7 +85,7 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
       ws.onmessage = (event) => {
         try {
           const message: NotificationWebSocketMessage = JSON.parse(event.data);
-          console.log('📨 [NotificationWS] Received message:', message);
+          logger.log('[NotificationWS] Received message:', message);
 
           switch (message.type) {
             case 'new_notification':
@@ -123,24 +124,24 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
               break;
               
             case 'error':
-              console.error('❌ [NotificationWS] Server error:', message.message);
+              logger.error('[NotificationWS] Server error:', message.message);
               setConnectionError(message.message || 'Unknown server error');
               onError?.(message.message || 'Unknown server error');
               break;
           }
         } catch (error) {
-          console.error('❌ [NotificationWS] Error parsing message:', error);
+          logger.error('[NotificationWS] Error parsing message:', error);
         }
       };
 
       ws.onclose = (event) => {
-        console.log('🔌 [NotificationWS] Connection closed:', event.code, event.reason);
+        logger.log('[NotificationWS] Connection closed:', event.code, event.reason);
         setIsConnected(false);
         wsRef.current = null;
 
         // If we get a 404 (WebSocket not supported), don't try to reconnect
         if (event.code === 1006 && event.reason?.includes('404')) {
-          console.log('⚠️ [NotificationWS] WebSocket not supported on server, falling back to polling');
+          logger.log('[NotificationWS] WebSocket not supported on server, falling back to polling');
           setConnectionError('WebSocket not supported - using polling fallback');
           return;
         }
@@ -148,7 +149,7 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
         // Attempt to reconnect if not a normal closure
         if (event.code !== 1000 && reconnectAttempts.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-          console.log(`🔄 [NotificationWS] Reconnecting in ${delay}ms... (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})`);
+          logger.log(`[NotificationWS] Reconnecting in ${delay}ms... (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})`);
           
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++;
@@ -158,12 +159,12 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
       };
 
       ws.onerror = (error) => {
-        console.error('❌ [NotificationWS] WebSocket error:', error);
+        logger.error('[NotificationWS] WebSocket error:', error);
         setConnectionError('Connection error');
       };
 
     } catch (error) {
-      console.error('❌ [NotificationWS] Failed to connect:', error);
+      logger.error('[NotificationWS] Failed to connect:', error);
       setConnectionError('Failed to connect');
     }
   };

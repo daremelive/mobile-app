@@ -7,6 +7,7 @@ import WalletIcon from '../assets/icons/wallet.svg';
 import Checkbox from '../components/Checkbox';
 import { useGetWalletSummaryQuery, useWithdrawMoneyMutation } from '../src/api/walletApi';
 import { useTranslation } from '../src/hooks/useTranslation';
+import { logger } from '../src/utils/logger';
 
 const WithdrawMoneyScreen = () => {
   const router = useRouter();
@@ -52,7 +53,7 @@ const WithdrawMoneyScreen = () => {
         Alert.alert(t('common.error') as string, result.message);
       }
     } catch (error: any) {
-      console.error('Withdrawal error:', error);
+      logger.error('Withdrawal error:', error);
       const errorMessage = error.data?.message || t('wallet.withdrawalError') as string;
       Alert.alert(t('common.error') as string, errorMessage);
     }

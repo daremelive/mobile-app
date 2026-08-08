@@ -1,19 +1,46 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState } from 'react-native';
+import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Platform } from 'react-native';
+import { ScreenCapturePickerView } from '@stream-io/react-native-webrtc';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
 import { StreamHeader, StreamChatOverlay, StreamInputBar, MultiParticipantInputBar, StreamControls, useStreamState, useHybridStreamChat, useGiftAnimations, useEndStream, EndStreamModal, MembersListModal } from '../../components/stream';
-import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer, hasVideo, hasAudio } from '@stream-io/video-react-native-sdk';
+import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer, hasVideo, hasAudio, ScreenShareToggleButton, useScreenShareButton } from '@stream-io/video-react-native-sdk';
 import { API_BASE_URL, MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../../src/config/env';
 import { useGetProfileQuery } from '../../src/store/authApi';
-import { useCreateStreamMutation, useStreamActionMutation, streamsApi } from '../../src/store/streamsApi';
+import { useGetUserStreamPrivilegesQuery } from '../../src/api/levelsApi';
+import { useCreateStreamMutation, useStreamActionMutation, useInviteUsersToStreamMutation, streamsApi } from '../../src/store/streamsApi';
 import GiftAnimation from '../../components/animations/GiftAnimation';
 import {
   StreamMode,
   StreamChannel,
   RealtimeMessages
 } from '../../types/stream';
+import { logger } from '../../src/utils/logger';
+
+/**
+ * Raises the system screen-broadcast picker as soon as the call is live.
+ *
+ * On iOS this is the OS sheet driven by ScreenCapturePickerView; on Android
+ * the SDK shows the equivalent system dialog. Either way the picker needs a
+ * joined call behind it, so the broadcast step lives on the host screen rather
+ * than as its own route ahead of it. Declared at module scope so the
+ * "already prompted" ref survives the host screen re-rendering.
+ */
+const ScreenBroadcastPrompt = () => {
+  const pickerRef = useRef(null);
+  const { onPress } = useScreenShareButton(pickerRef);
+  const hasPrompted = useRef(false);
+
+  useEffect(() => {
+    // onPress stays undefined until the call reports screensharing as enabled.
+    if (!onPress || hasPrompted.current) return;
+    hasPrompted.current = true;
+    onPress();
+  }, [onPress]);
+
+  return Platform.OS === 'ios' ? <ScreenCapturePickerView ref={pickerRef} /> : null;
+};
 
 function UnifiedHostStreamScreen() {
   const params = useLocalSearchParams();
@@ -27,6 +54,11 @@ function UnifiedHostStreamScreen() {
   const channel = (params.channel as string) || 'video';
   const maxSeats = parseInt((params.maxSeats as string) || '6');
   const fromTitleScreen = params.fromTitleScreen === 'true';
+  // Guests picked on the title screen, invited once the stream exists.
+  const pendingGuestIds = ((params.guestIds as string) || '')
+    .split(',')
+    .map((id) => parseInt(id, 10))
+    .filter((id) => Number.isFinite(id) && id > 0);
 
   const modeFromParams = (params.mode as string) || '';
   const [streamMode, setStreamMode] = useState<StreamMode>(
@@ -41,8 +73,21 @@ function UnifiedHostStreamScreen() {
   const { data: freshUserData } = useGetProfileQuery();
   const userData = freshUserData || currentUser;
 
+  // Screen broadcast is a per-channel capability set in the admin, not a
+  // property of the channel's name — so read it from the channel record.
+  const { data: privileges } = useGetUserStreamPrivilegesQuery();
+  const allowsScreenShare = Boolean(
+    privileges?.accessible_channels?.find(ch => ch.code === channel)?.allow_screen_share
+  );
+
+  // A single game stream broadcasts the screen, so it opens with the system
+  // broadcast picker rather than the camera. Multi-live is unaffected.
+  const requiresScreenBroadcast =
+    streamMode === 'single' && (channel === 'game' || allowsScreenShare);
+
   const [createStream] = useCreateStreamMutation();
   const [streamAction] = useStreamActionMutation();
+  const [inviteUsersToStream] = useInviteUsersToStreamMutation();
   const [profilePictureUrl, setProfilePictureUrl] = useState<string>('');
   const [membersModalVisible, setMembersModalVisible] = useState(false);
 
@@ -144,7 +189,7 @@ function UnifiedHostStreamScreen() {
     streamId,
     onStreamEnd: () => {
       if (call) {
-        call.leave().catch(console.error);
+        call.leave().catch(logger.error);
       }
       handleLeaveStream();
       initialHeartbeatSent.current = false;
@@ -269,6 +314,20 @@ function UnifiedHostStreamScreen() {
           setStreamId(newStream.id);
           setTitle(newStream.title);
 
+          if (pendingGuestIds.length > 0) {
+            try {
+              await inviteUsersToStream({
+                streamId: newStream.id,
+                userIds: pendingGuestIds,
+              }).unwrap();
+            } catch (inviteError) {
+              // The stream is already live at this point, so a failed invite
+              // must not take the host back out of it — they can re-invite
+              // from the guest list.
+              logger.error('Failed to invite guests picked on the title screen', inviteError);
+            }
+          }
+
         } catch (error: any) {
           // Determine specific error message
           let errorMessage = 'Failed to create stream. Please try again.';
@@ -379,7 +438,7 @@ function UnifiedHostStreamScreen() {
         dispatch(streamsApi.util.invalidateTags(['Stream']));
 
         if (call) {
-          call.leave().catch(console.error);
+          call.leave().catch(logger.error);
         }
 
       } catch (error: any) {
@@ -388,7 +447,7 @@ function UnifiedHostStreamScreen() {
 
         // Always leave the call regardless of API success
         if (call) {
-          call.leave().catch(console.error);
+          call.leave().catch(logger.error);
         }
 
         // Don't retry for any error - just mark as complete
@@ -475,7 +534,7 @@ function UnifiedHostStreamScreen() {
           });
 
         if (call) {
-          call.leave().catch(console.error);
+          call.leave().catch(logger.error);
         }
       }
     };
@@ -739,6 +798,15 @@ function UnifiedHostStreamScreen() {
             <StreamVideo client={streamClient}>
               <StreamCall call={call}>
                 <VideoLayer />
+                {requiresScreenBroadcast && <ScreenBroadcastPrompt />}
+                {(allowsScreenShare || requiresScreenBroadcast) && (
+                  // Screen broadcast is opt-in per channel (set in the admin),
+                  // so the control only exists where it is permitted — plus on
+                  // single game streams, which always broadcast.
+                  <View className="absolute right-4 top-40">
+                    <ScreenShareToggleButton />
+                  </View>
+                )}
               </StreamCall>
             </StreamVideo>
           )
@@ -752,6 +820,7 @@ function UnifiedHostStreamScreen() {
           hostProfilePicture={profilePictureUrl || undefined}
           viewerCount={streamDetails?.viewer_count ?? 0}
           likesCount={streamDetails?.likes_count ?? 0}
+          giftsCount={streamDetails?.gifts_received ?? 0}
           onToggleFollow={() => {
             // For host view, this could be disabled or show different behavior
           }}
@@ -782,6 +851,10 @@ function UnifiedHostStreamScreen() {
           <StreamInputBar
             onSendMessage={chat.sendMessage}
             onGiftPress={() => { }}
+            // Camera beautify filters are not implemented yet, so this control
+            // is visual only — same as the one on the pre-live title screen.
+            onBeautifyPress={() => { }}
+            onAddParticipant={handleAddParticipant}
             hasJoined={hasJoined}
             keyboardHeight={chat.keyboardHeight}
             isKeyboardVisible={chat.isKeyboardVisible}

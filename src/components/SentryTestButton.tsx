@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import * as Sentry from '@sentry/react-native';
+import { logger } from '../utils/logger';
 
 export const SentryTestButton = () => {
   const testSentry = () => {
-    console.log('Testing Sentry...');
+    logger.log('Testing Sentry...');
     
     // Test 1: Capture a message
     Sentry.captureMessage('SENTRY_TEST: This is a test message from development!', 'info');
@@ -22,7 +23,7 @@ export const SentryTestButton = () => {
       }
     });
     
-    console.log('✅ Sentry test events sent! Check your dashboard in 1-2 minutes.');
+    logger.log('Sentry test events sent! Check your dashboard in 1-2 minutes.');
   };
 
   return (

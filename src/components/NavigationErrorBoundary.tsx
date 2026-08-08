@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
+import { logger } from '../utils/logger';
 
 interface Props {
   children: React.ReactNode;
@@ -24,7 +25,7 @@ export class NavigationErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Log the error for debugging
-    console.error('NavigationErrorBoundary caught an error:', error, errorInfo);
+    logger.error('NavigationErrorBoundary caught an error:', error, errorInfo);
   }
 
   render() {

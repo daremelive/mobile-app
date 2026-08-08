@@ -8,6 +8,7 @@ import Mail from '../../assets/icons/mail.svg';
 import { useVerifyOTPMutation, useResendOTPMutation } from '../../src/store/authApi';
 import { useDispatch, useSelector } from 'react-redux';
 import { setCredentials, clearPendingEmail, selectPendingEmail } from '../../src/store/authSlice';
+import { logger } from '../../src/utils/logger';
 
 export default function VerifyScreen() {
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
@@ -69,19 +70,19 @@ export default function VerifyScreen() {
         purpose: 'signup',
       }).unwrap();
 
-      console.log('🔥 OTP Verification Result:', result);
-      console.log('🔥 User profile_completed:', result.user?.profile_completed);
+      logger.log('OTP Verification Result:', result);
+      logger.log('User profile_completed:', result.user?.profile_completed);
 
       // Store authentication data
       dispatch(setCredentials(result));
       dispatch(clearPendingEmail());
 
       // Always redirect to signup-two for profile completion after successful OTP verification
-      console.log('🔥 Redirecting to signup-two');
+      logger.log('Redirecting to signup-two');
       router.replace('/(auth)/signup-two');
       
     } catch (error: any) {
-      console.error('OTP verification error:', error);
+      logger.error('OTP verification error:', error);
       if (error.data?.otp?.[0]) {
         setOtpError(error.data.otp[0]);
       } else if (error.data?.non_field_errors?.[0]) {
@@ -105,7 +106,7 @@ export default function VerifyScreen() {
       setOtp(['', '', '', '', '', '']);
       setOtpError('');
     } catch (error: any) {
-      console.error('Resend OTP error:', error);
+      logger.error('Resend OTP error:', error);
       Alert.alert('Error', 'Failed to resend OTP. Please try again.');
     }
   };

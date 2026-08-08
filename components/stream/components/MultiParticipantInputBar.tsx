@@ -19,24 +19,15 @@ export const MultiParticipantInputBar = ({
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10 }}
     >
-      <View 
-        className="left-2 right-4 flex-row items-center mb-4" 
-        style={{ 
-          paddingHorizontal: 16,
-          paddingBottom: Platform.OS === 'ios' ? 8 : 8,
-          gap: 12,
-        }}
-      >
-        <View style={{ flex: 1 }}>
-          <CommentInput
-            onSendMessage={onSendMessage}
-            placeholder="Type comment here..."
-          />
-        </View>
-        
-        <TouchableOpacity 
+      <View className="flex-row items-center gap-3 px-4 pb-6">
+        <CommentInput onSendMessage={onSendMessage} />
+
+        <TouchableOpacity
           onPress={onAddParticipant}
-          className="w-12 h-12 rounded-full bg-black/40 items-center justify-center"
+          className="rounded-[36px] p-3"
+          style={{ backgroundColor: 'rgba(38,38,38,0.5)' }}
+          accessibilityRole="button"
+          accessibilityLabel="Invite guests"
         >
           <AddTeamIcon width={24} height={24} />
         </TouchableOpacity>
