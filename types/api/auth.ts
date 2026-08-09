@@ -109,7 +109,7 @@ export interface PasswordResetConfirmRequest {
   email: string;
   otp: string;
   new_password: string;
-  new_password_confirm: string;
+  confirm_password: string;
 }
 
 // === Token Management ===

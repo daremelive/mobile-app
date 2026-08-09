@@ -3,7 +3,12 @@ import { View, Text, SafeAreaView, TouchableOpacity, TextInput, Alert } from 're
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectPendingEmail, clearPendingEmail } from '../src/store/authSlice';
+import {
+  selectPendingEmail,
+  clearPendingEmail,
+  selectPendingResetOtp,
+  clearPendingResetOtp,
+} from '../src/store/authSlice';
 import { usePasswordResetConfirmMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import LockPasswordIcon from '../assets/icons/lock-password.svg';
@@ -16,6 +21,7 @@ const ResetPasswordScreen = () => {
   const router = useRouter();
   const dispatch = useDispatch();
   const pendingEmail = useSelector(selectPendingEmail);
+  const pendingResetOtp = useSelector(selectPendingResetOtp);
   const [passwordResetConfirm, { isLoading }] = usePasswordResetConfirmMutation();
   
   const [newPassword, setNewPassword] = useState('');
@@ -29,6 +35,12 @@ const ResetPasswordScreen = () => {
       router.replace('/forgot-password');
     }
   }, [pendingEmail]);
+
+  useEffect(() => {
+    if (pendingEmail && !pendingResetOtp && !showSuccess) {
+      router.replace('/(auth)/verify-forgot-password');
+    }
+  }, [pendingEmail, pendingResetOtp, showSuccess]);
 
   const handleReset = async () => {
     if (!newPassword.trim()) {
@@ -51,7 +63,7 @@ const ResetPasswordScreen = () => {
       return;
     }
 
-    if (!pendingEmail) {
+    if (!pendingEmail || !pendingResetOtp) {
       Alert.alert('Error', 'Session expired. Please start over.');
       router.replace('/forgot-password');
       return;
@@ -60,22 +72,33 @@ const ResetPasswordScreen = () => {
     try {
       await passwordResetConfirm({
         email: pendingEmail,
-        otp: '123456', // Using placeholder OTP as requested
+        otp: pendingResetOtp,
         new_password: newPassword,
-        new_password_confirm: confirmPassword,
+        confirm_password: confirmPassword,
       }).unwrap();
 
       setShowSuccess(true);
       dispatch(clearPendingEmail());
-      
+      dispatch(clearPendingResetOtp());
+
       // Navigate to signin after showing success
       setTimeout(() => {
         router.replace('/(auth)/signin');
       }, 2000);
     } catch (error: any) {
       logger.error('Password reset error:', error);
-      if (error.data?.new_password?.[0]) {
+      // The backend reports a bad or expired code as {"error": "..."}; both mean
+      // the code has to be re-entered, so send the user back to the code screen.
+      const codeError = error.data?.error;
+      if (codeError) {
+        dispatch(clearPendingResetOtp());
+        Alert.alert('Error', codeError, [
+          { text: 'OK', onPress: () => router.replace('/(auth)/verify-forgot-password') },
+        ]);
+      } else if (error.data?.new_password?.[0]) {
         Alert.alert('Error', error.data.new_password[0]);
+      } else if (error.data?.password) {
+        Alert.alert('Error', error.data.password);
       } else if (error.data?.non_field_errors?.[0]) {
         Alert.alert('Error', error.data.non_field_errors[0]);
       } else {
