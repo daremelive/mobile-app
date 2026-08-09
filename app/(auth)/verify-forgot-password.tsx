@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectPendingEmail, clearPendingEmail } from '../../src/store/authSlice';
+import { selectPendingEmail, clearPendingEmail, setPendingResetOtp } from '../../src/store/authSlice';
 import { useResendOTPMutation } from '../../src/store/authApi';
 import ArrowLeft from '../../assets/icons/arrow-left.svg';
 import Mail from '../../assets/icons/mail.svg';
@@ -59,16 +59,17 @@ export default function VerifyScreen() {
       return;
     }
 
-    setIsVerifying(true);
-    
-    // For now, use placeholder OTP validation
-    if (otpString === '123456') {
-      Alert.alert('Success', 'OTP verified successfully');
-      router.push('/reset-password');
-    } else {
-      Alert.alert('Error', 'Invalid OTP. Please try again.');
+    if (!/^\d{6}$/.test(otpString)) {
+      Alert.alert('Error', 'The code should be 6 digits');
+      return;
     }
-    
+
+    // The code itself is checked by the password-reset/confirm/ call on the next
+    // screen, which verifies and consumes it in one step. Verifying it here via
+    // verify-otp/ would mark it used and leave nothing for the reset to consume.
+    setIsVerifying(true);
+    dispatch(setPendingResetOtp(otpString));
+    router.push('/reset-password');
     setIsVerifying(false);
   };
 

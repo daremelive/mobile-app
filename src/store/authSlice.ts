@@ -10,6 +10,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   pendingEmail: string | null; // For OTP verification flow
+  pendingResetOtp: string | null; // Reset code carried from the verify screen to the reset screen
 }
 
 const initialState: AuthState = {
@@ -20,6 +21,7 @@ const initialState: AuthState = {
   isLoading: false,
   error: null,
   pendingEmail: null,
+  pendingResetOtp: null,
 };
 
 const authSlice = createSlice({
@@ -58,7 +60,15 @@ const authSlice = createSlice({
     clearPendingEmail: (state) => {
       state.pendingEmail = null;
     },
-    
+
+    setPendingResetOtp: (state, action: PayloadAction<string>) => {
+      state.pendingResetOtp = action.payload;
+    },
+
+    clearPendingResetOtp: (state) => {
+      state.pendingResetOtp = null;
+    },
+
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
@@ -74,7 +84,8 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.error = null;
       state.pendingEmail = null;
-      
+      state.pendingResetOtp = null;
+
       // Clear stored data
       SecureStore.deleteItemAsync('accessToken');
       SecureStore.deleteItemAsync('refreshToken');
@@ -101,6 +112,8 @@ export const {
   updateAccessToken,
   setPendingEmail,
   clearPendingEmail,
+  setPendingResetOtp,
+  clearPendingResetOtp,
   setLoading,
   setError,
   logout,
@@ -116,4 +129,5 @@ export const selectAccessToken = (state: { auth: AuthState }) => state.auth.acce
 export const selectRefreshToken = (state: { auth: AuthState }) => state.auth.refreshToken;
 export const selectAuthLoading = (state: { auth: AuthState }) => state.auth.isLoading;
 export const selectAuthError = (state: { auth: AuthState }) => state.auth.error;
-export const selectPendingEmail = (state: { auth: AuthState }) => state.auth.pendingEmail; 
+export const selectPendingEmail = (state: { auth: AuthState }) => state.auth.pendingEmail;
+export const selectPendingResetOtp = (state: { auth: AuthState }) => state.auth.pendingResetOtp;
