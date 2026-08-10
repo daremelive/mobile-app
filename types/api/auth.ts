@@ -105,9 +105,19 @@ export interface PasswordResetRequest {
   email: string;
 }
 
-export interface PasswordResetConfirmRequest {
+export interface PasswordResetVerifyRequest {
   email: string;
   otp: string;
+}
+
+export interface PasswordResetVerifyResponse {
+  message: string;
+  /** Short-lived token proving the emailed code was entered correctly. */
+  reset_token: string;
+}
+
+export interface PasswordResetConfirmRequest {
+  reset_token: string;
   new_password: string;
   confirm_password: string;
 }

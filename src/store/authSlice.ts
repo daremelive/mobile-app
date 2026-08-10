@@ -10,7 +10,7 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   pendingEmail: string | null; // For OTP verification flow
-  pendingResetOtp: string | null; // Reset code carried from the verify screen to the reset screen
+  pendingResetToken: string | null; // Proof the emailed code was verified, used by the reset screen
 }
 
 const initialState: AuthState = {
@@ -21,7 +21,7 @@ const initialState: AuthState = {
   isLoading: false,
   error: null,
   pendingEmail: null,
-  pendingResetOtp: null,
+  pendingResetToken: null,
 };
 
 const authSlice = createSlice({
@@ -61,12 +61,12 @@ const authSlice = createSlice({
       state.pendingEmail = null;
     },
 
-    setPendingResetOtp: (state, action: PayloadAction<string>) => {
-      state.pendingResetOtp = action.payload;
+    setPendingResetToken: (state, action: PayloadAction<string>) => {
+      state.pendingResetToken = action.payload;
     },
 
-    clearPendingResetOtp: (state) => {
-      state.pendingResetOtp = null;
+    clearPendingResetToken: (state) => {
+      state.pendingResetToken = null;
     },
 
     setLoading: (state, action: PayloadAction<boolean>) => {
@@ -84,7 +84,7 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.error = null;
       state.pendingEmail = null;
-      state.pendingResetOtp = null;
+      state.pendingResetToken = null;
 
       // Clear stored data
       SecureStore.deleteItemAsync('accessToken');
@@ -112,8 +112,8 @@ export const {
   updateAccessToken,
   setPendingEmail,
   clearPendingEmail,
-  setPendingResetOtp,
-  clearPendingResetOtp,
+  setPendingResetToken,
+  clearPendingResetToken,
   setLoading,
   setError,
   logout,
@@ -130,4 +130,4 @@ export const selectRefreshToken = (state: { auth: AuthState }) => state.auth.ref
 export const selectAuthLoading = (state: { auth: AuthState }) => state.auth.isLoading;
 export const selectAuthError = (state: { auth: AuthState }) => state.auth.error;
 export const selectPendingEmail = (state: { auth: AuthState }) => state.auth.pendingEmail;
-export const selectPendingResetOtp = (state: { auth: AuthState }) => state.auth.pendingResetOtp;
+export const selectPendingResetToken = (state: { auth: AuthState }) => state.auth.pendingResetToken;
