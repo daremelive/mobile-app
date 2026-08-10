@@ -4,8 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectPendingEmail, clearPendingEmail, setPendingResetOtp } from '../../src/store/authSlice';
-import { useResendOTPMutation } from '../../src/store/authApi';
+import { selectPendingEmail, clearPendingEmail, setPendingResetToken } from '../../src/store/authSlice';
+import { useResendOTPMutation, usePasswordResetVerifyMutation } from '../../src/store/authApi';
 import ArrowLeft from '../../assets/icons/arrow-left.svg';
 import Mail from '../../assets/icons/mail.svg';
 import { logger } from '../../src/utils/logger';
@@ -16,7 +16,7 @@ export default function VerifyScreen() {
   const dispatch = useDispatch();
   const pendingEmail = useSelector(selectPendingEmail);
   const [resendOTP, { isLoading: isResending }] = useResendOTPMutation();
-  const [isVerifying, setIsVerifying] = useState(false);
+  const [passwordResetVerify, { isLoading: isVerifying }] = usePasswordResetVerifyMutation();
 
   useEffect(() => {
     if (!pendingEmail) {
@@ -64,13 +64,27 @@ export default function VerifyScreen() {
       return;
     }
 
-    // The code itself is checked by the password-reset/confirm/ call on the next
-    // screen, which verifies and consumes it in one step. Verifying it here via
-    // verify-otp/ would mark it used and leave nothing for the reset to consume.
-    setIsVerifying(true);
-    dispatch(setPendingResetOtp(otpString));
-    router.push('/reset-password');
-    setIsVerifying(false);
+    try {
+      // The server checks the code and hands back a short-lived token. The code
+      // itself is never carried onward — the token stands in for it.
+      const { reset_token } = await passwordResetVerify({
+        email: pendingEmail,
+        otp: otpString,
+      }).unwrap();
+
+      dispatch(setPendingResetToken(reset_token));
+      router.push('/reset-password');
+    } catch (error: any) {
+      logger.error('Reset code verification error:', error);
+      const message =
+        error.data?.error ??
+        (error.status === 429
+          ? 'Too many attempts. Please wait a while and try again.'
+          : 'Could not check that code. Please try again.');
+      Alert.alert('Error', message);
+      setOtp(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
+    }
   };
 
   const handleResendOTP = async () => {

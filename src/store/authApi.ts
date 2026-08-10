@@ -19,6 +19,8 @@ import type {
   ChangePasswordRequest,
   PasswordResetRequest,
   PasswordResetConfirmRequest,
+  PasswordResetVerifyRequest,
+  PasswordResetVerifyResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
   DeactivateAccountRequest,
@@ -281,6 +283,19 @@ export const authApi = createApi({
       },
     }),
 
+    // Password reset verify — exchanges the emailed code for a reset token
+    passwordResetVerify: builder.mutation<PasswordResetVerifyResponse, PasswordResetVerifyRequest>({
+      queryFn: async (data, _queryApi, _extraOptions) => {
+        const result = await publicBaseQuery({
+          url: '/auth/password-reset/verify/',
+          method: 'POST',
+          body: data,
+        }, _queryApi, _extraOptions);
+
+        return result as any; // Type assertion to match expected return type
+      },
+    }),
+
     // Password reset confirm
     passwordResetConfirm: builder.mutation<AuthMessageResponse, PasswordResetConfirmRequest>({
       queryFn: async (data, _queryApi, _extraOptions) => {
@@ -311,5 +326,6 @@ export const {
   useDeactivateAccountMutation,
   useGoogleAuthMutation,
   usePasswordResetRequestMutation,
+  usePasswordResetVerifyMutation,
   usePasswordResetConfirmMutation,
 } = authApi; 

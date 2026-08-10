@@ -6,8 +6,8 @@ import { useSelector, useDispatch } from 'react-redux';
 import {
   selectPendingEmail,
   clearPendingEmail,
-  selectPendingResetOtp,
-  clearPendingResetOtp,
+  selectPendingResetToken,
+  clearPendingResetToken,
 } from '../src/store/authSlice';
 import { usePasswordResetConfirmMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
@@ -21,7 +21,7 @@ const ResetPasswordScreen = () => {
   const router = useRouter();
   const dispatch = useDispatch();
   const pendingEmail = useSelector(selectPendingEmail);
-  const pendingResetOtp = useSelector(selectPendingResetOtp);
+  const pendingResetToken = useSelector(selectPendingResetToken);
   const [passwordResetConfirm, { isLoading }] = usePasswordResetConfirmMutation();
   
   const [newPassword, setNewPassword] = useState('');
@@ -37,10 +37,10 @@ const ResetPasswordScreen = () => {
   }, [pendingEmail]);
 
   useEffect(() => {
-    if (pendingEmail && !pendingResetOtp && !showSuccess) {
+    if (pendingEmail && !pendingResetToken && !showSuccess) {
       router.replace('/(auth)/verify-forgot-password');
     }
-  }, [pendingEmail, pendingResetOtp, showSuccess]);
+  }, [pendingEmail, pendingResetToken, showSuccess]);
 
   const handleReset = async () => {
     if (!newPassword.trim()) {
@@ -63,7 +63,7 @@ const ResetPasswordScreen = () => {
       return;
     }
 
-    if (!pendingEmail || !pendingResetOtp) {
+    if (!pendingEmail || !pendingResetToken) {
       Alert.alert('Error', 'Session expired. Please start over.');
       router.replace('/forgot-password');
       return;
@@ -71,15 +71,14 @@ const ResetPasswordScreen = () => {
 
     try {
       await passwordResetConfirm({
-        email: pendingEmail,
-        otp: pendingResetOtp,
+        reset_token: pendingResetToken,
         new_password: newPassword,
         confirm_password: confirmPassword,
       }).unwrap();
 
       setShowSuccess(true);
       dispatch(clearPendingEmail());
-      dispatch(clearPendingResetOtp());
+      dispatch(clearPendingResetToken());
 
       // Navigate to signin after showing success
       setTimeout(() => {
@@ -87,13 +86,13 @@ const ResetPasswordScreen = () => {
       }, 2000);
     } catch (error: any) {
       logger.error('Password reset error:', error);
-      // The backend reports a bad or expired code as {"error": "..."}; both mean
-      // the code has to be re-entered, so send the user back to the code screen.
-      const codeError = error.data?.error;
-      if (codeError) {
-        dispatch(clearPendingResetOtp());
-        Alert.alert('Error', codeError, [
-          { text: 'OK', onPress: () => router.replace('/(auth)/verify-forgot-password') },
+      // A rejected token means the reset session lapsed, so the code has to be
+      // requested and entered again from the start.
+      const tokenError = error.data?.error;
+      if (tokenError) {
+        dispatch(clearPendingResetToken());
+        Alert.alert('Error', tokenError, [
+          { text: 'OK', onPress: () => router.replace('/forgot-password') },
         ]);
       } else if (error.data?.new_password?.[0]) {
         Alert.alert('Error', error.data.new_password[0]);
