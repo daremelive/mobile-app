@@ -13,13 +13,18 @@ import { logger } from '../../src/utils/logger';
 
 export default function VerifyScreen() {
   const dispatch = useDispatch();
-  const pendingEmail = useSelector(selectPendingEmail);
+  const storedEmail = useSelector(selectPendingEmail);
+  // Hold on to the address this screen opened with. Someone reading a code out
+  // of their inbox may be away for a minute, and the screen must not vanish
+  // underneath them if the store changes while they are gone.
+  const [pendingEmail] = useState(storedEmail);
   const [error, setError] = useState('');
   const [resetKey, setResetKey] = useState(0);
   const [verifyOTP, { isLoading: isVerifying }] = useVerifyOTPMutation();
   const [resendOTP, { isLoading: isResending }] = useResendOTPMutation();
 
   useEffect(() => {
+    // Only leave if we arrived with nothing to verify in the first place.
     if (!pendingEmail) router.replace('/(auth)/signup');
   }, [pendingEmail]);
 

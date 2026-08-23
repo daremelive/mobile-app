@@ -6,7 +6,6 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSelector, useDispatch } from 'react-redux';
 import {
-  selectPendingEmail,
   clearPendingEmail,
   selectPendingResetToken,
   clearPendingResetToken,
@@ -23,8 +22,11 @@ import { logger } from '../src/utils/logger';
 const ResetPasswordScreen = () => {
   const router = useRouter();
   const dispatch = useDispatch();
-  const pendingEmail = useSelector(selectPendingEmail);
-  const pendingResetToken = useSelector(selectPendingResetToken);
+  const storedResetToken = useSelector(selectPendingResetToken);
+  // Snapshot on arrival. Choosing a password takes a moment, and the screen
+  // must not disappear if the store changes meanwhile — including when this
+  // screen itself clears the token on success.
+  const [pendingResetToken] = useState(storedResetToken);
   const [passwordResetConfirm, { isLoading }] = usePasswordResetConfirmMutation();
 
   const [newPassword, setNewPassword] = useState('');
@@ -34,16 +36,12 @@ const ResetPasswordScreen = () => {
   const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
-    if (!pendingEmail) {
+    // Only leave if we arrived without a verified code. Once here, the token is
+    // all that is needed to set the password, so nothing else can strand us.
+    if (!pendingResetToken) {
       router.replace('/forgot-password');
     }
-  }, [pendingEmail]);
-
-  useEffect(() => {
-    if (pendingEmail && !pendingResetToken && !showSuccess) {
-      router.replace('/(auth)/verify-forgot-password');
-    }
-  }, [pendingEmail, pendingResetToken, showSuccess]);
+  }, [pendingResetToken]);
 
   const handleReset = async () => {
     if (!newPassword.trim()) {
@@ -66,8 +64,8 @@ const ResetPasswordScreen = () => {
       return;
     }
 
-    if (!pendingEmail || !pendingResetToken) {
-      Alert.alert('Error', 'Session expired. Please start over.');
+    if (!pendingResetToken) {
+      Alert.alert('Error', 'Your reset session has expired. Please start again.');
       router.replace('/forgot-password');
       return;
     }
