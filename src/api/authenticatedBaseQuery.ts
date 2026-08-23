@@ -98,6 +98,12 @@ export const createAuthenticatedBaseQuery = (
       refresh: refreshed.refresh ?? refreshToken,
     }));
     result = await query(args, api, extraOptions);
+    if (result.error?.status === 401) {
+      // A refresh token can be structurally valid while its user no longer
+      // exists in the current development database. Do not retain that stale
+      // session or keep polling authenticated endpoints indefinitely.
+      api.dispatch(logout());
+    }
     return result;
   };
 };
