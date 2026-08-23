@@ -171,7 +171,7 @@ export const useStreamState = ({
     setIsConnecting(true);
     initializationInProgress.current = true;
 
-    let initTimeoutRef: number | null = null;
+    let initTimeoutRef: ReturnType<typeof setTimeout> | null = null;
 
     try {
       const connectionTimeout = __DEV__ ? 20000 : 45000;

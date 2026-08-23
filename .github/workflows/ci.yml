@@ -3,7 +3,11 @@ name: Mobile CI
 on:
   pull_request:
   push:
-    branches: [main, staging, "fix/**"]
+    branches: [main, staging]
+
+concurrency:
+  group: mobile-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
