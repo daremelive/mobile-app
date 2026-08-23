@@ -83,7 +83,12 @@ export const createAuthenticatedBaseQuery = (
 
     const refreshToken = (api.getState() as RootState).auth.refreshToken;
     if (!refreshToken) {
-      api.dispatch(logout());
+      // Only end a session that exists. During signup and password reset there
+      // is no session yet, so a 401 from a background request is expected — and
+      // logging out in response used to wipe state those flows depend on.
+      if ((api.getState() as RootState).auth.isAuthenticated) {
+        api.dispatch(logout());
+      }
       return result;
     }
 

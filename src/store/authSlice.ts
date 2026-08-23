@@ -89,8 +89,11 @@ const authSlice = createSlice({
       state.refreshToken = null;
       state.isAuthenticated = false;
       state.error = null;
-      state.pendingEmail = null;
-      state.pendingResetToken = null;
+      // pendingEmail and pendingResetToken are deliberately left alone. They
+      // belong to a verification flow that is happening *because* nobody is
+      // signed in, not to a session. Clearing them here meant a stray 401 from
+      // any background request threw people out of signup and password reset
+      // mid-way. Each flow clears its own value when it finishes.
 
       // Clear stored data
       SecureStore.deleteItemAsync('accessToken');

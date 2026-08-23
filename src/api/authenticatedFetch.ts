@@ -26,7 +26,11 @@ export const authenticatedFetch = async (
   const stateRefresh = store.getState().auth.refreshToken;
   const refreshToken = stateRefresh ?? await SecureStore.getItemAsync('refreshToken');
   if (!refreshToken) {
-    store.dispatch(logout());
+    // Only end a session that exists. Signup and password reset run with no
+    // session at all, so a 401 there is expected rather than a sign-out.
+    if (store.getState().auth.isAuthenticated) {
+      store.dispatch(logout());
+    }
     return response;
   }
 

@@ -10,13 +10,17 @@ import { logger } from '../../src/utils/logger';
 
 export default function VerifyForgotPasswordScreen() {
   const dispatch = useDispatch();
-  const pendingEmail = useSelector(selectPendingEmail);
+  const storedEmail = useSelector(selectPendingEmail);
+  // Same reasoning as the signup verification screen: someone fetching a code
+  // from their inbox must not lose this screen if the store changes meanwhile.
+  const [pendingEmail] = useState(storedEmail);
   const [error, setError] = useState('');
   const [resetKey, setResetKey] = useState(0);
   const [passwordResetVerify, { isLoading: isVerifying }] = usePasswordResetVerifyMutation();
   const [resendOTP, { isLoading: isResending }] = useResendOTPMutation();
 
   useEffect(() => {
+    // Only leave if we arrived with no address to verify.
     if (!pendingEmail) router.replace('/forgot-password');
   }, [pendingEmail]);
 
