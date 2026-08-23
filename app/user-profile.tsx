@@ -7,18 +7,22 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
+  Modal,
+  ScrollView,
+  TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import { selectCurrentUser } from '../src/store/authSlice';
-import { 
-  useFollowUserMutation, 
-  useUnfollowUserMutation 
+import {
+  useFollowUserMutation,
+  useUnfollowUserMutation
 } from '../src/store/followApi';
 import { useGetUserProfileQuery } from '../src/store/usersApi';
 import { useBlockUserMutation } from '../src/api/blockedApi';
+import { useCreateUserReportMutation, useGetReportReasonsQuery } from '../src/api/reportsApi';
 import ShareProfileModal from '../components/ShareProfileModal';
 import { MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../src/config/env';
 
@@ -37,26 +41,31 @@ export default function UserProfileScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const currentUser = useSelector(selectCurrentUser);
-  
+
   // Get user ID from params
   const userId = params.userId as string;
-  
+
   // Fetch user profile data
   const { data: userProfile, isLoading, error, refetch } = useGetUserProfileQuery(userId, {
     skip: !userId,
   });
-  
+
   // Follow/Unfollow mutations
   const [followUser, { isLoading: followLoading }] = useFollowUserMutation();
   const [unfollowUser, { isLoading: unfollowLoading }] = useUnfollowUserMutation();
   const [blockUser, { isLoading: blockLoading }] = useBlockUserMutation();
-  
+  const [createUserReport, { isLoading: reportLoading }] = useCreateUserReportMutation();
+  const { data: reportReasons = [], isLoading: reasonsLoading, refetch: refetchReasons } = useGetReportReasonsQuery();
+
   const [actionLoading, setActionLoading] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
+  const [selectedReasonId, setSelectedReasonId] = useState<number | null>(null);
+  const [reportDetails, setReportDetails] = useState('');
 
   const handleFollowToggle = async () => {
     if (!userProfile || actionLoading) return;
-    
+
     setActionLoading(true);
     try {
       if (userProfile.is_following) {
@@ -64,7 +73,7 @@ export default function UserProfileScreen() {
       } else {
         await followUser({ user_id: parseInt(userId) }).unwrap();
       }
-      
+
       // Refetch user profile to update follow status and counts
       refetch();
     } catch (error: any) {
@@ -89,13 +98,13 @@ export default function UserProfileScreen() {
       `Are you sure you want to block ${userProfile?.full_name || userProfile?.username}?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Block', 
+        {
+          text: 'Block',
           style: 'destructive',
           onPress: async () => {
             try {
               const result = await blockUser({ user_id: parseInt(userId) }).unwrap();
-              
+
               Alert.alert('Success', `${userProfile?.full_name || userProfile?.username} has been blocked`, [
                 {
                   text: 'OK',
@@ -105,7 +114,7 @@ export default function UserProfileScreen() {
                   }
                 }
               ]);
-              
+
               // Also refetch data in case user stays on page
               refetch();
             } catch (error: any) {
@@ -118,21 +127,28 @@ export default function UserProfileScreen() {
   };
 
   const handleReportUser = () => {
-    Alert.alert(
-      'Report User',
-      `Report ${userProfile?.full_name || userProfile?.username} for inappropriate behavior?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Report', 
-          style: 'destructive',
-          onPress: () => {
-            // TODO: Implement report functionality
-            Alert.alert('Reported', 'User has been reported');
-          }
-        }
-      ]
-    );
+    setSelectedReasonId(null);
+    setReportDetails('');
+    setReportModalVisible(true);
+  };
+
+  const submitReport = async () => {
+    if (!selectedReasonId || !userProfile) return;
+
+    try {
+      await createUserReport({
+        reported_user_id: userProfile.id,
+        reason_id: selectedReasonId,
+        custom_reason: reportDetails.trim() || undefined,
+      }).unwrap();
+      setReportModalVisible(false);
+      Alert.alert('Report received', 'Thank you. Our moderation team will review it.');
+    } catch (reportError: any) {
+      const message = reportError?.data?.detail
+        || reportError?.data?.error
+        || 'Your report could not be submitted. Please try again.';
+      Alert.alert('Unable to report', message);
+    }
   };
 
   if (isLoading) {
@@ -160,14 +176,14 @@ export default function UserProfileScreen() {
     );
   }
 
-  const profileImageUrl = userProfile.profile_picture_url 
+  const profileImageUrl = userProfile.profile_picture_url
     ? buildProfilePictureURL(userProfile.profile_picture_url)
     : null;
 
   return (
     <View className="flex-1 bg-black">
       <StatusBar barStyle="light-content" backgroundColor="black" />
-      
+
       {/* Header with back button */}
       <View className="flex-row items-center justify-between px-4 pt-12 pb-4">
         <TouchableOpacity
@@ -183,7 +199,7 @@ export default function UserProfileScreen() {
         {/* Profile Picture */}
         <View className="w-32 h-32 rounded-full mb-6 overflow-hidden border-4 border-purple-500">
           {profileImageUrl ? (
-            <Image 
+            <Image
               source={{ uri: profileImageUrl }}
               className="w-full h-full"
               resizeMode="cover"
@@ -194,7 +210,7 @@ export default function UserProfileScreen() {
           ) : (
             <View className="w-full h-full bg-gray-600 items-center justify-center">
               <Text className="text-white text-4xl font-bold">
-                {userProfile.full_name?.charAt(0)?.toUpperCase() || 
+                {userProfile.full_name?.charAt(0)?.toUpperCase() ||
                  userProfile.username?.charAt(0)?.toUpperCase() || 'U'}
               </Text>
             </View>
@@ -241,7 +257,7 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
 
           {/* Share Button */}
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => setShareModalVisible(true)}
             className="bg-gray-700 w-12 h-12 rounded-full items-center justify-center"
           >
@@ -310,7 +326,7 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       {/* Share Profile Modal */}
       {userProfile && (
         <ShareProfileModal
@@ -324,6 +340,92 @@ export default function UserProfileScreen() {
           }}
         />
       )}
+
+      <Modal
+        visible={reportModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !reportLoading && setReportModalVisible(false)}
+      >
+        <View className="flex-1 justify-end bg-black/70">
+          <View className="bg-[#17181D] rounded-t-3xl px-5 pt-5 pb-8 max-h-[80%]">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-white text-xl font-bold">Report user</Text>
+              <TouchableOpacity
+                accessibilityLabel="Close report form"
+                disabled={reportLoading}
+                onPress={() => setReportModalVisible(false)}
+                className="w-10 h-10 items-center justify-center"
+              >
+                <Ionicons name="close" size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+            <Text className="text-gray-400 mb-5">
+              Choose the reason that best describes the issue. Reports are confidential.
+            </Text>
+
+            {reasonsLoading ? (
+              <ActivityIndicator color="#C42720" className="my-8" />
+            ) : reportReasons.length === 0 ? (
+              <View className="items-center py-6">
+                <Text className="text-gray-300 mb-3">Report reasons could not be loaded.</Text>
+                <TouchableOpacity onPress={() => refetchReasons()} className="bg-gray-700 px-5 py-3 rounded-full">
+                  <Text className="text-white font-semibold">Try again</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView className="mb-4" showsVerticalScrollIndicator={false}>
+                {reportReasons.map((reason) => {
+                  const selected = selectedReasonId === reason.id;
+                  return (
+                    <TouchableOpacity
+                      key={reason.id}
+                      onPress={() => setSelectedReasonId(reason.id)}
+                      className={`border rounded-2xl p-4 mb-3 ${selected ? 'border-red-500 bg-red-950/30' : 'border-gray-700 bg-gray-900'}`}
+                    >
+                      <View className="flex-row items-center justify-between">
+                        <Text className="text-white font-semibold flex-1">{reason.name}</Text>
+                        <Ionicons
+                          name={selected ? 'radio-button-on' : 'radio-button-off'}
+                          size={21}
+                          color={selected ? '#EF4444' : '#71717A'}
+                        />
+                      </View>
+                      {!!reason.description && (
+                        <Text className="text-gray-400 text-sm mt-1">{reason.description}</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
+
+            <TextInput
+              value={reportDetails}
+              onChangeText={setReportDetails}
+              editable={!reportLoading}
+              maxLength={2000}
+              multiline
+              placeholder="Additional details (optional)"
+              placeholderTextColor="#71717A"
+              className="min-h-24 bg-gray-900 border border-gray-700 rounded-2xl p-4 text-white mb-4"
+              textAlignVertical="top"
+            />
+
+            <TouchableOpacity
+              disabled={!selectedReasonId || reportLoading}
+              onPress={submitReport}
+              className={`h-12 rounded-full items-center justify-center ${selectedReasonId && !reportLoading ? 'bg-red-600' : 'bg-gray-700'}`}
+            >
+              {reportLoading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-white font-bold">Submit report</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

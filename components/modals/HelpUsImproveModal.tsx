@@ -1,3 +1,4 @@
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, TextInput } from 'react-native';
 import CancelIcon from '../../assets/icons/cancel.svg';
@@ -13,11 +14,11 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
   isLoading = false,
 }) => {
   const [feedback, setFeedback] = useState('');
-  
+
   const handleContinue = () => {
     onContinue(feedback);
   };
-  
+
   const handleClose = () => {
     setFeedback('');
     onClose();
@@ -31,20 +32,20 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
     >
       <View className="flex-1 justify-center items-center bg-black/80">
         <View className="bg-[#1E1E1E] rounded-2xl p-6 items-center w-[90%] relative">
-          <TouchableOpacity 
-            className="absolute bg-[#333333] w-14 h-14 rounded-full justify-center items-center top-4 right-4" 
+          <TouchableOpacity
+            className="absolute bg-[#333333] w-14 h-14 rounded-full justify-center items-center top-4 right-4"
             onPress={handleClose}
           >
             <CancelIcon width={24} height={24} stroke="#8A8A8E" />
           </TouchableOpacity>
-          
+
           <View className="w-16 h-16 rounded-full bg-[#333333] justify-center items-center mb-4">
             <CommentIcon width={24} height={24} />
           </View>
-          
+
           <Text className="text-white text-xl font-bold mb-2 text-center">Help Us Improve</Text>
           <Text className="text-[#8A8A8E] text-base text-center mb-6">
-            Let us know why you're deactivating your account.
+            Let us know why you’re deactivating your account.
           </Text>
 
           <TextInput
@@ -57,7 +58,7 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
             editable={!isLoading}
           />
 
-          {/* <TouchableOpacity 
+          {/* <TouchableOpacity
             className="w-full h-[52px] items-center justify-center bg-[#FF3B30] rounded-full mb-4"
             onPress={onClose}
           >
@@ -66,13 +67,13 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
 
         <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
           <LinearGradient
-            colors={['#FF0000', '#330000']}
+            colors={BRAND_GRADIENT}
             locations={[0, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             className="w-full h-full"
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               className="w-full h-full items-center justify-center"
               onPress={handleClose}
               disabled={isLoading}
@@ -82,7 +83,7 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
           </LinearGradient>
         </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             className="w-full h-[52px] items-center justify-center bg-[#262626] rounded-full"
             onPress={handleContinue}
             disabled={isLoading}
@@ -97,4 +98,4 @@ const HelpUsImproveModal: React.FC<HelpUsImproveModalProps> = ({
   );
 };
 
-export default HelpUsImproveModal; 
+export default HelpUsImproveModal;

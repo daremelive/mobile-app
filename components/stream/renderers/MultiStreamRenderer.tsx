@@ -36,7 +36,7 @@ export const MultiStreamRenderer: React.FC<MultiStreamRendererProps> = ({
     return (
       <View className="flex-1 items-center justify-center bg-black">
         <ActivityIndicator size="large" color="#C42720" />
-        <Text className="text-white text-lg mb-2 mt-4">📡 Waiting for participants...</Text>
+        <Text className="text-white text-lg mb-2 mt-4">Waiting for participants...</Text>
         <Text className="text-gray-400 text-sm text-center px-8">
           Host and participants are preparing the multi-live stream
         </Text>
@@ -63,7 +63,7 @@ export const MultiStreamRenderer: React.FC<MultiStreamRendererProps> = ({
           {!hostParticipant.videoStream && (
             <View className="absolute inset-0 items-center justify-center bg-gray-900/95">
               <View className="items-center p-6">
-                <Text className="text-white text-4xl mb-4">🎙️</Text>
+                <Ionicons name="mic" size={42} color="white" style={{ marginBottom: 16 }} />
                 <Text className="text-white text-2xl font-bold mb-2">Audio Only</Text>
                 <Text className="text-gray-300 text-center px-4 mb-4">
                   Host is streaming audio without video
@@ -138,7 +138,7 @@ export const MultiStreamRenderer: React.FC<MultiStreamRendererProps> = ({
             // Audio-only placeholder (Zoom/Meet style)
             <View className="flex-1 items-center justify-center">
               <View className="w-12 h-12 rounded-full bg-gray-700 items-center justify-center mb-2">
-                <Text className="text-white text-2xl">🎙️</Text>
+                <Ionicons name="mic" size={24} color="white" />
               </View>
               <Text className="text-white text-sm font-medium" numberOfLines={1}>
                 {participant.name || participant.userId?.split('_')[0] || `User ${index + 1}`}
@@ -192,7 +192,7 @@ export const MultiStreamRenderer: React.FC<MultiStreamRendererProps> = ({
       {/* Multi-stream stats overlay */}
       <View className="absolute top-4 left-4 bg-black/60 rounded-lg px-3 py-2">
         <Text className="text-white text-xs font-medium">
-          {activeParticipants.length} Participants • {likeCount} ❤️
+          {activeParticipants.length} participants · {likeCount} likes
         </Text>
       </View>
       

@@ -148,9 +148,10 @@ export const GiftModal = ({
             </View>
             
             {/* Helpful tip */}
-            <View className="mt-4 mb-2 px-4 py-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
-              <Text className="text-blue-300 text-center text-sm">
-                💡 Tap any gift to send it! Need more Riz? Use the button below.
+            <View className="mt-4 mb-2 px-4 py-3 bg-blue-500/10 rounded-xl border border-blue-500/20 flex-row items-center justify-center">
+              <Ionicons name="information-circle-outline" size={16} color="#93C5FD" />
+              <Text className="text-blue-300 text-center text-sm ml-2">
+                Tap a gift to send it. Use the button below if you need more Riz.
               </Text>
             </View>
 

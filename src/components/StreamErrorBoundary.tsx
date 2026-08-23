@@ -26,7 +26,7 @@ export class StreamErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: any) {
     logger.error('Stream Error Boundary caught error:', error);
-    
+
     // Report to Sentry
     Sentry.captureException(error, {
       tags: {
@@ -57,7 +57,7 @@ export class StreamErrorBoundary extends Component<Props, State> {
         <View style={styles.errorContainer}>
           <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
           <Text style={styles.errorMessage}>
-            There was an issue with the stream. We've been notified about this problem.
+            There was an issue with the stream. We’ve been notified about this problem.
           </Text>
           <TouchableOpacity style={styles.retryButton} onPress={this.handleRetry}>
             <Text style={styles.retryButtonText}>Try Again</Text>

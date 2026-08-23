@@ -1,10 +1,5 @@
 // Modal Component Types
 
-export interface BankDetailsAddedModalProps {
-  visible: boolean;
-  onClose: () => void;
-}
-
 export interface ChangePasswordConfirmationModalProps {
   visible: boolean;
   onClose: () => void;
@@ -42,25 +37,9 @@ export interface LogoutConfirmationModalProps {
   hasActiveStreams?: boolean;
 }
 
-export interface PasswordUpdateSuccessModalProps {
-  visible: boolean;
-  onDone: () => void;
-}
-
 export interface PurchaseSuccessModalProps {
   visible: boolean;
   onClose: () => void;
-}
-
-export interface ShareProfileModalProps {
-  visible: boolean;
-  onClose: () => void;
-  userProfile: {
-    id: number;
-    username: string;
-    full_name?: string;
-    profile_picture_url?: string;
-  };
 }
 
 export interface StreamModeSelectionModalProps {

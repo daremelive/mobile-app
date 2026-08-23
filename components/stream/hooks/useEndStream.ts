@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useDispatch } from 'react-redux';
 import { useStreamActionMutation, streamsApi } from '../../../src/store/streamsApi';
 import { UseEndStreamProps } from './types';
+import logger from '../../../src/utils/logger';
 
 export const useEndStream = ({ streamId, onStreamEnd }: UseEndStreamProps) => {
   const router = useRouter();
@@ -44,7 +45,7 @@ export const useEndStream = ({ streamId, onStreamEnd }: UseEndStreamProps) => {
       router.replace('/(tabs)/home');
       
     } catch (error: any) {
-      console.error('Failed to end stream:', error);
+      logger.error('Could not end stream', error);
       
       // Check if this is the "already ended" case - if so, treat as success
       const errorMessage = error?.data?.error || error?.data?.message || '';

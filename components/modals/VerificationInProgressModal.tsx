@@ -1,3 +1,4 @@
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -31,12 +32,12 @@ const VerificationInProgressModal: React.FC<VerificationInProgressModalProps> = 
 
           <Text className="text-white text-xl font-bold mb-2">Verification in Progress</Text>
           <Text className="text-gray-400 text-center mb-6">
-            This may take a few minutes. We'll get back to you shortly.
+            This may take a few minutes. We’ll get back to you shortly.
           </Text>
 
           <View className="w-full h-[52px] rounded-full overflow-hidden">
             <LinearGradient
-              colors={['#FF0000', '#330000']}
+              colors={BRAND_GRADIENT}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="w-full h-full"
@@ -55,4 +56,4 @@ const VerificationInProgressModal: React.FC<VerificationInProgressModalProps> = 
   );
 };
 
-export default VerificationInProgressModal; 
+export default VerificationInProgressModal;

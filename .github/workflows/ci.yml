@@ -1,0 +1,26 @@
+name: Mobile CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, staging, "fix/**"]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=critical
+      - run: npm run validate
+      - run: npx expo export --platform all --output-dir .expo/ci-export
+        env:
+          EXPO_PUBLIC_API_BASE_URL: https://example.invalid/api
+          EXPO_PUBLIC_WS_BASE_URL: wss://example.invalid
+          EXPO_PUBLIC_MEDIA_BASE_URL: https://example.invalid
+          EXPO_PUBLIC_WEB_BASE_URL: https://example.invalid

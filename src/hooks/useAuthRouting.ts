@@ -6,7 +6,7 @@ import { selectIsAuthenticated, selectCurrentUser } from '../store/authSlice';
 import { logger } from '../utils/logger';
 
 /**
- * 🚀 INDUSTRY-STANDARD AUTH ROUTING HOOK
+ * Authentication routing hook
  * 
  * Handles sophisticated authentication routing based on user state:
  * - New user (first time) → Get Started (onboarding)
@@ -38,7 +38,6 @@ export const useAuthRouting = (authLoading: boolean = false) => {
   useEffect(() => {
     // Don't run routing while auth is still loading
     if (authLoading) {
-      logger.log('⏳ Auth still loading, waiting...');
       return;
     }
 
@@ -59,18 +58,9 @@ export const useAuthRouting = (authLoading: boolean = false) => {
           AsyncStorage.getItem(AUTH_STORAGE_KEYS.HAS_CREATED_ACCOUNT),
         ]);
 
-        logger.log('Auth Routing Debug:', {
-          isAuthenticated,
-          hasUser: !!currentUser,
-          hasSeenOnboarding: !!hasSeenOnboarding,
-          hasCreatedAccount: !!hasCreatedAccount,
-          userId: currentUser?.id,
-          authLoading,
-        });
 
         // Case 1: User is fully authenticated - go to main app
         if (isAuthenticated && currentUser) {
-          logger.log('Authenticated user - navigating to home');
           setHasNavigated(true);
           setTimeout(() => router.replace('/(tabs)/home'), 50);
           return;
@@ -78,7 +68,6 @@ export const useAuthRouting = (authLoading: boolean = false) => {
 
         // Case 2: User has created account before (even if logged out) - go to login
         if (hasCreatedAccount) {
-          logger.log('Returning user - navigating to login');
           setHasNavigated(true);
           setTimeout(() => router.replace('/(auth)/signin'), 50);
           return;
@@ -86,20 +75,17 @@ export const useAuthRouting = (authLoading: boolean = false) => {
 
         // Case 3: User has seen onboarding but no account created - go to login first
         if (hasSeenOnboarding) {
-          logger.log('Seen onboarding - navigating to login (can switch to signup)');
           setHasNavigated(true);
           setTimeout(() => router.replace('/(auth)/signin'), 50);
           return;
         }
 
         // Case 4: Brand new user - stay on onboarding (default)
-        logger.log('🆕 First-time user - staying on onboarding');
         // No navigation needed - user is already on index.tsx (onboarding)
 
       } catch (error) {
         logger.error('Auth routing error:', error);
         // Fallback: treat as new user if storage fails
-        logger.log('Storage error - defaulting to onboarding');
       } finally {
         setIsRoutingReady(true);
       }
@@ -112,7 +98,7 @@ export const useAuthRouting = (authLoading: boolean = false) => {
 };
 
 /**
- * 🏷️ STORAGE TRACKING UTILITIES
+ * Storage tracking utilities
  * 
  * Call these functions at appropriate points in your auth flow
  * to track user progress and enable smart routing
@@ -121,7 +107,6 @@ export const useAuthRouting = (authLoading: boolean = false) => {
 export const markOnboardingSeen = async () => {
   try {
     await AsyncStorage.setItem(AUTH_STORAGE_KEYS.HAS_SEEN_ONBOARDING, 'true');
-    logger.log('Onboarding marked as seen');
   } catch (error) {
     logger.error('Failed to mark onboarding as seen:', error);
   }
@@ -130,7 +115,6 @@ export const markOnboardingSeen = async () => {
 export const markAccountCreated = async () => {
   try {
     await AsyncStorage.setItem(AUTH_STORAGE_KEYS.HAS_CREATED_ACCOUNT, 'true');
-    logger.log('Account creation marked');
   } catch (error) {
     logger.error('Failed to mark account creation:', error);
   }
@@ -142,14 +126,13 @@ export const clearAuthHistory = async () => {
       AsyncStorage.removeItem(AUTH_STORAGE_KEYS.HAS_SEEN_ONBOARDING),
       AsyncStorage.removeItem(AUTH_STORAGE_KEYS.HAS_CREATED_ACCOUNT),
     ]);
-    logger.log('Auth history cleared');
   } catch (error) {
     logger.error('Failed to clear auth history:', error);
   }
 };
 
 /**
- * 🔧 UTILITY FUNCTIONS
+ * Utility functions
  * 
  * Helper functions for checking user state without triggering navigation
  */

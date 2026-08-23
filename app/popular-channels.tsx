@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React from 'react';
-import { View, Text, SafeAreaView, ScrollView, TextInput, TouchableOpacity, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
@@ -51,7 +52,7 @@ export default function PopularChannelsScreen() {
       >
         {popularStreams.length === 0 ? (
           <View className="flex-1 items-center justify-center mt-20">
-            <Text className="text-gray-400 text-lg mb-2">🔴 No Live Streams</Text>
+            <Text className="text-gray-400 text-lg mb-2">No live streams</Text>
             <Text className="text-gray-500 text-sm text-center">
               Popular channels will appear here when streamers go live
             </Text>
@@ -90,4 +91,4 @@ export default function PopularChannelsScreen() {
       )}
     </SafeAreaView>
   );
-} 
+}

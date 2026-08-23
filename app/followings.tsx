@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useEffect } from 'react';
-import { View, Text, SafeAreaView, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';

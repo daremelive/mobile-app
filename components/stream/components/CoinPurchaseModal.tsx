@@ -1,3 +1,4 @@
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -117,7 +118,7 @@ export const CoinPurchaseModal = ({
           <View className="px-6 pb-8">
             <View className="w-full h-[52px] rounded-full overflow-hidden">
               <LinearGradient
-                colors={selectedPackage && !isPurchasing ? ['#FF0000', '#330000'] : ['#6B7280', '#374151']}
+                colors={selectedPackage && !isPurchasing ? BRAND_GRADIENT : ['#6B7280', '#374151']}
                 locations={[0, 1]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}

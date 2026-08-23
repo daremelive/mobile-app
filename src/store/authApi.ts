@@ -1,7 +1,6 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import * as SecureStore from 'expo-secure-store';
-import type { RootState } from './index';
 import { API_ROOT } from '../config/env';
+import { createAuthenticatedBaseQuery } from '../api/authenticatedBaseQuery';
 
 // Import centralized types
 import type {
@@ -44,22 +43,7 @@ export type {
   PasswordResetConfirmRequest,
 };
 
-// Create base query for authenticated requests
-const baseQuery = fetchBaseQuery({
-  baseUrl: API_ROOT,
-  timeout: 15000, // 15 second timeout for faster failure detection
-  prepareHeaders: (headers, { getState }) => {
-    const state = getState() as RootState;
-    const token = state.auth.accessToken;
-    const isAuthenticated = state.auth.isAuthenticated;
-
-    if (token && isAuthenticated) {
-      headers.set('authorization', `Bearer ${token}`);
-    }
-    headers.set('content-type', 'application/json');
-    return headers;
-  },
-});
+const baseQueryWithReauth = createAuthenticatedBaseQuery(API_ROOT);
 
 // Create base query for public endpoints (no auth)
 const publicBaseQuery = fetchBaseQuery({
@@ -70,56 +54,6 @@ const publicBaseQuery = fetchBaseQuery({
     return headers;
   },
 });
-
-// Base query with automatic token refresh
-const baseQueryWithReauth = async (args: any, api: any, extraOptions: any) => {
-  let result = await baseQuery(args, api, extraOptions);
-
-  // Don't attempt token refresh for public endpoints
-  const publicEndpoints = [
-    'passwordResetRequest',
-    'passwordResetConfirm',
-    'signup',
-    'resendOTP',
-    'signin',
-    'verifyOTP',
-    'refresh',
-    'googleAuth'
-  ];
-
-  const endpoint = extraOptions?.endpoint || args?.endpoint;
-  const isPublicEndpoint = publicEndpoints.includes(endpoint);
-
-  if (result.error && result.error.status === 401 && !isPublicEndpoint) {
-    // Try to get a new token
-    const refreshToken = (api.getState() as RootState).auth.refreshToken;
-    if (refreshToken) {
-      const refreshResult = await baseQuery(
-        {
-          url: '/auth/token/refresh/',
-          method: 'POST',
-          body: { refresh: refreshToken },
-        },
-        api,
-        extraOptions
-      );
-
-      if (refreshResult.data) {
-        const refreshData = refreshResult.data as { access: string };
-        const { access } = refreshData;
-        // Store new token
-        await SecureStore.setItemAsync('accessToken', access);
-        // Retry original query with new token
-        result = await baseQuery(args, api, extraOptions);
-      } else {
-        // Refresh failed, redirect to login
-        api.dispatch(authApi.util.resetApiState());
-      }
-    }
-  }
-
-  return result;
-};
 
 export const authApi = createApi({
   reducerPath: 'authApi',
@@ -328,4 +262,4 @@ export const {
   usePasswordResetRequestMutation,
   usePasswordResetVerifyMutation,
   usePasswordResetConfirmMutation,
-} = authApi; 
+} = authApi;

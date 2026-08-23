@@ -1,6 +1,8 @@
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Modal, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
 import { selectCurrentUser } from '../../../src/store/authSlice';
@@ -63,11 +65,9 @@ export default function MultiParticipantJoinScreen() {
         const timeout = setTimeout(() => {
           // Only retry if still connecting, hasn't joined, and call state isn't already successful
           if (isConnecting && !hasJoined && (!call || call.state.callingState !== 'joined')) {
-            logger.log('Connection timeout for promoted participant, retrying...');
             setIsConnecting(false);
             setTimeout(() => initializeParticipant(), 1000);
           } else {
-            logger.log('Timeout fired but participant already connected, ignoring...');
           }
         }, 15000); // 15 second timeout
         setConnectionTimeout(timeout);
@@ -79,15 +79,9 @@ export default function MultiParticipantJoinScreen() {
             const localParticipant = call.state.localParticipant;
             const hasVideoTrack = localParticipant?.publishedTracks?.some((track: any) => track.kind === 'video');
 
-            logger.log('AUTOMATIC CAMERA CHECK:', {
-              cameraStatus,
-              hasVideoTrack,
-              publishedTracks: localParticipant?.publishedTracks?.length || 0
-            });
 
             // Aggressive auto-fix: If camera is not working, automatically retry
             if ((cameraStatus !== 'enabled' || !hasVideoTrack) && cameraRetryCount < 5) {
-              logger.log('� AUTO-FIXING: Camera not working, automatically retrying...');
               retryCameraEnabling().catch(logger.error);
             }
           }
@@ -152,7 +146,6 @@ export default function MultiParticipantJoinScreen() {
   useEffect(() => {
     if (!call || !hasJoined || params.promoted !== 'true') return;
 
-    logger.log('STARTING CALL STATE MONITORING for promoted participant...');
 
     const monitorInterval = setInterval(() => {
       try {
@@ -161,43 +154,18 @@ export default function MultiParticipantJoinScreen() {
         const videoTracks = publishedTracks.filter((track: any) => track.kind === 'video');
         const audioTracks = publishedTracks.filter((track: any) => track.kind === 'audio');
 
-        logger.log('PARTICIPANT CALL STATE MONITOR:', {
-          callId: call.id,
-          callState: call.state.callingState,
-          userId: currentUser?.id,
-          userName: currentUser?.username,
-          totalParticipants: call.state.participants?.length || 0,
-          localParticipantId: localParticipant?.userId,
-          publishedTracksTotal: publishedTracks.length,
-          videoTracksCount: videoTracks.length,
-          audioTracksCount: audioTracks.length,
-          cameraState: call.camera.state.status,
-          micState: call.microphone.state.status,
-          ownCapabilities: call.state.ownCapabilities || [],
-          hasVideoCapability: (call.state.ownCapabilities || []).includes('send-video'),
-          hasAudioCapability: (call.state.ownCapabilities || []).includes('send-audio'),
-          trackDetails: publishedTracks.map((track: any) => ({
-            kind: track.kind,
-            enabled: track.enabled,
-            muted: track.muted,
-            type: track.type
-          }))
-        });
 
         // Alert if we're in an inconsistent state
         if (call.camera.state.status === 'enabled' && videoTracks.length === 0) {
-          logger.log('INCONSISTENT STATE DETECTED: Camera enabled but no video tracks published!');
         }
 
       } catch (monitorErr) {
-        logger.log('CALL STATE MONITORING ERROR:', monitorErr);
       }
     }, 3000); // Monitor every 3 seconds
 
     // Clean up monitoring after 2 minutes
     const cleanupTimeout = setTimeout(() => {
       clearInterval(monitorInterval);
-      logger.log('STOPPED CALL STATE MONITORING for promoted participant');
     }, 120000);
 
     return () => {
@@ -258,23 +226,18 @@ export default function MultiParticipantJoinScreen() {
 
       try {
         if (isPromotedParticipant) {
-          logger.log('PROMOTED PARTICIPANT: Starting call join process...');
 
           // For promoted participants, we need to JOIN the existing call (not create)
           // The call already exists, created by the host
           try {
             // First, get the call to ensure we have it
             await gCall.get();
-            logger.log('PROMOTED PARTICIPANT: Got call reference');
           } catch (getErr) {
-            logger.log('PROMOTED PARTICIPANT: Call get failed, trying getOrCreate...', getErr);
             await gCall.getOrCreate();
           }
 
           // NOW ACTUALLY JOIN THE CALL - This is the critical step!
-          logger.log('PROMOTED PARTICIPANT: Joining call...');
           await gCall.join({ create: false });
-          logger.log('PROMOTED PARTICIPANT: Call joined successfully!');
 
           // Small delay to let join settle
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -307,25 +270,19 @@ export default function MultiParticipantJoinScreen() {
         if (isPromotedParticipant) {
           // Promoted participants should already have permissions granted by the host
           // Just wait for the call state to settle after joining
-          logger.log('PROMOTED PARTICIPANT: Waiting for permissions to propagate...');
           await new Promise(resolve => setTimeout(resolve, 1000));
 
           // Check capabilities
           const capabilities = gCall.state.ownCapabilities || [];
-          logger.log('PROMOTED PARTICIPANT: Current capabilities:', capabilities);
         }
 
         await new Promise(resolve => setTimeout(resolve, 500));
 
         // Enable camera
-        logger.log('Enabling camera...');
         await gCall.camera.enable();
-        logger.log('Camera enabled successfully');
 
         // Enable microphone
-        logger.log('Enabling microphone...');
         await gCall.microphone.enable();
-        logger.log('Microphone enabled successfully');
 
         // Wait for tracks to be published
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -333,10 +290,8 @@ export default function MultiParticipantJoinScreen() {
         // Verify media is working
         const cameraStatus = gCall.camera.state.status;
         const micStatus = gCall.microphone.state.status;
-        logger.log('Media status:', { camera: cameraStatus, mic: micStatus });
 
       } catch (mediaErr: any) {
-        logger.log('Media enabling failed:', mediaErr);
         // Keep session even if media enabling fails
       }
 
@@ -354,36 +309,23 @@ export default function MultiParticipantJoinScreen() {
       if (isPromotedParticipant) {
         setTimeout(async () => {
           try {
-            logger.log('FINAL TRACK PUBLISHING CHECK for promoted participant...');
 
             const currentParticipant = gCall.state.localParticipant;
             const currentVideoTracks = currentParticipant?.publishedTracks?.filter((track: any) => track.kind === 'video').length || 0;
             const currentAudioTracks = currentParticipant?.publishedTracks?.filter((track: any) => track.kind === 'audio').length || 0;
 
-            logger.log('CURRENT PUBLISHED TRACKS:', {
-              videoTracks: currentVideoTracks,
-              audioTracks: currentAudioTracks,
-              cameraEnabled: gCall.camera.state.status === 'enabled',
-              microphoneEnabled: gCall.microphone.state.status === 'enabled',
-              callId: gCall.id,
-              userId: currentUser?.id,
-              ownCapabilities: gCall.state.ownCapabilities
-            });
 
             // If camera is enabled but no video tracks published, force publishing
             if (currentVideoTracks === 0) {
-              logger.log('FINAL CHECK: NO VIDEO TRACKS PUBLISHED - IMPLEMENTING NUCLEAR OPTION...');
 
               try {
                 // NUCLEAR OPTION 1: Complete permission reset and re-request
-                logger.log('NUCLEAR OPTION 1: Requesting all permissions again...');
                 await gCall.requestPermissions({
                   permissions: ['send-video', 'send-audio', 'read-call', 'join-call']
                 });
                 await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // NUCLEAR OPTION 2: Force disable/enable cycle with longer delays
-                logger.log('NUCLEAR OPTION 2: Complete camera cycle...');
                 await gCall.camera.disable();
                 await gCall.microphone.disable();
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -397,17 +339,9 @@ export default function MultiParticipantJoinScreen() {
                 const afterCycle = gCall.state.localParticipant;
                 const afterCycleVideoTracks = afterCycle?.publishedTracks?.filter((track: any) => track.kind === 'video').length || 0;
 
-                logger.log('AFTER NUCLEAR CYCLE:', {
-                  videoTracks: afterCycleVideoTracks,
-                  audioTracks: afterCycle?.publishedTracks?.filter((track: any) => track.kind === 'audio').length || 0,
-                  totalTracks: afterCycle?.publishedTracks?.length || 0,
-                  cameraState: gCall.camera.state.status,
-                  micState: gCall.microphone.state.status
-                });
 
                 // NUCLEAR OPTION 4: If still no tracks, try rejoin approach
                 if (afterCycleVideoTracks === 0) {
-                  logger.log('NUCLEAR OPTION 4: Last resort - partial rejoin...');
 
                   try {
                     // Leave and rejoin the call
@@ -425,45 +359,32 @@ export default function MultiParticipantJoinScreen() {
                     const afterRejoin = gCall.state.localParticipant;
                     const rejoinVideoTracks = afterRejoin?.publishedTracks?.filter((track: any) => track.kind === 'video').length || 0;
 
-                    logger.log('AFTER REJOIN:', {
-                      videoTracks: rejoinVideoTracks,
-                      success: rejoinVideoTracks > 0,
-                      totalTracks: afterRejoin?.publishedTracks?.length || 0
-                    });
 
                   } catch (rejoinErr) {
-                    logger.log('REJOIN FAILED:', rejoinErr);
                   }
                 }
 
               } catch (nuclearErr) {
-                logger.log('NUCLEAR OPTIONS FAILED:', nuclearErr);
 
                 // FINAL FALLBACK: Show user that manual action may be needed
-                logger.log('ALL AUTOMATED FIXES FAILED - User may need to manually enable camera');
               }
             } else {
-              logger.log('VIDEO TRACKS SUCCESSFULLY PUBLISHED!');
             }
 
           } catch (finalCheckErr) {
-            logger.log('FINAL TRACK CHECK FAILED:', finalCheckErr);
           }
         }, 2000); // Wait 2 seconds after join to ensure everything is settled
       }
 
       // For hosts, add a delayed check to detect promoted participants
       if (isHost) {
-        logger.log('HOST INITIALIZATION: Setting up participant detection timers');
 
         const participantCheckTimeout = setTimeout(() => {
-          logger.log('HOST DELAYED CHECK: Looking for promoted participants after 3 seconds');
           // Force split screen if we suspect there should be participants
           const hasCallParticipants = gCall?.state?.participants?.length > 1;
           const hasCallMembers = gCall?.state?.members?.length > 1;
 
           if (hasCallParticipants || hasCallMembers) {
-            logger.log('HOST DELAYED CHECK: Found evidence of participants, forcing split screen');
             setForceHostSplitScreen(true);
           }
 
@@ -476,14 +397,12 @@ export default function MultiParticipantJoinScreen() {
 
         // Also add a more frequent check for host
         const gridUpdateInterval = setInterval(() => {
-          logger.log('HOST GRID UPDATE: Forcing Grid re-render to check for participants');
           setForceGridUpdate(prev => prev + 1);
         }, 5000);
 
         // Clear interval after 30 seconds
         setTimeout(() => {
           clearInterval(gridUpdateInterval);
-          logger.log('HOST GRID UPDATE: Stopped periodic Grid updates');
         }, 30000);
       }
 
@@ -492,18 +411,14 @@ export default function MultiParticipantJoinScreen() {
         // Give a moment for state to settle then validate connection
         setTimeout(() => {
           const currentCapabilities = gCall.state.ownCapabilities || [];
-          logger.log('Promoted participant capabilities:', currentCapabilities);
 
           if (currentCapabilities.length === 0) {
-            logger.log('Promoted participant has no capabilities, attempting multiple recovery strategies...');
 
             // Strategy 1: Request permissions through the call
             gCall.requestPermissions({
               permissions: ['send-video', 'send-audio']
             }).then(() => {
-              logger.log('Permission request successful');
             }).catch((reqErr) => {
-              logger.log('Permission request failed, trying rejoin strategy...');
 
               // Strategy 2: Leave and rejoin with different parameters
               gCall.leave().then(() => {
@@ -519,17 +434,14 @@ export default function MultiParticipantJoinScreen() {
                   }
                 });
               }).then(() => {
-                logger.log('Rejoin successful');
                 // Try permissions again after rejoin
                 return gCall.requestPermissions({
                   permissions: ['send-video', 'send-audio']
                 });
               }).catch((rejoinErr) => {
-                logger.log('Rejoin strategy failed, but connection should still work for viewing');
               });
             });
           } else {
-            logger.log('Promoted participant has capabilities, connection successful');
           }
         }, 2000);
 
@@ -540,12 +452,10 @@ export default function MultiParticipantJoinScreen() {
           const canSendAudio = mediaCapabilities.includes('send-audio');
 
           if (!canSendVideo && !canSendAudio) {
-            logger.log('Promoted participant still has no media capabilities after 5 seconds');
 
             // Try one more aggressive approach to get media permissions
             (async () => {
               try {
-                logger.log('Attempting simplified media permission recovery...');
 
                 // Simple approach: Leave and rejoin with explicit media request
                 await gCall.leave();
@@ -574,12 +484,9 @@ export default function MultiParticipantJoinScreen() {
                   permissions: ['send-video', 'send-audio']
                 });
 
-                logger.log('Successfully recovered media permissions via rejoin');
 
               } catch (rejoinErr) {
-                logger.log('Rejoin approach failed, but continuing with available capabilities...');
 
-                logger.log('All automated recovery attempts failed');
 
                 // Show a helpful user message but don't block the experience
                 Alert.alert(
@@ -609,7 +516,6 @@ export default function MultiParticipantJoinScreen() {
         alertMessage = 'There was a permission issue joining the stream. This can happen with promoted participants due to Stream.io security settings. The connection should still work for viewing and basic participation.';
 
         // For permission errors, don't show a blocking alert, just log and continue
-        logger.log('Permission error during join:', errorMessage);
 
         // Set a minimal connected state so user can at least view
         if (streamClient) {
@@ -621,10 +527,8 @@ export default function MultiParticipantJoinScreen() {
             await gCall.join({ create: false });
             setCall(gCall);
             setHasJoined(true);
-            logger.log('Fallback join successful despite permission error');
             return; // Exit early, don't show error alert
           } catch (fallbackErr) {
-            logger.log('Fallback join also failed');
           }
         }
       } else if (isGetStreamError) {
@@ -685,41 +589,34 @@ export default function MultiParticipantJoinScreen() {
     if (!call || isBusy) return;
 
     setLastCameraError(null);
-    logger.log('RETRY CAMERA: Starting camera retry for promoted participant...');
 
     try {
       const currentCapabilities = call.state.ownCapabilities || [];
       const hasVideoCapability = currentCapabilities.includes('send-video');
 
       if (!hasVideoCapability) {
-        logger.log('RETRY CAMERA: Requesting video permissions...');
         try {
           await call.requestPermissions({
             permissions: ['send-video', 'send-audio']
           });
           await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (permErr) {
-          logger.log('RETRY CAMERA: Permission request failed:', permErr);
         }
       }
 
       // Aggressive camera enabling sequence with reduced delays
       try {
-        logger.log('RETRY CAMERA: Disabling camera first...');
         await call.camera.disable();
         await new Promise(resolve => setTimeout(resolve, 250)); // Reduced from 500ms
 
-        logger.log('RETRY CAMERA: Enabling camera...');
         await call.camera.enable();
         await new Promise(resolve => setTimeout(resolve, 750)); // Reduced from 1500ms
 
         // Check if video is being published
         const localParticipant = call.state.localParticipant;
         const hasVideoTrack = localParticipant?.publishedTracks?.some((track: any) => track.kind === 'video');
-        logger.log('RETRY CAMERA: Video track published:', hasVideoTrack);
 
         if (!hasVideoTrack) {
-          logger.log('RETRY CAMERA: Video track not published, trying alternative method...');
           // Try alternative enabling method with faster timing
           await call.camera.disable();
           await new Promise(resolve => setTimeout(resolve, 500)); // Reduced from 1000ms
@@ -727,13 +624,11 @@ export default function MultiParticipantJoinScreen() {
           await new Promise(resolve => setTimeout(resolve, 1000)); // Reduced from 2000ms
         }
       } catch (enableErr) {
-        logger.log('RETRY CAMERA: Camera enable failed:', enableErr);
         throw enableErr;
       }
 
       await new Promise(resolve => setTimeout(resolve, 1000));
       const status = call.camera.state.status;
-      logger.log('RETRY CAMERA: Final camera status:', status);
 
       if (status !== 'enabled') {
         throw new Error(`Camera status is ${status} after enable`);
@@ -771,18 +666,6 @@ export default function MultiParticipantJoinScreen() {
 
     // Debug logging for promoted participants
     if (!participant.isLocalParticipant && params.promoted === 'true') {
-      logger.log('PARTICIPANT VIDEO CHECK:', {
-        participantName: participant.name || participant.userId,
-        streamId: streamId,
-        callId: call?.id,
-        callType: call?.type,
-        callState: call?.state?.callingState,
-        streamHasVideo,
-        hasVideoTrack,
-        hasVideoStream,
-        publishedTracks: participant.publishedTracks?.length || 0,
-        trackTypes: participant.publishedTracks?.map((t: any) => t.type) || []
-      });
     }
 
     // Return true if any method detects video
@@ -800,16 +683,6 @@ export default function MultiParticipantJoinScreen() {
     const hasVideoFn = useActualVideo ? hasActualVideo : hasVideo;
     const participantHasVideo = hasVideoFn(participant);
 
-    // Debug logging for video detection
-    logger.log('RENDER PARTICIPANT TILE:', {
-      name: participant.name || participant.userId,
-      isLocal,
-      participantHasVideo,
-      cameraStatus: cameraState?.status,
-      publishedTracks: participant.publishedTracks?.length || 0,
-      videoTracks: participant.publishedTracks?.filter((t: any) => t.kind === 'video').length || 0
-    });
-
     if (isLocal) {
       // Local participant (promoted guest or host) - ALWAYS use VideoRenderer when camera is enabled
       if (cameraState.status === 'enabled' || participantHasVideo) {
@@ -819,7 +692,7 @@ export default function MultiParticipantJoinScreen() {
         return (
           <View className="flex-1 bg-gray-800 items-center justify-center">
             <View className="w-14 h-14 rounded-full bg-gray-700 items-center justify-center mb-2">
-              <Text className="text-white text-2xl">🎙️</Text>
+              <Ionicons name="mic" size={24} color="white" />
             </View>
             <Text className="text-white text-lg font-semibold">You</Text>
             <Text className="text-gray-400 text-sm mt-1">Audio Only</Text>
@@ -834,7 +707,7 @@ export default function MultiParticipantJoinScreen() {
       return (
         <View className="flex-1 bg-gray-800 items-center justify-center">
           <View className="w-14 h-14 rounded-full bg-gray-700 items-center justify-center mb-2">
-            <Text className="text-white text-2xl">🎙️</Text>
+            <Ionicons name="mic" size={24} color="white" />
           </View>
           <Text className="text-white text-lg font-semibold">
             {participant.name || 'Guest'}
@@ -874,17 +747,6 @@ export default function MultiParticipantJoinScreen() {
       // Include if SDK helpers OR stream objects detect broadcasting
       const isPublishing = participantHasVideo || participantHasAudio || hasVideoStream || hasAudioStream;
 
-      logger.log('GRID FILTER - Checking participant:', {
-        name: p.name || p.userId,
-        isLocal: p.isLocalParticipant,
-        participantHasVideo,
-        participantHasAudio,
-        hasVideoStream,
-        hasAudioStream,
-        cameraEnabled: cameraState.status === 'enabled',
-        isPublishing,
-        willInclude: p.isLocalParticipant ? (isPublishing || cameraState.status === 'enabled') : isPublishing
-      });
 
       // For local participant, also include if they have camera enabled (about to publish)
       if (p.isLocalParticipant) {
@@ -895,15 +757,6 @@ export default function MultiParticipantJoinScreen() {
       return isPublishing;
     });
 
-    logger.log('GRID FILTER RESULT:', {
-      totalParticipants: participants.length,
-      activeParticipants: activeParticipants.length,
-      callStateParticipants: call?.state?.participants?.length || 0,
-      isHost,
-      isPromoted: params.promoted === 'true',
-      allParticipantNames: participants.map(p => p.name || p.userId),
-      activeParticipantNames: activeParticipants.map(p => p.name || p.userId)
-    });
 
     // IMPORTANT FIX: For hosts, they might not see promoted participants in their useParticipants() hook
     // This is a Stream.io limitation where promoted participants aren't immediately visible to hosts
@@ -912,17 +765,6 @@ export default function MultiParticipantJoinScreen() {
 
     // Enhanced host participant detection - but with strict deduplication
     if (isHost) {
-      logger.log('HOST PARTICIPANT DETECTION:', {
-        activeParticipantsFromHook: activeParticipants.length,
-        activeParticipantDetails: activeParticipants.map(p => ({
-          name: p.name || p.userId,
-          userId: p.userId,
-          isLocal: p.isLocalParticipant
-        })),
-        callStateParticipants: call?.state?.participants?.length || 0,
-        callStateMembers: call?.state?.members?.length || 0,
-        currentUser: currentUser?.id
-      });
 
       // Only add additional participants if we have ZERO remote participants
       // This prevents duplicate entries while still enabling screen splitting
@@ -938,14 +780,6 @@ export default function MultiParticipantJoinScreen() {
         );
 
         if (additionalParticipants.length > 0) {
-          logger.log('HOST: Adding real additional participants:', {
-            count: additionalParticipants.length,
-            details: additionalParticipants.map((p: any) => ({
-              name: p.name || p.userId,
-              userId: p.userId,
-              publishedTracks: p.publishedTracks?.length || 0
-            }))
-          });
 
           // Only add actual participants, no synthetic ones
           active = [...activeParticipants, ...additionalParticipants];
@@ -955,16 +789,6 @@ export default function MultiParticipantJoinScreen() {
 
     // PROMOTED PARTICIPANT FIX: Similar to host fix, promoted participants might not see host initially
     if (!isHost && params.promoted === 'true') {
-      logger.log('PROMOTED PARTICIPANT DETECTION:', {
-        activeParticipantsFromHook: activeParticipants.length,
-        activeParticipantDetails: activeParticipants.map(p => ({
-          name: p.name || p.userId,
-          userId: p.userId,
-          isLocal: p.isLocalParticipant
-        })),
-        callStateParticipants: call?.state?.participants?.length || 0,
-        currentUser: currentUser?.id
-      });
 
       // If we have no remote participants (can't see host), try to get from call state
       const remoteInActive = activeParticipants.filter(p => !p.isLocalParticipant);
@@ -980,13 +804,6 @@ export default function MultiParticipantJoinScreen() {
         );
 
         if (hostParticipants.length > 0) {
-          logger.log('PROMOTED: Adding host participant:', {
-            count: hostParticipants.length,
-            details: hostParticipants.map((p: any) => ({
-              name: p.name || p.userId,
-              userId: p.userId
-            }))
-          });
           active = [...activeParticipants, ...hostParticipants];
         }
       }
@@ -1003,31 +820,10 @@ export default function MultiParticipantJoinScreen() {
     const hasValidConnection = call && (local || (isPromotedParticipant && (hasBasicCapabilities || isCallConnected)));
     const shouldShowConnecting = !hasValidConnection && isConnecting;
 
-    logger.log('Grid Debug Info:', {
-      totalParticipants: participants.length,
-      activeParticipants: active.length,
-      localParticipant: local ? 'Found' : 'Not found',
-      isPromotedParticipant,
-      hasValidConnection,
-      hasBasicCapabilities,
-      isCallConnected,
-      shouldShowConnecting,
-      participantNames: active.map(p => p.name || p.userId || 'Unknown'),
-      participantUserIds: active.map(p => p.userId),
-      currentUserId: currentUser?.id?.toString(),
-      ownCapabilities,
-      callingState: call?.state?.callingState,
-      allActiveParticipantsCount: undefined, // Will be set later
-      userType: isHost ? 'HOST' : (isPromotedParticipant ? 'PROMOTED_PARTICIPANT' : 'PARTICIPANT'),
-      callStateParticipantCount: call?.state?.participants?.length || 0,
-      forceGridUpdate: forceGridUpdate,
-      renderTimestamp: new Date().toISOString()
-    });
 
     // Clear timeout if promoted participant has successfully connected using useEffect to avoid setState during render
     React.useEffect(() => {
       if (isPromotedParticipant && hasValidConnection && connectionTimeout) {
-        logger.log('Promoted participant connected successfully, clearing timeout');
         clearTimeout(connectionTimeout);
         setConnectionTimeout(null);
       }
@@ -1051,19 +847,7 @@ export default function MultiParticipantJoinScreen() {
         // Add other required properties as needed
       } as any;
 
-      logger.log('Created synthetic participant for promoted user (not found in active participants):', {
-        userId: effectiveLocal?.userId,
-        name: effectiveLocal?.name,
-        hasBasicCapabilities,
-        isCallConnected,
-        activeParticipantCount: active.length
-      });
     } else if (currentUserInParticipants) {
-      logger.log('Current user found in active participants, using existing participant:', {
-        participantName: currentUserInParticipants.name,
-        participantUserId: currentUserInParticipants.userId,
-        isLocalParticipant: currentUserInParticipants.isLocalParticipant
-      });
       // Use the existing participant as the effective local
       effectiveLocal = currentUserInParticipants;
     }
@@ -1130,18 +914,8 @@ export default function MultiParticipantJoinScreen() {
           // Add other required properties as needed
         } as any;
 
-        logger.log('Fallback: Updated synthetic participant for promoted user:', {
-          userId: effectiveLocal?.userId,
-          name: effectiveLocal?.name,
-          hasBasicCapabilities,
-          isCallConnected
-        });
       } else {
         effectiveLocal = currentUserInParticipants;
-        logger.log('Fallback: Using existing participant from active list:', {
-          participantName: currentUserInParticipants.name,
-          participantUserId: currentUserInParticipants.userId
-        });
       }
     }
 
@@ -1171,7 +945,6 @@ export default function MultiParticipantJoinScreen() {
     // For promoted participants, if we don't have a local participant but we have other participants,
     // we should still show the grid with the available participants
     if (isPromotedParticipant && !local && active.length > 0) {
-      logger.log('Promoted participant: showing grid with other participants');
       // Continue to normal grid logic below
     } else if (!effectiveLocal && !(isPromotedParticipant && (hasBasicCapabilities || isCallConnected))) {
       return (
@@ -1209,49 +982,17 @@ export default function MultiParticipantJoinScreen() {
       } else {
         allActiveParticipants = [...active, effectiveLocal];
       }
-      logger.log('Added effective local participant to grid:', {
-        totalParticipants: allActiveParticipants.length,
-        userType: isHost ? 'host' : (isPromotedParticipant ? 'promoted-participant' : 'participant'),
-        participantTypes: allActiveParticipants.map(p => ({
-          name: p.name || p.userId,
-          isLocal: p.isLocalParticipant,
-          isSynthetic: p === effectiveLocal && !local
-        }))
-      });
     } else if (effectiveLocalAlreadyInActive) {
-      logger.log('Effective local participant already in active participants, not adding duplicate:', {
-        totalParticipants: allActiveParticipants.length,
-        userType: isHost ? 'host' : (isPromotedParticipant ? 'promoted-participant' : 'participant'),
-        participantNames: allActiveParticipants.map(p => p.name || p.userId)
-      });
     }
 
     // Enhanced final check: If we're a host and still only see ourselves, do one more comprehensive check
     // This ensures hosts see split screen when there are promoted participants
     if (isHost && allActiveParticipants.length === 1 && allActiveParticipants[0].isLocalParticipant) {
-      logger.log('HOST FINAL CHECK: Still only seeing self - doing comprehensive participant detection');
 
       // Check call members for promoted participants that might not be showing up anywhere else
       const callMembers = call?.state?.members || [];
       const callParticipants = call?.state?.participants || [];
 
-      logger.log('HOST FINAL CHECK - Available data:', {
-        members: callMembers.map((m: any) => ({
-          userId: m.user_id,
-          name: m.user?.name,
-          role: m.role
-        })),
-        participants: callParticipants.map((p: any) => ({
-          userId: p.userId,
-          name: p.name,
-          isLocal: p.isLocalParticipant
-        })),
-        currentAllActive: allActiveParticipants.map(p => ({
-          name: p.name,
-          userId: p.userId,
-          isLocal: p.isLocalParticipant
-        }))
-      });
 
       // Find any member/participant that's not the current user and not already in allActiveParticipants
       const missingMembers = callMembers.filter((member: any) =>
@@ -1280,45 +1021,14 @@ export default function MultiParticipantJoinScreen() {
       });
 
       if (allMissing.length > 0) {
-        logger.log('HOST FINAL CHECK: Found missing participants to add:', {
-          count: allMissing.length,
-          details: allMissing.map(p => ({
-            name: p.name || p.userId,
-            userId: p.userId,
-            isFromMember: p.isSyntheticFromFinalCheck
-          }))
-        });
 
         allActiveParticipants = [...allActiveParticipants, ...allMissing];
 
-        logger.log('HOST FINAL CHECK: Updated participant list:', {
-          totalCount: allActiveParticipants.length,
-          allNames: allActiveParticipants.map(p => p.name || p.userId),
-          shouldShowSplitView: allActiveParticipants.length >= 2
-        });
       } else {
-        logger.log('HOST FINAL CHECK: No missing participants found - this may indicate a Stream.io sync issue');
       }
     }
 
     // Final debug info for the grid
-    logger.log('Final Grid State:', {
-      allActiveParticipantsCount: allActiveParticipants.length,
-      allParticipantDetails: allActiveParticipants.map((p, index) => ({
-        index,
-        name: p.name || p.userId || 'Unknown',
-        userId: p.userId,
-        isLocalParticipant: p.isLocalParticipant,
-        hasVideo: hasActualVideo(p)
-      })),
-      effectiveLocalExists: !!effectiveLocal,
-      effectiveLocalName: effectiveLocal?.name,
-      isHost,
-      isPromotedParticipant,
-      renderingMode: allActiveParticipants.length === 0 ? 'empty' :
-        allActiveParticipants.length === 1 ? 'single' :
-          allActiveParticipants.length === 2 ? 'dual' : 'grid'
-    });
 
     // Handle the case where we have active participants but no local participant (promoted participant case)
     if (allActiveParticipants.length === 0 && effectiveLocal) {
@@ -1390,9 +1100,16 @@ export default function MultiParticipantJoinScreen() {
           {/* Camera automatically retries in background for promoted participants */}
           {!isHost && params.promoted === 'true' && (
             <View className="absolute top-4 left-4 bg-black/60 rounded px-2 py-1">
-              <Text className="text-white text-xs">
-                {cameraState.status === 'enabled' ? '📹 Camera ready' : '🎙️ Audio only'}
-              </Text>
+              <View className="flex-row items-center">
+                <Ionicons
+                  name={cameraState.status === 'enabled' ? 'videocam' : 'mic'}
+                  size={12}
+                  color="white"
+                />
+                <Text className="text-white text-xs ml-1">
+                  {cameraState.status === 'enabled' ? 'Camera ready' : 'Audio only'}
+                </Text>
+              </View>
             </View>
           )}
         </View>
@@ -1502,7 +1219,7 @@ export default function MultiParticipantJoinScreen() {
 
             {/* Description */}
             <Text className="text-gray-300 text-base text-center leading-6 mb-8">
-              Are you sure you want to leave as a guest? You'll no longer be able to speak in this stream and will return to viewer mode.
+              Are you sure you want to leave as a guest? You’ll no longer be able to speak in this stream and will return to viewer mode.
             </Text>
 
             {/* Buttons */}
@@ -1510,7 +1227,7 @@ export default function MultiParticipantJoinScreen() {
               {/* Stay as Guest Button */}
               <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
                 <LinearGradient
-                  colors={['#FF0000', '#330000']}
+                  colors={BRAND_GRADIENT}
                   locations={[0, 1]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}

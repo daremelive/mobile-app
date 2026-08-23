@@ -1,5 +1,7 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState, useEffect } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSelector, useDispatch } from 'react-redux';
@@ -23,7 +25,7 @@ const ResetPasswordScreen = () => {
   const pendingEmail = useSelector(selectPendingEmail);
   const pendingResetToken = useSelector(selectPendingResetToken);
   const [passwordResetConfirm, { isLoading }] = usePasswordResetConfirmMutation();
-  
+
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [newPasswordVisible, setNewPasswordVisible] = useState(false);
@@ -137,7 +139,7 @@ const ResetPasswordScreen = () => {
 
         <Text className="text-white text-3xl font-bold mb-3">Reset Password</Text>
         <Text className="text-gray-400 text-base mb-10">
-          Your new password must be different from your previous one. Make sure it's strong and secure!
+          Your new password must be different from your previous one. Make sure it’s strong and secure!
         </Text>
 
         <View className="mb-6">
@@ -183,7 +185,7 @@ const ResetPasswordScreen = () => {
         </View>
         <View className="w-full h-[52px] rounded-full overflow-hidden mb-6 mt-4">
           <LinearGradient
-            colors={isLoading ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
+            colors={isLoading ? ['#666666', '#333333'] : BRAND_GRADIENT}
             locations={[0, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
@@ -205,4 +207,4 @@ const ResetPasswordScreen = () => {
   );
 };
 
-export default ResetPasswordScreen; 
+export default ResetPasswordScreen;

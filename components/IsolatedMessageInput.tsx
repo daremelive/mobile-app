@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { View, TextInput, TouchableOpacity, Text } from 'react-native';
+import { View, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 
 // COMPLETELY ISOLATED INPUT COMPONENT - ZERO PARENT DEPENDENCIES
 interface IsolatedMessageInputProps {
@@ -61,9 +62,11 @@ const IsolatedMessageInput = React.memo(({
           colors={buttonColors}
           className="w-full h-full rounded-xl items-center justify-center"
         >
-          <Text className="text-white text-lg">
-            {sending ? '⏳' : '📤'}
-          </Text>
+          {sending ? (
+            <ActivityIndicator size="small" color="white" />
+          ) : (
+            <Ionicons name="send" size={20} color="white" />
+          )}
         </LinearGradient>
       </TouchableOpacity>
     </View>

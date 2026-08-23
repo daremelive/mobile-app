@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useRef, useState, useCallback, useMemo } from 'react';
 import {
   useGetConversationsQuery,
   useGetConversationDetailQuery,
@@ -6,11 +6,10 @@ import {
   useMarkMessagesAsReadMutation,
   useSearchMessagesQuery,
   useSearchUsersQuery,
-  useGetUsersQuery,
-  useGetUserStatusQuery,
   useCreateConversationMutation,
 } from '../api/messagingApi';
 import { logger } from '../utils/logger';
+import { createRequestId } from '../utils/requestId';
 
 /**
  * One shared empty array for every "no data yet" case.
@@ -23,7 +22,7 @@ const EMPTY_LIST: any[] = [];
 
 export const useConversations = (searchQuery?: string) => {
   const [isSearching, setIsSearching] = useState(false);
-  
+
   // Main conversations query
   const {
     data: conversationsData,
@@ -81,6 +80,11 @@ export const useConversations = (searchQuery?: string) => {
 };
 
 export const useConversationDetail = (conversationId: number) => {
+  const pendingMessageRequest = useRef<{
+    recipientId: number;
+    content: string;
+    requestId: string;
+  } | null>(null);
   const {
     data: conversation,
     error,
@@ -95,11 +99,27 @@ export const useConversationDetail = (conversationId: number) => {
     if (!content.trim()) return;
 
     try {
+      const normalizedContent = content.trim();
+      let request = pendingMessageRequest.current;
+      if (
+        !request
+        || request.recipientId !== recipientId
+        || request.content !== normalizedContent
+      ) {
+        request = {
+          recipientId,
+          content: normalizedContent,
+          requestId: createRequestId('message'),
+        };
+      }
+      pendingMessageRequest.current = request;
       await sendMessageMutation({
         recipient_id: recipientId,
-        content: content.trim(),
+        content: normalizedContent,
+        request_id: request.requestId,
       }).unwrap();
-      
+      pendingMessageRequest.current = null;
+
       // RTK Query will automatically update the cache
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to send message');
@@ -126,31 +146,8 @@ export const useConversationDetail = (conversationId: number) => {
   };
 };
 
-export const useUserStatus = (userId: number) => {
-  const {
-    data: statusData,
-    error,
-    isLoading,
-  } = useGetUserStatusQuery({ userId });
-
-  return {
-    isOnline: statusData?.is_online || false,
-    lastSeen: statusData?.last_seen || null,
-    loading: isLoading,
-    error,
-  };
-};
-
 export const useUsers = (searchQuery?: string) => {
   const [isSearching, setIsSearching] = useState(false);
-
-  // Main users query
-  const {
-    data: usersData,
-    error: usersError,
-    isLoading: usersLoading,
-    refetch: refetchUsers,
-  } = useGetUsersQuery();
 
   // Search query (only when searching)
   const {
@@ -182,16 +179,16 @@ export const useUsers = (searchQuery?: string) => {
   }, [createConversationMutation]);
 
   const refreshUsers = useCallback(async () => {
-    refetchUsers();
-  }, [refetchUsers]);
+    return;
+  }, []);
 
   // Return search results if searching, otherwise regular users
   const users = useMemo(
-    () => (isSearching && searchData ? searchData.results : usersData?.results ?? EMPTY_LIST),
-    [isSearching, searchData, usersData]
+    () => (isSearching && searchData ? searchData.results : EMPTY_LIST),
+    [isSearching, searchData]
   );
-  const loading = isSearching ? searchLoading : usersLoading;
-  const error = isSearching ? searchError : usersError;
+  const loading = isSearching ? searchLoading : false;
+  const error = isSearching ? searchError : undefined;
 
   return {
     users,

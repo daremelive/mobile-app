@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { selectAccessToken, selectCurrentUser } from '../store/authSlice';
 import { WS_BASE_URL } from '../config/env';
@@ -41,25 +41,40 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
   const [isConnected, setIsConnected] = useState(false);
   const [stats, setStats] = useState<NotificationStats>({ total_notifications: 0, unread_notifications: 0 });
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  
+
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const reconnectAttempts = useRef(0);
+  const connectRef = useRef<() => Promise<void>>(async () => undefined);
+  const callbacksRef = useRef({
+    onNewNotification,
+    onNotificationUpdated,
+    onNotificationDeleted,
+    onNotificationsCleared,
+    onStatsUpdate,
+    onError,
+  });
+  callbacksRef.current = {
+    onNewNotification,
+    onNotificationUpdated,
+    onNotificationDeleted,
+    onNotificationsCleared,
+    onStatsUpdate,
+    onError,
+  };
   const maxReconnectAttempts = 5;
-  
+
   const accessToken = useSelector(selectAccessToken);
   const currentUser = useSelector(selectCurrentUser);
 
-  const connect = async () => {
+  const connect = useCallback(async () => {
     if (!accessToken || !currentUser) {
-      logger.log('[NotificationWS] Cannot connect: missing auth token or user');
       return;
     }
 
     try {
       // Use centralized WebSocket configuration
-      const wsUrl = `${WS_BASE_URL}/ws/notifications/`;
-      logger.log('[NotificationWS] Using WebSocket URL:', wsUrl);
+      const wsUrl = `${WS_BASE_URL.replace(/\/+$/, '')}/ws/notifications/?token=${encodeURIComponent(accessToken)}`;
 
       // Close existing connection
       if (wsRef.current) {
@@ -70,63 +85,55 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
       wsRef.current = ws;
 
       ws.onopen = () => {
-        logger.log('[NotificationWS] Connected to notification WebSocket');
         setIsConnected(true);
         setConnectionError(null);
         reconnectAttempts.current = 0;
-        
-        // Send authentication
-        ws.send(JSON.stringify({
-          type: 'authenticate',
-          token: accessToken
-        }));
       };
 
       ws.onmessage = (event) => {
         try {
           const message: NotificationWebSocketMessage = JSON.parse(event.data);
-          logger.log('[NotificationWS] Received message:', message);
 
           switch (message.type) {
             case 'new_notification':
               if (message.notification && message.stats) {
                 setStats(message.stats);
-                onNewNotification?.(message.notification, message.stats);
+                callbacksRef.current.onNewNotification?.(message.notification, message.stats);
               }
               break;
-              
+
             case 'notification_updated':
               if (message.notification && message.stats) {
                 setStats(message.stats);
-                onNotificationUpdated?.(message.notification, message.stats);
+                callbacksRef.current.onNotificationUpdated?.(message.notification, message.stats);
               }
               break;
-              
+
             case 'notification_deleted':
               if (message.notification_id && message.stats) {
                 setStats(message.stats);
-                onNotificationDeleted?.(message.notification_id, message.stats);
+                callbacksRef.current.onNotificationDeleted?.(message.notification_id, message.stats);
               }
               break;
-              
+
             case 'notifications_cleared':
               if (message.stats) {
                 setStats(message.stats);
-                onNotificationsCleared?.(message.stats);
+                callbacksRef.current.onNotificationsCleared?.(message.stats);
               }
               break;
-              
+
             case 'stats_update':
               if (message.stats) {
                 setStats(message.stats);
-                onStatsUpdate?.(message.stats);
+                callbacksRef.current.onStatsUpdate?.(message.stats);
               }
               break;
-              
+
             case 'error':
               logger.error('[NotificationWS] Server error:', message.message);
               setConnectionError(message.message || 'Unknown server error');
-              onError?.(message.message || 'Unknown server error');
+              callbacksRef.current.onError?.(message.message || 'Unknown server error');
               break;
           }
         } catch (error) {
@@ -135,13 +142,11 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
       };
 
       ws.onclose = (event) => {
-        logger.log('[NotificationWS] Connection closed:', event.code, event.reason);
         setIsConnected(false);
         wsRef.current = null;
 
         // If we get a 404 (WebSocket not supported), don't try to reconnect
         if (event.code === 1006 && event.reason?.includes('404')) {
-          logger.log('[NotificationWS] WebSocket not supported on server, falling back to polling');
           setConnectionError('WebSocket not supported - using polling fallback');
           return;
         }
@@ -149,11 +154,10 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
         // Attempt to reconnect if not a normal closure
         if (event.code !== 1000 && reconnectAttempts.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
-          logger.log(`[NotificationWS] Reconnecting in ${delay}ms... (attempt ${reconnectAttempts.current + 1}/${maxReconnectAttempts})`);
-          
+
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++;
-            connect();
+            void connectRef.current();
           }, delay) as any;
         }
       };
@@ -167,39 +171,41 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
       logger.error('[NotificationWS] Failed to connect:', error);
       setConnectionError('Failed to connect');
     }
-  };
+  }, [accessToken, currentUser]);
 
-  const disconnect = () => {
+  connectRef.current = connect;
+
+  const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
-    
+
     if (wsRef.current) {
       wsRef.current.close(1000, 'Manual disconnect');
       wsRef.current = null;
     }
-    
+
     setIsConnected(false);
     reconnectAttempts.current = 0;
-  };
+  }, []);
 
-  const markAsRead = (notificationId: number) => {
+  const markAsRead = useCallback((notificationId: number) => {
     if (wsRef.current && isConnected) {
       wsRef.current.send(JSON.stringify({
         type: 'mark_as_read',
         notification_id: notificationId
       }));
     }
-  };
+  }, [isConnected]);
 
-  const requestStats = () => {
+  const requestStats = useCallback(() => {
     if (wsRef.current && isConnected) {
       wsRef.current.send(JSON.stringify({
         type: 'get_stats'
       }));
     }
-  };
+  }, [isConnected]);
 
   useEffect(() => {
     if (autoConnect) {
@@ -209,7 +215,7 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
     return () => {
       disconnect();
     };
-  }, [accessToken, currentUser, autoConnect]);
+  }, [autoConnect, connect, disconnect]);
 
   return {
     isConnected,

@@ -1,11 +1,12 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  ScrollView, 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -36,13 +37,13 @@ export default function SignupTwoScreen() {
     country: '',
     terms: '',
   });
-  
+
   // Refs for managing input focus
   const scrollViewRef = useRef<ScrollView>(null);
   const usernameRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
   const addressRef = useRef<TextInput>(null);
-  
+
   const dispatch = useDispatch();
   const currentUser = useSelector(selectCurrentUser);
   const [completeProfile, { isLoading }] = useCompleteProfileMutation();
@@ -119,7 +120,7 @@ export default function SignupTwoScreen() {
 
     try {
       const fullPhoneNumber = `+${getCurrentCallingCode()}${phoneNumber}`;
-      
+
       const result = await completeProfile({
         username: username.trim(),
         phone_number: fullPhoneNumber,
@@ -165,13 +166,13 @@ export default function SignupTwoScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
       <StatusBar style="light" />
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         className="flex-1"
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <TouchableWithoutFeedback onPress={dismissKeyboard}>
-          <ScrollView 
+          <ScrollView
             ref={scrollViewRef}
             contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
             keyboardShouldPersistTaps="handled"
@@ -179,8 +180,8 @@ export default function SignupTwoScreen() {
             bounces={false}
           >
             {/* Back Button */}
-            <TouchableOpacity 
-              onPress={() => router.back()} 
+            <TouchableOpacity
+              onPress={() => router.back()}
               className="w-14 h-14 rounded-full bg-[#1C1C1E] items-center justify-center ml-6 mt-2 mb-6 self-start"
             >
               <ArrowLeft width={24} height={24} fill="#FFF" />
@@ -192,7 +193,7 @@ export default function SignupTwoScreen() {
             Tell Us More About Yourself
           </Text>
           <Text className="text-gray-400 text-base mb-10">
-            Let's set up your profile. Tell us a bit about who you are.
+            Let’s set up your profile. Tell us a bit about who you are.
           </Text>
 
             {/* Username */}
@@ -229,7 +230,7 @@ export default function SignupTwoScreen() {
             <View className={`flex-row items-center bg-[#1C1C1E] rounded-full border h-[52px] ${
               errors.phoneNumber ? 'border-red-500' : 'border-[#2C2C2E]'
             }`}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setPhonePickerVisible(true)}
                 className="flex-row items-center px-4 h-full"
               >
@@ -277,15 +278,15 @@ export default function SignupTwoScreen() {
           <View className="mb-6">
             <Text className="text-white text-sm mb-2">Gender</Text>
             <View className="flex-row justify-start">
-              <TouchableOpacity 
-                onPress={() => setGender('male')} 
+              <TouchableOpacity
+                onPress={() => setGender('male')}
                 className={`flex-row items-center px-6 py-3.5 rounded-full h-[52px] border ${gender === 'male' ? 'bg-[#1C1C1E] border-[#C42720]' : 'bg-[#1C1C1E] border-[#2C2C2E]'}`}
               >
                 {gender === 'male' ? <RadioChecked width={20} height={20} fill="#C42720" /> : <RadioUnchecked width={20} height={20} fill="#6B7280" />}
                 <Text className={`ml-2 ${gender === 'male' ? 'text-white' : 'text-gray-400'}`}>Male</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={() => setGender('female')} 
+              <TouchableOpacity
+                onPress={() => setGender('female')}
                 className={`flex-row items-center px-6 py-3.5 rounded-full h-[52px] border ml-3 ${gender === 'female' ? 'bg-[#1C1C1E] border-[#C42720]' : 'bg-[#1C1C1E] border-[#2C2C2E]'}`}
               >
                  {gender === 'female' ? <RadioChecked width={20} height={20} fill="#FFFFFF" /> : <RadioUnchecked width={20} height={20} fill="#6B7280" />}
@@ -313,7 +314,7 @@ export default function SignupTwoScreen() {
           {/* Country of Residence */}
           <View className="mb-6">
             <Text className="text-white text-sm mb-2">Country of Residence</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => setResidencePickerVisible(true)}
               className={`flex-row items-center justify-between bg-[#1C1C1E] px-4 rounded-full border h-[52px] ${
                 errors.country ? 'border-red-500' : 'border-[#2C2C2E]'
@@ -346,7 +347,7 @@ export default function SignupTwoScreen() {
 
           {/* Terms and Conditions */}
           <View className="mb-10">
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => {
                 setHasAcceptedTerms(!hasAcceptedTerms);
                 if (errors.terms) setErrors(prev => ({ ...prev, terms: '' }));
@@ -373,13 +374,13 @@ export default function SignupTwoScreen() {
           {/* Proceed Button */}
           <View className="w-full h-[52px] rounded-full overflow-hidden">
             <LinearGradient
-              colors={isLoading ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
+              colors={isLoading ? ['#666666', '#333333'] : BRAND_GRADIENT}
               locations={[0, 1]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="w-full h-full"
             >
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={handleCompleteProfile}
                 className="w-full h-full items-center justify-center"
                 disabled={isLoading}
@@ -396,4 +397,4 @@ export default function SignupTwoScreen() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
-} 
+}

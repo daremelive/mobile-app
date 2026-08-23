@@ -37,6 +37,7 @@ export interface Conversation {
   id: number;
   participant_1: MessageUser;
   participant_2: MessageUser;
+  other_participant?: MessageUser;
   last_message?: string;
   last_message_time?: string;
   last_message_sender?: MessageUser;
@@ -60,6 +61,7 @@ export interface ConversationDetail {
 export interface SendMessageRequest {
   recipient_id: number;
   content: string;
+  request_id?: string;
 }
 
 export interface GetConversationsRequest {

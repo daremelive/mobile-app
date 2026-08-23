@@ -1,15 +1,15 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState, useMemo } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Modal, Alert , Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LineChart } from 'react-native-chart-kit';
-import { Dimensions } from 'react-native';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import WalletIcon from '../assets/icons/wallet.svg';
 import CoinsIcon from '../assets/icons/coins.svg';
 import WithdrawIcon from '../assets/icons/withdraw.svg';
 import TransactionIcon from '../assets/icons/transaction.svg';
-import VerifiedIcon from '../assets/icons/verified.svg';
 import IdentityIcon from '../assets/icons/identity.svg';
 import ChevronDownIcon from '../assets/icons/chevron-down.svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -106,11 +106,11 @@ const WalletScreen = () => {
   // Calculate analytics based on selected filter
   const analyticsData = useMemo(() => {
     if (!walletData) return { totalRewards: '0 Riz', periodRewards: '0 Riz' };
-    
+
     try {
       const selectedOption = analyticsFilterOptions.find(option => option.value === selectedAnalyticsFilter);
       if (!selectedOption) return { totalRewards: '0 Riz', periodRewards: '0 Riz' };
-      
+
       const result = selectedOption.calculateRewards(walletData, walletAnalytics);
       return result || { totalRewards: '0 Riz', periodRewards: '0 Riz' };
     } catch (error) {
@@ -119,7 +119,7 @@ const WalletScreen = () => {
   }, [walletData, selectedAnalyticsFilter, walletAnalytics]);
 
   const currentFilterLabel = analyticsFilterOptions.find(option => option.value === selectedAnalyticsFilter)?.label || 'This Year';
-  const periodLabel = selectedAnalyticsFilter === 'all' ? 'All time rewards' : 
+  const periodLabel = selectedAnalyticsFilter === 'all' ? 'All time rewards' :
                      selectedAnalyticsFilter === 'year' ? 'This year\'s rewards' :
                      selectedAnalyticsFilter === 'month' ? 'This month\'s rewards' :
                      selectedAnalyticsFilter === 'week' ? 'This week\'s rewards' :
@@ -137,38 +137,38 @@ const WalletScreen = () => {
     }
 
     const monthlyData = walletAnalytics.monthly_data;
-    
+
     // Filter monthly data based on selected analytics period
     let filteredData = monthlyData;
-    
+
     switch (selectedAnalyticsFilter) {
       case 'week':
         // For "This Week", show only the current month data (since we don't have weekly granularity)
         filteredData = monthlyData.slice(-1); // Last month only
         break;
-        
+
       case 'month':
         // For "This Month", show only the current month data
         filteredData = monthlyData.slice(-1); // Last month only
         break;
-        
+
       case '3months':
         // For "Last 3 Months", show last 3 months
         filteredData = monthlyData.slice(-3);
         break;
-        
+
       case 'year':
         // For "This Year", show last 12 months (full year view)
         filteredData = monthlyData.slice(-12);
         break;
-        
+
       case 'all':
       default:
         // For "All Time", show all available data
         filteredData = monthlyData;
         break;
     }
-    
+
     // Backend already sends month abbreviations (Jan, Feb, etc.), no need to parse as date
     const labels = filteredData.map(item => item.month);
     const data = filteredData.map(item => item.earnings || 0);
@@ -204,7 +204,7 @@ const WalletScreen = () => {
       <ScrollView className="flex-1 px-4">
         <View className="rounded-xl overflow-hidden mb-6">
         <LinearGradient
-            colors={['#FF0000', '#330000']}
+            colors={BRAND_GRADIENT}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
           >
@@ -231,7 +231,7 @@ const WalletScreen = () => {
 
         <Text className="text-white text-xl font-semibold mb-4">Actions</Text>
           <View className="flex-row flex-wrap justify-between">
-            <TouchableOpacity 
+            <TouchableOpacity
               className="bg-[#262626] rounded-2xl p-4 w-[48%] mb-4"
               onPress={() => router.push('/get-coins')}
             >
@@ -242,8 +242,8 @@ const WalletScreen = () => {
                 <Text className="text-white text-base font-semibold">Get Riz</Text>
               </View>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               className="bg-[#262626] rounded-2xl p-4 w-[48%] mb-4"
               onPress={() => router.push('/withdraw-money')}
             >
@@ -255,7 +255,7 @@ const WalletScreen = () => {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               className="bg-[#262626] rounded-2xl p-4 w-[48%]"
               onPress={() => router.push('/transactions')}
             >
@@ -294,7 +294,7 @@ const WalletScreen = () => {
                 <Text className="text-white text-xl font-semibold">Analytics</Text>
                 <Text className="text-gray-500 text-base">An overview of earnings/rewards</Text>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="bg-white rounded-lg px-4 py-2 flex-row items-center gap-2"
                 onPress={() => setAnalyticsFilterModalVisible(true)}
               >
@@ -362,19 +362,19 @@ const WalletScreen = () => {
         animationType="slide"
         onRequestClose={() => setAnalyticsFilterModalVisible(false)}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           className="flex-1 bg-black/50 justify-end"
           activeOpacity={1}
           onPress={() => setAnalyticsFilterModalVisible(false)}
         >
-          <TouchableOpacity 
-            activeOpacity={1} 
+          <TouchableOpacity
+            activeOpacity={1}
             className="bg-[#1A1A1A] rounded-t-3xl p-4"
             onPress={() => {}}
           >
             <View className="w-12 h-1 bg-gray-600 rounded-full self-center mb-4" />
             <Text className="text-white text-lg font-semibold mb-4 text-center">Analytics Period</Text>
-            
+
             {analyticsFilterOptions.map((option) => (
               <TouchableOpacity
                 key={option.value}
@@ -405,4 +405,4 @@ const WalletScreen = () => {
   );
 };
 
-export default WalletScreen; 
+export default WalletScreen;

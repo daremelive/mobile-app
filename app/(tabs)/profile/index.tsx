@@ -1,16 +1,11 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
-import { View, Text, SafeAreaView, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Share } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Share } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTranslation } from '../../../src/hooks/useTranslation';
-
-let ImagePicker: any = null;
-try {
-  ImagePicker = require('expo-image-picker');
-} catch (error) {
-  // ImagePicker not available
-}
 
 // Import SVG assets
 import ArrowLeftIcon from '../../../assets/icons/arrow-left.svg';
@@ -36,6 +31,13 @@ import LogoutConfirmationModal from '../../../components/modals/LogoutConfirmati
 import { MEDIA_BASE_URL } from '../../../src/config/env';
 import { logger } from '../../../src/utils/logger';
 
+let ImagePicker: any = null;
+try {
+  ImagePicker = require('expo-image-picker');
+} catch (error) {
+  // ImagePicker not available
+}
+
 type MenuItem = {
   title: string;
   Icon: React.FC<{ width: number; height: number }>;
@@ -48,7 +50,7 @@ const ProfileScreen = () => {
   const router = useRouter();
   const [isLogoutModalVisible, setLogoutModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  
+
   const dispatch = useDispatch();
   const refreshToken = useSelector(selectRefreshToken);
   const currentUser = useSelector(selectCurrentUser);
@@ -78,7 +80,7 @@ const ProfileScreen = () => {
     try {
       if (!isImagePickerAvailable) {
         Alert.alert(
-          'Development Build Required', 
+          'Development Build Required',
           'Profile picture upload requires a development build with expo-image-picker. This feature is not available in Expo Go.\n\nTo enable this feature:\n1. Run "npx expo run:ios --device" to create a development build\n2. Install the build on your device\n3. Connect to this development server',
           [
             { text: 'OK', style: 'default' }
@@ -88,7 +90,7 @@ const ProfileScreen = () => {
       }
 
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
+
       if (permissionResult.granted === false) {
         Alert.alert('Permission Required', 'You need to enable permission to access photos');
         return;
@@ -104,7 +106,7 @@ const ProfileScreen = () => {
       if (!result.canceled && result.assets[0]) {
         const image = result.assets[0];
         setPendingPictureUri(image.uri);
-        
+
         const formData = new FormData();
         formData.append('profile_picture', {
           uri: image.uri,
@@ -128,7 +130,7 @@ const ProfileScreen = () => {
     } catch (error: any) {
       setPendingPictureUri(null);
       Alert.alert(
-        'Upload Failed', 
+        'Upload Failed',
         error?.data?.error || 'Failed to upload profile picture. Please try again.'
       );
     }
@@ -139,10 +141,9 @@ const ProfileScreen = () => {
       // First, end any active streams with timeout
       if (myStreams && myStreams.length > 0) {
         const activeStreams = myStreams.filter(stream => stream.status === 'live');
-        
+
         if (activeStreams.length > 0) {
-          logger.log(`Ending ${activeStreams.length} active stream(s) before logout...`);
-          
+
           // End all active streams with individual timeouts
           const streamEndPromises = activeStreams.map(stream =>
             Promise.race([
@@ -152,9 +153,9 @@ const ProfileScreen = () => {
               logger.error(`Failed to end stream ${stream.id}:`, error);
             })
           );
-          
+
           await Promise.allSettled(streamEndPromises);
-          
+
           // Invalidate streams cache
           dispatch(streamsApi.util.invalidateTags(['Stream']));
         }
@@ -164,11 +165,10 @@ const ProfileScreen = () => {
       if (refreshToken) {
         await Promise.race([
           logoutMutation({ refresh: refreshToken }).unwrap(),
-          new Promise((_, reject) => 
+          new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Logout API timeout')), 5000)
           )
         ]).catch(error => {
-          logger.log('Logout API call failed or timed out, proceeding with local logout:', error);
         });
       }
     } catch (error) {
@@ -187,9 +187,9 @@ const ProfileScreen = () => {
       const username = profileData?.username || currentUser?.username || '';
       const profileUrl = `${MEDIA_BASE_URL}/profile/${username}?utm_source=mobile_share&utm_medium=social`;
       const userName = profileData?.full_name || currentUser?.full_name || profileData?.username || currentUser?.username;
-      
+
       await Share.share({
-        message: `Check out ${userName}'s profile on DareMe! 🎬🔥\n\nFollow them for amazing live streams and content!\n\n${profileUrl}`,
+        message: `Check out ${userName}'s profile on DareMe.\n\nFollow them for live streams and content.\n\n${profileUrl}`,
         url: profileUrl,
       });
     } catch (error) {
@@ -209,12 +209,12 @@ const ProfileScreen = () => {
   const walletItems: MenuItem[] = [
     { title: t('wallet.wallet', 'Wallet') as string, Icon: WalletIcon, route: '/wallet'},
     { title: t('wallet.transactions', 'Transactions') as string, Icon: TransactionIcon, route: '/transactions'},
-    { title: t('profile.payout', 'Payout') as string, Icon: PayoutIcon, route: '/enter-bank-details'},
+    { title: t('profile.payout', 'Payout') as string, Icon: PayoutIcon, route: '/withdraw-money'},
     { title: 'Identity Verification', Icon: IdentityIcon, route: undefined, comingSoon: true },
   ];
 
   return (
-    <SafeAreaView className="flex-1 bg-[#090909]">
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-[#090909]">
       <StatusBar style="light" />
       <View className="flex-row items-center relative px-4 pt-3 pb-3 mb-3">
         <TouchableOpacity onPress={() => router.back()} className="absolute left-4 z-10">
@@ -227,8 +227,8 @@ const ProfileScreen = () => {
         </View>
       </View>
 
-      <ScrollView 
-        className="flex-1" 
+      <ScrollView
+        className="flex-1"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 120 }} // Add sufficient bottom padding for tab bar
         refreshControl={
@@ -261,7 +261,7 @@ const ProfileScreen = () => {
                     const firstName = profileData?.first_name || currentUser?.first_name || '';
                     const lastName = profileData?.last_name || currentUser?.last_name || '';
                     const username = profileData?.username || currentUser?.username || '';
-                    
+
                     if (firstName && lastName) {
                       return `${firstName[0]}${lastName[0]}`.toUpperCase();
                     } else if (firstName) {
@@ -274,14 +274,14 @@ const ProfileScreen = () => {
                 </Text>
               </View>
             )}
-            <TouchableOpacity 
+            <TouchableOpacity
               className="absolute bottom-0 right-0"
               onPress={handleProfilePictureUpload}
               disabled={isUploadingPicture || !isImagePickerAvailable}
             >
                <View className={`w-8 h-8 rounded-full items-center justify-center ${
-                 isUploadingPicture ? 'bg-gray-400' : 
-                 !isImagePickerAvailable ? 'bg-gray-500' : 
+                 isUploadingPicture ? 'bg-gray-400' :
+                 !isImagePickerAvailable ? 'bg-gray-500' :
                  'bg-gray-600'
                }`}>
                 <EditIcon width={20} height={20} />
@@ -295,16 +295,16 @@ const ProfileScreen = () => {
           <Text className="text-[#666] text-base">
             @{profileData?.username || currentUser?.username || 'loading'}
           </Text>
-          
+
           <View className="w-[70%] h-[52px] rounded-full overflow-hidden mt-4 mb-6">
            <LinearGradient
-             colors={['#FF0000', '#330000']}
+             colors={BRAND_GRADIENT}
              locations={[0, 1]}
              start={{ x: 0, y: 0 }}
              end={{ x: 1, y: 0 }}
              className="w-full h-full"
            >
-             <TouchableOpacity 
+             <TouchableOpacity
                className="w-full h-full items-center justify-center"
                onPress={handleShare}
              >
@@ -325,14 +325,14 @@ const ProfileScreen = () => {
               </Text>
               <Text className="text-[#666]">{t('profile.following', 'Following') as string}</Text>
             </View>
-            
+
             <View className="items-center">
               <Text className="text-white text-[20px] font-bold mb-1">
                 {profileData?.followers_count || currentUser?.followers_count || 0}
               </Text>
               <Text className="text-[#666]">{t('profile.followers', 'Followers') as string}</Text>
             </View>
-            
+
             <View className="items-center">
               <Text className="text-white text-[20px] font-bold mb-1">
                 {profileData?.total_likes_count || currentUser?.total_likes_count || 0}
@@ -343,8 +343,8 @@ const ProfileScreen = () => {
 
           <View className="bg-[#1A1A1A] w-full rounded-lg mt-6">
             {menuItems.map((item, index) => (
-              <TouchableOpacity 
-                key={index} 
+              <TouchableOpacity
+                key={index}
                 className="flex-row items-center p-4"
                 onPress={() => item.route && router.push(item.route as any)}
                 disabled={!item.route}
@@ -392,7 +392,7 @@ const ProfileScreen = () => {
             ))}
           </View>
 
-          <TouchableOpacity 
+          <TouchableOpacity
             className="bg-[#1A1A1A] w-full rounded-lg mt-4 mb-4 p-4 flex-row items-center"
             onPress={() => setLogoutModalVisible(true)}
           >
@@ -414,4 +414,4 @@ const ProfileScreen = () => {
   );
 };
 
-export default ProfileScreen; 
+export default ProfileScreen;

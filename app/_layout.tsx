@@ -5,9 +5,11 @@ import { useFonts } from 'expo-font';
 import { fontsToLoad } from '../constants/Fonts';
 import { StoreProvider } from '../src/store/Provider';
 import { NotificationProvider } from '../src/context/NotificationContext';
-import { useStreamCleanup } from '../src/hooks/useStreamCleanup';
 import { useAuthRouting } from '../src/hooks/useAuthRouting';
+import { useAuthSession } from '../src/hooks/useAuthSession';
 import { I18nextProvider } from 'react-i18next';
+import * as Sentry from '@sentry/react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import i18n, { initializeLanguage } from '../src/i18n';
 import { logger } from '../src/utils/logger';
 import '../global.css';
@@ -19,27 +21,22 @@ import '../sentry.config';
 SplashScreen.preventAutoHideAsync();
 
 function AppLayout() {
-  const { useAuthSession } = require('../src/hooks/useAuthSession');
   const { isLoading: authLoading } = useAuthSession();
   const [fontsLoaded] = useFonts(fontsToLoad);
   const [languageReady, setLanguageReady] = useState(false);
-  
-  // Stream cleanup system disabled - streams persist indefinitely for better UX
-  useStreamCleanup();
 
   // Initialize i18n language preferences
   useEffect(() => {
     const setupLanguage = async () => {
       try {
-        const selectedLanguage = await initializeLanguage();
-        logger.log('Language setup complete:', selectedLanguage);
+        await initializeLanguage();
         setLanguageReady(true);
       } catch (error) {
         logger.error('Language setup failed:', error);
         setLanguageReady(true); // Continue anyway
       }
     };
-    
+
     setupLanguage();
   }, []);
 
@@ -73,20 +70,23 @@ function AppLayout() {
       <Stack.Screen name="notifications" options={{ headerShown: false }} />
       <Stack.Screen name="account" options={{ headerShown: false }} />
       <Stack.Screen name="language" options={{ headerShown: false }} />
-      <Stack.Screen name="enter-bank-details" options={{ headerShown: false }} />
       <Stack.Screen name="identity-verification" options={{ headerShown: false }} />
     </Stack>
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
-    <I18nextProvider i18n={i18n}>
-      <StoreProvider>
-        <NotificationProvider>
-          <AppLayout />
-        </NotificationProvider>
-      </StoreProvider>
-    </I18nextProvider>
+    <SafeAreaProvider>
+      <I18nextProvider i18n={i18n}>
+        <StoreProvider>
+          <NotificationProvider>
+            <AppLayout />
+          </NotificationProvider>
+        </StoreProvider>
+      </I18nextProvider>
+    </SafeAreaProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);

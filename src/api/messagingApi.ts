@@ -1,54 +1,37 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import * as SecureStore from 'expo-secure-store';
+import { createApi } from '@reduxjs/toolkit/query/react';
 import { API_BASE_URL } from '../config/env';
-import { logger } from '../utils/logger';
+import { createAuthenticatedBaseQuery } from './authenticatedBaseQuery';
 import {
   // Types
   Message,
+  MessageUser,
   Conversation,
   ConversationDetail,
-  
+
   // Request types
   SendMessageRequest,
   GetConversationsRequest,
   GetConversationDetailRequest,
   SearchMessagesRequest,
   SearchUsersRequest,
-  GetUsersRequest,
-  GetUserStatusRequest,
   MarkMessagesAsReadRequest,
   CreateConversationRequest,
-  
+
   // Response types
   ConversationsResponse,
   SearchMessagesResponse,
   SearchUsersResponse,
-  GetUsersResponse,
-  UserStatusResponse,
   MarkAsReadResponse,
-  DeleteConversationResponse,
 } from '../../types/api/messaging';
 
 export const messagingApi = createApi({
   reducerPath: 'messagingApi',
-  baseQuery: fetchBaseQuery({
+  baseQuery: createAuthenticatedBaseQuery(
     // Shares the configured host with every other API. It used to hardcode
     // 127.0.0.1, which on a real device points at the phone itself.
-    baseUrl: `${API_BASE_URL}messaging/`,
-    timeout: 30000, // 30 second timeout
-    prepareHeaders: async (headers) => {
-      try {
-        const token = await SecureStore.getItemAsync('accessToken');
-        if (token) {
-          headers.set('authorization', `Bearer ${token}`);
-        }
-      } catch (error) {
-        logger.error('[MessagingAPI] Error getting auth token:', error);
-      }
-      headers.set('content-type', 'application/json');
-      return headers;
-    },
-  }),
+    `${API_BASE_URL}messaging/`,
+    30_000,
+  ),
   tagTypes: ['Conversation', 'Message', 'User'],
   endpoints: (builder) => ({
     // === Conversations ===
@@ -58,7 +41,7 @@ export const messagingApi = createApi({
         if (params?.page) queryParams.append('page', params.page.toString());
         if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
         if (params?.search) queryParams.append('search', params.search);
-        
+
         const queryString = queryParams.toString();
         return `/conversations/${queryString ? `?${queryString}` : ''}`;
       },
@@ -70,7 +53,7 @@ export const messagingApi = createApi({
         const queryParams = new URLSearchParams();
         if (page) queryParams.append('page', page.toString());
         if (page_size) queryParams.append('page_size', page_size.toString());
-        
+
         const queryString = queryParams.toString();
         return `/conversations/${conversationId}/${queryString ? `?${queryString}` : ''}`;
       },
@@ -89,18 +72,10 @@ export const messagingApi = createApi({
       invalidatesTags: ['Conversation'],
     }),
 
-    deleteConversation: builder.mutation<DeleteConversationResponse, number>({
-      query: (conversationId) => ({
-        url: `/conversations/${conversationId}/`,
-        method: 'DELETE',
-      }),
-      invalidatesTags: ['Conversation'],
-    }),
-
     // === Messages ===
     sendMessage: builder.mutation<Message, SendMessageRequest>({
       query: (body) => ({
-        url: '/send_message/',
+        url: '/send/',
         method: 'POST',
         body,
       }),
@@ -122,7 +97,7 @@ export const messagingApi = createApi({
     searchMessages: builder.query<SearchMessagesResponse, SearchMessagesRequest>({
       query: ({ query }) => {
         const queryParams = new URLSearchParams();
-        queryParams.append('query', query);
+        queryParams.append('q', query);
         return `/search/?${queryParams.toString()}`;
       },
       providesTags: ['Message'],
@@ -131,30 +106,11 @@ export const messagingApi = createApi({
     searchUsers: builder.query<SearchUsersResponse, SearchUsersRequest>({
       query: ({ query }) => {
         const queryParams = new URLSearchParams();
-        queryParams.append('query', query);
+        queryParams.append('q', query);
         return `/search-users/?${queryParams.toString()}`;
       },
+      transformResponse: (response: MessageUser[]) => ({ results: response }),
       providesTags: ['User'],
-    }),
-
-    // === Users ===
-    getUsers: builder.query<GetUsersResponse, GetUsersRequest | void>({
-      query: (params) => {
-        const queryParams = new URLSearchParams();
-        if (params?.page) queryParams.append('page', params.page.toString());
-        if (params?.page_size) queryParams.append('page_size', params.page_size.toString());
-        
-        const queryString = queryParams.toString();
-        return `/users/${queryString ? `?${queryString}` : ''}`;
-      },
-      providesTags: ['User'],
-    }),
-
-    getUserStatus: builder.query<UserStatusResponse, GetUserStatusRequest>({
-      query: ({ userId }) => `/users/${userId}/status/`,
-      providesTags: (result, error, { userId }) => [
-        { type: 'User', id: userId }
-      ],
     }),
   }),
 });
@@ -165,19 +121,14 @@ export const {
   useGetConversationsQuery,
   useGetConversationDetailQuery,
   useCreateConversationMutation,
-  useDeleteConversationMutation,
-  
+
   // Messages
   useSendMessageMutation,
   useMarkMessagesAsReadMutation,
-  
+
   // Search
   useSearchMessagesQuery,
   useSearchUsersQuery,
-  
-  // Users
-  useGetUsersQuery,
-  useGetUserStatusQuery,
 } = messagingApi;
 
 // Export the reducer

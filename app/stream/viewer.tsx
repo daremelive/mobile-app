@@ -1,5 +1,7 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { View, Alert, ActivityIndicator, SafeAreaView, Text, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Share } from 'react-native';
+import { View, Alert, ActivityIndicator, Text, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Share } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
@@ -12,7 +14,6 @@ import {
   useFollowSystem,
   ViewerInputBar,
   GiftModal,
-  CoinPurchaseModal,
   LeaveConfirmationModal
 } from '../../components/stream';
 import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer, CallContent, useCall } from '@stream-io/video-react-native-sdk';
@@ -22,9 +23,10 @@ import {
 } from '../../types/stream';
 import { MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../../src/config/env';
 import { useGetStreamQuery, useLikeStreamMutation, useLeaveStreamMutation, useSendGiftMutation, useJoinStreamMutation, useGetGiftsQuery } from '../../src/store/streamsApi';
-import { useGetWalletSummaryQuery, usePurchaseCoinsMutation, useGetCoinPackagesQuery } from '../../src/api/walletApi';
+import { useGetWalletSummaryQuery } from '../../src/api/walletApi';
 import { useGetProfileQuery } from '../../src/store/authApi';
 import GiftAnimation from '../../components/animations/GiftAnimation';
+import { createRequestId } from '../../src/utils/requestId';
 
 // Component that uses call state hooks - must be inside StreamCall
 function StreamContent({
@@ -79,7 +81,6 @@ function StreamContent({
           <VideoRenderer
             participant={participant}
             objectFit="cover"
-            style={{ flex: 1 }}
           />
         </View>
       );
@@ -88,7 +89,7 @@ function StreamContent({
       return (
         <View className="flex-1 bg-gray-800 items-center justify-center" key={`viewer-audio-${participant.sessionId}`}>
           <View className="w-16 h-16 rounded-full bg-gray-700 items-center justify-center mb-2">
-            <Text className="text-white text-2xl">🎙️</Text>
+            <Ionicons name="mic" size={24} color="white" />
           </View>
           <Text className="text-white text-lg font-semibold">
             {participant.name || label}
@@ -383,13 +384,10 @@ export default function UnifiedViewerStreamScreen() {
 
   const [joinAttemptCount, setJoinAttemptCount] = useState(0);
   const [giftModalVisible, setGiftModalVisible] = useState(false);
-  const [coinPurchaseModalVisible, setCoinPurchaseModalVisible] = useState(false);
   const [leaveModalVisible, setLeaveModalVisible] = useState(false);
-  const [shouldOpenGiftModalAfterPurchase, setShouldOpenGiftModalAfterPurchase] = useState(false);
   const [sendingGift, setSendingGift] = useState(false);
   const [selectedGiftId, setSelectedGiftId] = useState<number | null>(null);
   const [isParticipant, setIsParticipant] = useState(false);
-  const [isPurchasing, setIsPurchasing] = useState(false);
 
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -410,8 +408,8 @@ export default function UnifiedViewerStreamScreen() {
   const [joinStream] = useJoinStreamMutation();
   const [leaveStream] = useLeaveStreamMutation();
   const [sendGift] = useSendGiftMutation();
+  const pendingGiftRequest = useRef<{ giftId: number; requestId: string } | null>(null);
   const [likeStream] = useLikeStreamMutation();
-  const [purchaseCoins] = usePurchaseCoinsMutation();
 
   const modeFromParams = (params.mode as string) || '';
   const [streamMode, setStreamMode] = useState<StreamMode>(
@@ -429,12 +427,6 @@ export default function UnifiedViewerStreamScreen() {
     isLoading: giftsLoading,
     refetch: refetchGifts
   } = useGetGiftsQuery();
-
-  const {
-    data: coinPackages = [],
-    isLoading: coinPackagesLoading,
-    refetch: refetchCoinPackages
-  } = useGetCoinPackagesQuery();
 
   const {
     streamClient,
@@ -536,26 +528,19 @@ export default function UnifiedViewerStreamScreen() {
     targetUserId: streamDetails?.host?.id?.toString()
   });
 
-  const getProfilePictureUrl = (user: any, baseURL: string) => {
+  const getProfilePictureUrl = (user: any, _baseURL: string) => {
     if (user?.profile_picture_url) {
       if (user.profile_picture_url.startsWith('http')) {
         return user.profile_picture_url;
       }
-      const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-      const profilePath = user.profile_picture_url.startsWith('/') ? user.profile_picture_url : `/${user.profile_picture_url}`;
-      const fullUrl = `${webURL}${profilePath}`;
-      return fullUrl;
+      return buildProfilePictureURL(user.profile_picture_url);
     }
 
     if (user?.profile_picture) {
       if (user.profile_picture.startsWith('http')) {
         return user.profile_picture;
       }
-      const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-      // Ensure no double slashes
-      const profilePath = user.profile_picture.startsWith('/') ? user.profile_picture : `/${user.profile_picture}`;
-      const fullUrl = `${webURL}${profilePath}`;
-      return fullUrl;
+      return buildProfilePictureURL(user.profile_picture);
     }
 
     return null;
@@ -565,19 +550,6 @@ export default function UnifiedViewerStreamScreen() {
     ...gift,
     image_url: gift.icon_url,
     coin_cost: gift.cost
-  })) : [];
-
-  const safeCoinPackages = Array.isArray(coinPackages) ? coinPackages.map((pkg, index) => ({
-    id: pkg.id,
-    name: pkg.formatted_price || `${pkg.coins} Riz`,
-    coins: pkg.coins,
-    price: parseFloat(pkg.price) || 0,
-    currency: pkg.currency,
-    bonus_coins: pkg.bonus_coins,
-    total_coins: pkg.total_coins,
-    formatted_price: pkg.formatted_price,
-    display_order: index,
-    is_active: pkg.is_active
   })) : [];
 
   useEffect(() => {
@@ -616,7 +588,7 @@ export default function UnifiedViewerStreamScreen() {
       if (currentUserParticipant?.participant_type === 'guest') {
         // Show success message before redirecting
         Alert.alert(
-          '🎉 You\'ve been promoted!',
+          'You have been promoted',
           'You are now a guest speaker. Redirecting to the participant screen...',
           [
             {
@@ -673,13 +645,6 @@ export default function UnifiedViewerStreamScreen() {
     }
   }, [userData]);
 
-  useEffect(() => {
-    if (shouldOpenGiftModalAfterPurchase && !coinPurchaseModalVisible) {
-      setGiftModalVisible(true);
-      setShouldOpenGiftModalAfterPurchase(false);
-    }
-  }, [shouldOpenGiftModalAfterPurchase, coinPurchaseModalVisible]);
-
   const messages = chat.messages || [];
 
   const openGiftModal = () => {
@@ -731,8 +696,7 @@ export default function UnifiedViewerStreamScreen() {
             style: 'default',
             onPress: () => {
               setGiftModalVisible(false);
-              setCoinPurchaseModalVisible(true);
-              setShouldOpenGiftModalAfterPurchase(true);
+              router.push('/get-coins');
             }
           }
         ],
@@ -749,12 +713,22 @@ export default function UnifiedViewerStreamScreen() {
     setSelectedGiftId(gift.id);
 
     try {
+      let giftRequest = pendingGiftRequest.current;
+      if (!giftRequest || giftRequest.giftId !== gift.id) {
+        giftRequest = {
+          giftId: gift.id,
+          requestId: createRequestId('gift'),
+        };
+      }
+      pendingGiftRequest.current = giftRequest;
       const result = await sendGift({
         streamId: streamId,
         data: {
           gift_id: gift.id,
+          request_id: giftRequest.requestId,
         }
       }).unwrap();
+      pendingGiftRequest.current = null;
 
       // Close gift modal
       setGiftModalVisible(false);
@@ -800,9 +774,9 @@ export default function UnifiedViewerStreamScreen() {
       refetchWallet();
 
       Alert.alert(
-        '🎁 Gift Sent!',
-        `You sent "${gift.name}" to the stream! 🌟\n\nRemaining balance: ${(walletSummary?.coins || 0) - gift.cost} coins`,
-        [{ text: 'Awesome!', style: 'default' }]
+        'Gift sent',
+        `You sent "${gift.name}" to the stream.\n\nRemaining balance: ${(walletSummary?.coins || 0) - gift.cost} coins`,
+        [{ text: 'OK', style: 'default' }]
       );
     } catch (error: any) {
       if (error?.data?.error === 'Insufficient Riz') {
@@ -814,9 +788,8 @@ export default function UnifiedViewerStreamScreen() {
             {
               text: 'Get more Riz',
               onPress: () => {
-                setShouldOpenGiftModalAfterPurchase(true);
                 setGiftModalVisible(false);
-                setCoinPurchaseModalVisible(true);
+                router.push('/get-coins');
               }
             }
           ]
@@ -827,39 +800,6 @@ export default function UnifiedViewerStreamScreen() {
     } finally {
       setSendingGift(false);
       setSelectedGiftId(null);
-    }
-  };
-
-  const handleCoinPurchase = async (coinPackage: any) => {
-    if (isPurchasing) return;
-
-    setIsPurchasing(true);
-
-    try {
-      await purchaseCoins({
-        package_id: coinPackage.id,
-        payment_method: 'paystack', // or 'flutterwave'
-      }).unwrap();
-
-      Alert.alert(
-        'Purchase Successful!',
-        `You purchased ${coinPackage.coins} coins for ${coinPackage.price}!`
-      );
-
-      // Refresh wallet to show new balance
-      refetchWallet();
-
-      // Close modal and potentially open gift modal
-      setCoinPurchaseModalVisible(false);
-
-      if (shouldOpenGiftModalAfterPurchase) {
-        setGiftModalVisible(true);
-        setShouldOpenGiftModalAfterPurchase(false);
-      }
-    } catch (error: any) {
-      Alert.alert('Purchase Failed', 'Failed to purchase Riz. Please try again.');
-    } finally {
-      setIsPurchasing(false);
     }
   };
 
@@ -1134,23 +1074,12 @@ export default function UnifiedViewerStreamScreen() {
           onSendGift={handleSendGift}
           onBuyCoins={() => {
             setGiftModalVisible(false);
-            setCoinPurchaseModalVisible(true);
+            router.push('/get-coins');
           }}
           walletBalance={walletSummary?.coins || 0}
           isRefreshing={giftsLoading}
           onRefresh={refetchGifts}
           baseURL={MEDIA_BASE_URL}
-        />
-
-        <CoinPurchaseModal
-          visible={coinPurchaseModalVisible}
-          onClose={() => setCoinPurchaseModalVisible(false)}
-          coinPackages={safeCoinPackages}
-          onPurchase={handleCoinPurchase}
-          walletBalance={walletSummary?.coins || 0}
-          isRefreshing={coinPackagesLoading}
-          onRefresh={refetchCoinPackages}
-          isPurchasing={isPurchasing}
         />
 
         <LeaveConfirmationModal

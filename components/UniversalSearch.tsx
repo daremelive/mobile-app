@@ -1,11 +1,11 @@
 import React from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
-  Image, 
-  ActivityIndicator, 
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
   Alert,
   TouchableWithoutFeedback,
   Keyboard
@@ -20,14 +20,14 @@ import ClockIcon from '../assets/icons/clock.svg';
 import CancelIcon from '../assets/icons/cancel.svg';
 import StarsIcon from '../assets/icons/stars.svg';
 import CheckIcon from '../assets/icons/check.svg';
-import { 
+import {
   useSearchQuery,
   SearchUser,
-  SearchStream 
+  SearchStream
 } from '../src/store/streamsApi';
-import { 
-  useFollowUserMutation, 
-  useUnfollowUserMutation 
+import {
+  useFollowUserMutation,
+  useUnfollowUserMutation
 } from '../src/store/followApi';
 import { useGetAllBlockedUsersQuery } from '../src/api/blockedApi';
 
@@ -45,9 +45,9 @@ interface UniversalSearchProps {
 }
 
 // Enhanced Search Suggestions Component
-const SearchSuggestions = React.memo(({ 
-  query, 
-  onSelectSuggestion, 
+const SearchSuggestions = React.memo(({
+  query,
+  onSelectSuggestion,
   recentSearches,
   onRemoveRecent,
   mode = 'embedded'
@@ -63,7 +63,7 @@ const SearchSuggestions = React.memo(({
   const filteredRecents = recentSearches.filter(s => s.toLowerCase().includes(query.toLowerCase()));
   const filteredRecommended = SEARCH_SUGGESTIONS.filter(s => s.toLowerCase().includes(query.toLowerCase()));
 
-  const containerClass = mode === 'embedded' 
+  const containerClass = mode === 'embedded'
     ? "absolute top-full left-0 right-0 bg-black border border-gray-700 rounded-lg mt-2 max-h-80 z-50"
     : "px-0";
 
@@ -92,9 +92,9 @@ const SearchSuggestions = React.memo(({
           <View>
             <Text style={{ fontFamily: fonts.semiBold }} className="text-[#757688] text-sm mb-2 mt-4 mx-4">Recommended</Text>
             {filteredRecommended.map((item, index) => (
-              <TouchableOpacity 
-                onPress={() => onSelectSuggestion(item)} 
-                key={`rec-${index}`} 
+              <TouchableOpacity
+                onPress={() => onSelectSuggestion(item)}
+                key={`rec-${index}`}
                 className="flex-row items-center py-2 px-4"
               >
                 <View className="w-8 h-8 rounded-full border border-gray-600 items-center justify-center mr-3">
@@ -109,14 +109,15 @@ const SearchSuggestions = React.memo(({
     </View>
   );
 });
+SearchSuggestions.displayName = 'SearchSuggestions';
 
 // User Search Result Component
-const UserSearchResult = ({ 
-  user, 
-  onFollowChange, 
+const UserSearchResult = ({
+  user,
+  onFollowChange,
   baseURL,
   mode = 'embedded'
-}: { 
+}: {
   user: SearchUser;
   onFollowChange?: () => void;
   baseURL: string;
@@ -126,7 +127,7 @@ const UserSearchResult = ({
   const [isFollowing, setIsFollowing] = React.useState(user.is_following);
   const [followUser, { isLoading: isFollowingLoading }] = useFollowUserMutation();
   const [unfollowUser, { isLoading: isUnfollowingLoading }] = useUnfollowUserMutation();
-  
+
   const formatFollowerCount = (count: number) => {
     if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
     if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
@@ -159,19 +160,19 @@ const UserSearchResult = ({
 
   return (
     <View className="flex-row items-center justify-between py-3">
-      <TouchableOpacity 
+      <TouchableOpacity
         className="flex-row items-center flex-1"
         onPress={handleUserPress}
       >
-        <Image 
-          source={{ 
-            uri: user.profile_picture_url 
-              ? (user.profile_picture_url.startsWith('http') 
-                  ? user.profile_picture_url 
+        <Image
+          source={{
+            uri: user.profile_picture_url
+              ? (user.profile_picture_url.startsWith('http')
+                  ? user.profile_picture_url
                   : `${baseURL}${user.profile_picture_url}`)
               : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name || user.username)}&background=C42720&color=fff&size=100`
-          }} 
-          className="w-12 h-12 rounded-full mr-3" 
+          }}
+          className="w-12 h-12 rounded-full mr-3"
         />
         <View>
           <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base">
@@ -182,7 +183,7 @@ const UserSearchResult = ({
           </Text>
         </View>
       </TouchableOpacity>
-      <TouchableOpacity 
+      <TouchableOpacity
         className={`${buttonSize} rounded-full flex-row items-center justify-center ${isFollowing ? 'bg-[#330000]' : 'bg-red-600'}`}
         onPress={handleFollowToggle}
         disabled={isFollowingLoading || isUnfollowingLoading}
@@ -203,11 +204,11 @@ const UserSearchResult = ({
 };
 
 // Stream Search Result Component for embedded mode
-const StreamSearchResult = ({ 
-  stream, 
-  onJoinStream, 
-  baseURL 
-}: { 
+const StreamSearchResult = ({
+  stream,
+  onJoinStream,
+  baseURL
+}: {
   stream: SearchStream;
   onJoinStream: (streamId: string, streamTitle: string, hostUsername: string, channel?: string) => void;
   baseURL: string;
@@ -256,14 +257,14 @@ const StreamSearchResult = ({
 };
 
 // Main Search Results Component
-const SearchResults = React.memo(({ 
-  query, 
-  onJoinStream, 
+const SearchResults = React.memo(({
+  query,
+  onJoinStream,
   baseURL,
   mode = 'embedded',
   activeTab = 'Top',
   onTabChange
-}: { 
+}: {
   query: string;
   onJoinStream?: (streamId: string, streamTitle: string, hostUsername: string, channel?: string) => void;
   baseURL: string;
@@ -286,18 +287,8 @@ const SearchResults = React.memo(({
     if (!searchResults || !searchResults.results) return searchResults;
 
     const blockedUserIds = new Set((blockedUsers || []).map((blocked: any) => blocked.blocked_user.id));
-    
+
     const filteredUsers = (searchResults.results.users || []).filter(user => !blockedUserIds.has(user.id));
-    
-    // Debug logging for search filtering
-    if (blockedUserIds.size > 0) {
-      console.log(`🚫 Search results block filtering (${mode}):`, {
-        originalUsers: searchResults.results.users?.length || 0,
-        blockedCount: blockedUserIds.size,
-        filteredUsers: filteredUsers.length,
-        blockedUserIds: Array.from(blockedUserIds)
-      });
-    }
 
     return {
       ...searchResults,
@@ -353,8 +344,8 @@ const SearchResults = React.memo(({
       <View className="flex-1">
         <View className="flex-row justify-around my-4 w-[66%] mx-auto">
           {['Top', 'Streams', 'Users'].map(tab => (
-            <TouchableOpacity 
-              key={tab} 
+            <TouchableOpacity
+              key={tab}
               className={`px-5 py-3 rounded-lg ${activeTab === tab ? 'bg-white' : 'bg-[#1C1C1E]'}`}
               onPress={() => onTabChange(tab)}
             >
@@ -440,6 +431,7 @@ const SearchResults = React.memo(({
     </ScrollView>
   );
 });
+SearchResults.displayName = 'SearchResults';
 
 // Main Universal Search Component
 const UniversalSearch: React.FC<UniversalSearchProps> = ({
@@ -458,17 +450,17 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({
     showSuggestions: false
   });
   const [recentSearches, setRecentSearches] = React.useState([
-    'Marriage Sacrifices', 
-    'Dating Life', 
-    'How to cook', 
-    'Gaming in SA', 
+    'Marriage Sacrifices',
+    'Dating Life',
+    'How to cook',
+    'Gaming in SA',
     'Mr & Mrs Kola'
   ]);
   const [activeTab, setActiveTab] = React.useState('Top');
 
   const handleSearchFocus = React.useCallback(() => {
-    setSearchState(prev => ({ 
-      ...prev, 
+    setSearchState(prev => ({
+      ...prev,
       showSuggestions: prev.query.length > 0 && prev.query.trim().length === 0
     }));
   }, []);
@@ -499,7 +491,7 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({
         }
         return prev;
       });
-      
+
       setSearchState({
         query: trimmedQuery,
         submitted: true,
@@ -514,7 +506,7 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({
       submitted: true,
       showSuggestions: false
     });
-    
+
     // Add to recent searches
     setRecentSearches(prev => {
       if (!prev.includes(suggestion)) {
@@ -558,17 +550,17 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({
             />
           </View>
           {searchState.submitted && searchState.query.trim().length > 0 ? (
-            <SearchResults 
-              query={searchState.query} 
+            <SearchResults
+              query={searchState.query}
               onJoinStream={onJoinStream}
-              baseURL={baseURL} 
+              baseURL={baseURL}
               mode={mode}
               activeTab={activeTab}
               onTabChange={setActiveTab}
             />
           ) : (
-            <SearchSuggestions 
-              query={searchState.query} 
+            <SearchSuggestions
+              query={searchState.query}
               onSelectSuggestion={handleSelectSuggestion}
               recentSearches={recentSearches}
               onRemoveRecent={handleRemoveRecent}
@@ -606,9 +598,9 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({
         <View className="mt-4">
           <View className="flex-row items-center justify-between mb-4">
             <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-lg">
-              Search Results for "{searchState.query}"
+              Search Results for “{searchState.query}”
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={handleClearSearch}
               className="px-3 py-1 bg-gray-800 rounded-full"
             >
@@ -617,10 +609,10 @@ const UniversalSearch: React.FC<UniversalSearchProps> = ({
               </Text>
             </TouchableOpacity>
           </View>
-          <SearchResults 
-            query={searchState.query} 
+          <SearchResults
+            query={searchState.query}
             onJoinStream={onJoinStream}
-            baseURL={baseURL} 
+            baseURL={baseURL}
             mode={mode}
           />
         </View>

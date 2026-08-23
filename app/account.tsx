@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, SectionList, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, SectionList, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
@@ -11,7 +12,7 @@ import HelpUsImproveModal from '../components/modals/HelpUsImproveModal';
 import ChangePasswordConfirmationModal from '../components/modals/ChangePasswordConfirmationModal';
 import { useGetProfileQuery, useDeactivateAccountMutation } from '../src/store/authApi';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectCurrentUser, selectRefreshToken, logout } from '../src/store/authSlice';
+import { selectCurrentUser, logout } from '../src/store/authSlice';
 import { logger } from '../src/utils/logger';
 
 type ListItem = {
@@ -28,51 +29,47 @@ const AccountScreen = () => {
   const [isDeactivateModalVisible, setDeactivateModalVisible] = useState(false);
   const [isHelpModalVisible, setHelpModalVisible] = useState(false);
   const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
-  const [feedbackText, setFeedbackText] = useState('');
-  
   const currentUser = useSelector(selectCurrentUser);
-  const refreshToken = useSelector(selectRefreshToken);
   const { data: profileData } = useGetProfileQuery();
   const [deactivateAccount, { isLoading: isDeactivating }] = useDeactivateAccountMutation();
 
-  const getSections = (): Array<{ title: string; data: ListItem[] }> => {
+  const getSections = (): { title: string; data: ListItem[] }[] => {
     const user = profileData || currentUser;
-    
+
     return [
       {
         title: 'Personal Information',
         data: [
-          { 
-            key: '1', 
-            label: 'Full Name', 
-            value: user ? `${user.first_name} ${user.last_name}` : 'Loading...', 
-            route: '/edit-name' 
+          {
+            key: '1',
+            label: 'Full Name',
+            value: user ? `${user.first_name} ${user.last_name}` : 'Loading...',
+            route: '/edit-name'
           },
-          { 
-            key: '2', 
-            label: 'Username', 
-            value: user?.username || 'Loading...', 
-            route: '/edit-username' 
+          {
+            key: '2',
+            label: 'Username',
+            value: user?.username || 'Loading...',
+            route: '/edit-username'
           },
-          { 
-            key: '3', 
-            label: 'Phone', 
-            value: user?.phone_number || 'Not set', 
-            route: '/edit-phone' 
+          {
+            key: '3',
+            label: 'Phone',
+            value: user?.phone_number || 'Not set',
+            route: '/edit-phone'
           },
-          { 
-            key: '4', 
-            label: 'Country', 
-            value: user?.country || 'Not set', 
-            route: '/edit-country' 
+          {
+            key: '4',
+            label: 'Country',
+            value: user?.country || 'Not set',
+            route: '/edit-country'
           },
         ],
       },
       {
         title: 'Privacy',
         data: [
-          { key: '6', label: 'Password', value: '**********', route: '/edit-password' },
-          { key: '7', label: 'Enable Two-step Verification', value: '' },
+          { key: '6', label: 'Password', value: '**********', route: '/forgot-password' },
         ],
       },
     ];
@@ -90,7 +87,7 @@ const AccountScreen = () => {
   const handleContinueFromHelp = async (feedback?: string) => {
     try {
       await deactivateAccount({ reason: feedback }).unwrap();
-      
+
       // Clear user session and redirect to signin
       dispatch(logout());
       setHelpModalVisible(false);
@@ -103,7 +100,7 @@ const AccountScreen = () => {
 
   const handlePasswordChange = () => {
     setPasswordModalVisible(false);
-    router.push('/edit-password');
+    router.push('/forgot-password');
   };
 
   return (
@@ -124,7 +121,7 @@ const AccountScreen = () => {
         sections={getSections()}
         keyExtractor={(item) => item.key}
         renderItem={({ item }) => (
-          <TouchableOpacity 
+          <TouchableOpacity
             className="flex-row items-center justify-between px-4 py-4 bg-[#1A1A1A] border-b border-[#333]"
             onPress={() => {
               if (item.route) {
@@ -183,4 +180,4 @@ const AccountScreen = () => {
   );
 };
 
-export default AccountScreen; 
+export default AccountScreen;

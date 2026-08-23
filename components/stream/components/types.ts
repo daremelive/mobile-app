@@ -174,14 +174,6 @@ export interface OptimizedChatProps {
   isKeyboardVisible: boolean;
 }
 
-export interface ParticipantListProps {
-  participants: Participant[];
-  isVisible?: boolean;
-  onParticipantPress?: (participant: Participant) => void;
-  showControls?: boolean;
-  currentUserId?: string;
-}
-
 export interface RealtimeStatusIndicatorProps {
   isConnected: boolean;
   lastUpdate: Date | null;

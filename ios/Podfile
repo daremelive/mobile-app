@@ -50,6 +50,17 @@ target 'Daremelive' do
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
 
+    # fmt 11's C++20 consteval path fails under the Xcode 26 compiler used by
+    # current simulator builds. fmt supports C++17; keep the override scoped
+    # to that pod while React Native continues to compile as C++20.
+    installer.pods_project.targets
+      .select { |target| target.name == 'fmt' }
+      .each do |target|
+      target.build_configurations.each do |build_config|
+        build_config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+      end
+    end
+
     # This is necessary for Xcode 14, because it signs resource bundles by default
     # when building for devices.
     installer.target_installation_results.pod_target_installation_results

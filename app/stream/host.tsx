@@ -1,9 +1,11 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { View, ActivityIndicator, Text, SafeAreaView, Share, Alert, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Platform } from 'react-native';
+import { View, ActivityIndicator, Text, Share, Alert, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { ScreenCapturePickerView } from '@stream-io/react-native-webrtc';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectCurrentUser, selectAccessToken } from '../../src/store/authSlice';
+import { selectCurrentUser } from '../../src/store/authSlice';
 import { StreamHeader, StreamChatOverlay, StreamInputBar, MultiParticipantInputBar, StreamControls, useStreamState, useHybridStreamChat, useGiftAnimations, useEndStream, EndStreamModal, MembersListModal } from '../../components/stream';
 import { StreamVideo, StreamCall, useCallStateHooks, VideoRenderer, hasVideo, hasAudio, ScreenShareToggleButton, useScreenShareButton } from '@stream-io/video-react-native-sdk';
 import { API_BASE_URL, MEDIA_BASE_URL, buildProfilePictureURL, buildAvatarFallbackURL } from '../../src/config/env';
@@ -17,6 +19,7 @@ import {
   RealtimeMessages
 } from '../../types/stream';
 import { logger } from '../../src/utils/logger';
+import { authenticatedFetch } from '../../src/api/authenticatedFetch';
 
 /**
  * Raises the system screen-broadcast picker as soon as the call is live.
@@ -47,7 +50,6 @@ function UnifiedHostStreamScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const currentUser = useSelector(selectCurrentUser) as any;
-  const accessToken = useSelector(selectAccessToken);
 
   const streamIdFromParams = (params.id as string) || '';
   const titleFromParams = (params.title as string) || '';
@@ -203,9 +205,8 @@ function UnifiedHostStreamScreen() {
       try {
 
         // Get user's streams to check if any are stuck live
-        const response = await fetch(`${API_BASE_URL}/streams/my-streams/`, {
+        const response = await authenticatedFetch(`${API_BASE_URL}streams/my-streams/`, {
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
         });
@@ -239,7 +240,7 @@ function UnifiedHostStreamScreen() {
     };
 
     cleanupOrphanedStreams();
-  }, [userData?.id, accessToken, streamAction, dispatch, streamId]);
+  }, [userData?.id, streamAction, dispatch, streamId]);
 
   const messages = allMessages || []; // Use combined real-time + chat messages
 
@@ -371,7 +372,7 @@ function UnifiedHostStreamScreen() {
       const channelText = streamMode === 'multi' ? `\n\nChannel: ${channel}` : '';
 
       await Share.share({
-        message: `Join my ${modeText} on DareMe! 🔴\n\n"${title || `${streamMode === 'multi' ? 'Multi ' : ''}Live Stream`}"${channelText}\n\n${shareUrl}`,
+        message: `Join my ${modeText} on DareMe.\n\n"${title || `${streamMode === 'multi' ? 'Multi ' : ''}Live Stream`}"${channelText}\n\n${shareUrl}`,
         url: shareUrl,
         title: `${userData?.first_name || userData?.username}'s ${streamMode === 'multi' ? 'Multi ' : ''}Live Stream`
       });
@@ -400,7 +401,7 @@ function UnifiedHostStreamScreen() {
     setProfilePictureUrl(getProfilePictureUrl());
   }, [userData?.profile_picture, userData?.profile_picture_url]);
 
-  // Initialize stream when user data and stream ID are available  
+  // Initialize stream when user data and stream ID are available
   useEffect(() => {
     if (currentUser?.id && streamId && !hasJoined && !isOperationInProgress) {
       initializeStream();
@@ -408,56 +409,37 @@ function UnifiedHostStreamScreen() {
   }, [currentUser?.id, streamId]); // Remove hasJoined and isOperationInProgress from deps to prevent re-initialization
 
   useEffect(() => {
-    // Heartbeat system disabled - no initial heartbeat needed
-    // Streams will persist until manually ended
+    if (!hasJoined || !streamId) return;
+
+    const sendHeartbeat = async () => {
+      try {
+        await streamAction({
+          streamId,
+          action: { action: 'heartbeat' },
+        }).unwrap();
+        initialHeartbeatSent.current = true;
+      } catch (error) {
+      }
+    };
+
+    void sendHeartbeat();
+    const heartbeatInterval = setInterval(sendHeartbeat, 20_000);
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void sendHeartbeat();
+      }
+    });
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      appStateSubscription.remove();
+    };
   }, [hasJoined, streamId, streamAction, dispatch]);
 
   useEffect(() => {
     if (!streamId || !hasJoined) return;
 
-    let backgroundTimer: number | null = null;
-    let isCleanupInProgress = false;
-    let cleanupExecuted = false; // Prevent multiple cleanup executions
-    let backgroundStartTime: number | null = null; // Track when app went to background
-
-    const executeStreamCleanup = async (reason: string) => {
-      if (isCleanupInProgress || cleanupExecuted) {
-        return;
-      }
-
-      isCleanupInProgress = true;
-      cleanupExecuted = true;
-
-      try {
-        // Direct API call for immediate cleanup (more reliable than endStreamSystem for force close)
-        await streamAction({
-          streamId,
-          action: { action: 'end' }
-        }).unwrap();
-
-        dispatch(streamsApi.util.invalidateTags(['Stream']));
-
-        if (call) {
-          call.leave().catch(logger.error);
-        }
-
-      } catch (error: any) {
-
-        dispatch(streamsApi.util.invalidateTags(['Stream']));
-
-        // Always leave the call regardless of API success
-        if (call) {
-          call.leave().catch(logger.error);
-        }
-
-        // Don't retry for any error - just mark as complete
-        // User experience is more important than perfect cleanup
-        cleanupExecuted = true;
-
-      } finally {
-        isCleanupInProgress = false;
-      }
-    };
+    let backgroundStartTime: number | null = null;
 
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'background') {
@@ -470,14 +452,8 @@ function UnifiedHostStreamScreen() {
         // This happens during notifications, control center, etc.
 
       } else if (nextAppState === 'active') {
-        // Clear any pending cleanup timer
-        if (backgroundTimer) {
-          clearTimeout(backgroundTimer);
-          backgroundTimer = null;
-        }
-
         // Check if we need to reinitialize after returning from background
-        if (backgroundStartTime && hasJoined && !cleanupExecuted) {
+        if (backgroundStartTime && hasJoined) {
           const timeInBackground = Date.now() - backgroundStartTime;
 
           // If we were in background for more than 5 seconds, reinitialize camera
@@ -509,34 +485,6 @@ function UnifiedHostStreamScreen() {
 
     return () => {
       subscription?.remove();
-
-      if (backgroundTimer) {
-        clearTimeout(backgroundTimer);
-      }
-
-      initialHeartbeatSent.current = false;
-
-      if (hasJoined && streamId && !cleanupExecuted) {
-        cleanupExecuted = true;
-
-        // Additional safety: Only end stream if we're actually the host
-        // and this is a genuine component unmount, not a state change
-
-        streamAction({
-          streamId,
-          action: { action: 'end' }
-        }).unwrap()
-          .then(() => {
-            dispatch(streamsApi.util.invalidateTags(['Stream']));
-          })
-          .catch((error) => {
-            dispatch(streamsApi.util.invalidateTags(['Stream']));
-          });
-
-        if (call) {
-          call.leave().catch(logger.error);
-        }
-      }
     };
   }, [streamId, hasJoined, call, initializeStream, resetConnectionState]);
 
@@ -552,9 +500,9 @@ function UnifiedHostStreamScreen() {
 
   // Single participant video component
   const SingleParticipantVideo = () => {
-    if (!call || !streamClient) return null;
     const { useParticipants } = useCallStateHooks();
     const participants = useParticipants();
+    if (!call || !streamClient) return null;
     const local = participants.find((p: any) => p.isLocalParticipant);
     return (
       <View className="flex-1 bg-black">
@@ -684,7 +632,7 @@ function UnifiedHostStreamScreen() {
                       // Fallback for participants without video streams (audio only mode - Zoom/Meet style)
                       <View className="flex-1 bg-gray-700 items-center justify-center">
                         <View className="w-12 h-12 rounded-full bg-gray-600 items-center justify-center mb-2">
-                          <Text className="text-white text-2xl">🎙️</Text>
+                          <Ionicons name="mic" size={24} color="white" />
                         </View>
                         <Text className="text-white text-sm font-medium">
                           {participant.isLocalParticipant ? 'You' : participant.name || 'Guest'}

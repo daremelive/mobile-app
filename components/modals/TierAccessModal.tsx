@@ -1,3 +1,4 @@
+import { DESTRUCTIVE_GRADIENT } from '@/constants/Gradients';
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,12 +38,12 @@ const TierAccessModal: React.FC<TierAccessModalProps> = ({
     }
   };
 
-  const getTierGradient = (tier: TierLevel): [string, string] => {
+  const getTierGradient = (tier: TierLevel): readonly [string, string] => {
     switch (tier) {
       case 'basic': return ['#6B7280', '#4B5563'];
       case 'premium': return ['#3B82F6', '#1E40AF'];
       case 'vip': return ['#8B5CF6', '#6D28D9'];
-      case 'vvip': return ['#DC2626', '#7F1D1D']; // Red brand color like EndStreamModal
+      case 'vvip': return DESTRUCTIVE_GRADIENT; // Red brand color like EndStreamModal
       default: return ['#6B7280', '#4B5563'];
     }
   };
