@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Switch, Image, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -65,7 +66,7 @@ const NotificationScreen = () => {
     } catch (error: any) {
       Alert.alert(
         'Update Failed',
-        error?.data?.message || 'Failed to update account notification setting. Please try again.'
+        getErrorMessage(error)
       );
     }
   };

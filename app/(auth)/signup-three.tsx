@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../../src/utils/errorMessage';
 import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
@@ -63,7 +64,7 @@ export default function SignupThreeScreen() {
       router.replace('/(tabs)/home');
     } catch (error: any) {
       logger.error('Failed to save interests:', error);
-      Alert.alert('Error', 'Failed to save interests. Please try again.');
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 

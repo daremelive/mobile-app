@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
@@ -91,7 +92,7 @@ export default function FollowingsScreen() {
       await refetchFollowing();
       await refetchDiscover();
     } catch (error: any) {
-      Alert.alert('Error', error.data?.message || 'Failed to update follow status');
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 

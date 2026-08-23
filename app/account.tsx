@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, SectionList, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -94,7 +95,7 @@ const AccountScreen = () => {
       router.replace('/(auth)/signin');
     } catch (error: any) {
       logger.error('Deactivation error:', error);
-      Alert.alert('Error', 'Failed to deactivate account. Please try again.');
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 

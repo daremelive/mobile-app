@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -73,7 +74,7 @@ const EditPhoneScreen = () => {
       if (error.data?.phone_number?.[0]) {
         Alert.alert('Error', error.data.phone_number[0]);
       } else {
-        Alert.alert('Error', 'Failed to update phone number. Please try again.');
+        Alert.alert('Error', getErrorMessage(error));
       }
     }
   };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { getErrorMessage } from '../../../src/utils/errorMessage';
 import { View, Text, TouchableOpacity, Modal, TextInput, FlatList, Image, Alert, ActivityIndicator, RefreshControl, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -328,7 +329,7 @@ export const MembersListModal = ({
                     }
                     onRefresh?.();
                   } catch (error: any) {
-                    Alert.alert('Error', error?.data?.message || `Failed to ${actionText.toLowerCase()} user. Please try again.`);
+                    Alert.alert('Error', getErrorMessage(error));
                   }
                 }
               }
@@ -378,7 +379,7 @@ export const MembersListModal = ({
           break;
       }
     } catch (error: any) {
-      Alert.alert('Error', error?.data?.message || 'Action failed. Please try again.');
+      Alert.alert('Error', getErrorMessage(error));
     }
   }, [streamId, inviteUsers, removeGuest, removeParticipant, promoteViewer, blockUser, unblockUser, isUserBlocked, onRefresh]);
 

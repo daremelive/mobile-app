@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -42,7 +43,7 @@ const EditNameScreen = () => {
       router.back();
     } catch (error: any) {
       logger.error('Failed to update name:', error);
-      Alert.alert('Error', 'Failed to update name. Please try again.');
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 

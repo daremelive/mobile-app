@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../../src/utils/errorMessage';
 import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, Alert, ScrollView } from 'react-native';
@@ -77,7 +78,7 @@ export default function SigninScreen() {
       } else if (error.status === 401) {
         Alert.alert('Error', 'Invalid email or password');
       } else {
-        Alert.alert('Error', 'Failed to sign in. Please try again.');
+        Alert.alert('Error', getErrorMessage(error));
       }
     }
   };

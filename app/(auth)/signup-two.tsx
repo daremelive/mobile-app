@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../../src/utils/errorMessage';
 import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState, useRef } from 'react';
 import {
@@ -143,7 +144,7 @@ export default function SignupTwoScreen() {
       } else if (error.data?.non_field_errors?.[0]) {
         Alert.alert('Error', error.data.non_field_errors[0]);
       } else {
-        Alert.alert('Error', 'Failed to complete profile. Please try again.');
+        Alert.alert('Error', getErrorMessage(error));
       }
     }
   };

@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl, Alert, Animated, Dimensions, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -149,7 +150,7 @@ const NotificationInboxScreen = () => {
 
       refetch(); // Refresh notifications
     } catch (error: any) {
-      Alert.alert('Error', error?.data?.error || 'Failed to accept invitation');
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 
@@ -168,7 +169,7 @@ const NotificationInboxScreen = () => {
       Alert.alert('Invitation Declined', 'The host has been notified of your decision.');
       refetch(); // Refresh notifications
     } catch (error: any) {
-      Alert.alert('Error', error?.data?.error || 'Failed to decline invitation');
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 
@@ -200,7 +201,7 @@ const NotificationInboxScreen = () => {
               await clearAllNotifications().unwrap();
               Alert.alert('Success', 'All notifications have been cleared.');
             } catch (error) {
-              Alert.alert('Error', 'Failed to clear notifications. Please try again.');
+              Alert.alert('Error', getErrorMessage(error));
             }
           },
         },
@@ -224,7 +225,7 @@ const NotificationInboxScreen = () => {
             try {
               await clearNotification(notificationId).unwrap();
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete notification. Please try again.');
+              Alert.alert('Error', getErrorMessage(error));
             }
           },
         },

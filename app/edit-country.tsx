@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, FlatList, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -59,7 +60,7 @@ export default function EditCountryScreen() {
       router.back();
     } catch (error: any) {
       logger.error('Failed to update country:', error);
-      Alert.alert('Error', 'Failed to update country. Please try again.');
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 

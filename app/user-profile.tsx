@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import {
   View,
   Text,
@@ -77,7 +78,7 @@ export default function UserProfileScreen() {
       // Refetch user profile to update follow status and counts
       refetch();
     } catch (error: any) {
-      Alert.alert('Error', error.data?.error || 'Failed to update follow status');
+      Alert.alert('Error', getErrorMessage(error));
     } finally {
       setActionLoading(false);
     }
@@ -118,7 +119,7 @@ export default function UserProfileScreen() {
               // Also refetch data in case user stays on page
               refetch();
             } catch (error: any) {
-              Alert.alert('Error', error.data?.message || 'Failed to block user. Please try again.');
+              Alert.alert('Error', getErrorMessage(error));
             }
           }
         }
@@ -144,9 +145,7 @@ export default function UserProfileScreen() {
       setReportModalVisible(false);
       Alert.alert('Report received', 'Thank you. Our moderation team will review it.');
     } catch (reportError: any) {
-      const message = reportError?.data?.detail
-        || reportError?.data?.error
-        || 'Your report could not be submitted. Please try again.';
+      const message = getErrorMessage(reportError);
       Alert.alert('Unable to report', message);
     }
   };

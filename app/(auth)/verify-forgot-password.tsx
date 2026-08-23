@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import VerificationCodeScreen from '../../components/auth/VerificationCodeScreen';
 import { usePasswordResetVerifyMutation, useResendOTPMutation } from '../../src/store/authApi';
 import { selectPendingEmail, setPendingResetToken } from '../../src/store/authSlice';
+import { getErrorMessage } from '../../src/utils/errorMessage';
 import { logger } from '../../src/utils/logger';
 
 export default function VerifyForgotPasswordScreen() {
@@ -28,12 +29,7 @@ export default function VerifyForgotPasswordScreen() {
       router.push('/reset-password');
     } catch (cause: any) {
       logger.error('Password reset code verification failed', cause);
-      setError(
-        cause.data?.error
-          ?? (cause.status === 429
-            ? 'Too many attempts. Please wait and try again.'
-            : 'That code could not be verified. Please try again.'),
-      );
+      setError(getErrorMessage(cause));
       setResetKey((current) => current + 1);
     }
   };
@@ -48,7 +44,7 @@ export default function VerifyForgotPasswordScreen() {
       Alert.alert('Code sent', 'A new reset code was sent to your email.');
     } catch (cause) {
       logger.error('Password reset code resend failed', cause);
-      Alert.alert('Could not resend code', 'Please check your connection and try again.');
+      Alert.alert('Could not resend code', getErrorMessage(cause));
     }
   };
 

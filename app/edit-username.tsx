@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -59,7 +60,7 @@ const EditUsernameScreen = () => {
       if (error.data?.username?.[0]) {
         Alert.alert('Error', error.data.username[0]);
       } else {
-        Alert.alert('Error', 'Failed to update username. Please try again.');
+        Alert.alert('Error', getErrorMessage(error));
       }
     }
   };
