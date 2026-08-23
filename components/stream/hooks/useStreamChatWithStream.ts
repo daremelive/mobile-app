@@ -5,6 +5,8 @@ import type { ChatMessage } from '../components/types';
 import { store } from '../../../src/store';
 import { usersApi } from '../../../src/store/usersApi';
 import { UseStreamChatWithStreamProps, UseStreamChatWithStreamReturn } from './types';
+import { buildProfilePictureURL } from '../../../src/config/env';
+import logger from '../../../src/utils/logger';
 
 export const useStreamChatWithStream = ({
   streamId,
@@ -98,7 +100,7 @@ export const useStreamChatWithStream = ({
             const converted = await convertStreamChatMessage(message);
             convertedMessages.push(converted);
           } catch (error) {
-            console.error('[useStreamChat] Failed to convert recent message:', error);
+            logger.error('Could not convert recent stream message', error);
           }
         }
         
@@ -128,7 +130,7 @@ export const useStreamChatWithStream = ({
                 return newMessages;
               });
             } catch (error) {
-              console.error('❌ [useStreamChat] Failed to convert message:', error);
+              logger.error('Could not convert incoming stream message', error);
             }
           }
         );
@@ -137,7 +139,7 @@ export const useStreamChatWithStream = ({
         setIsConnected(true);
         
       } catch (error) {
-        console.error('❌ [useStreamChat] Failed to initialize Stream Chat:', error);
+        logger.error('Could not initialize stream chat', error);
         setConnectionError(error instanceof Error ? error.message : 'Connection failed');
         setIsConnected(false);
         initializationRef.current = false;
@@ -180,7 +182,7 @@ export const useStreamChatWithStream = ({
       
       return result;
     } catch (error) {
-      console.error('❌ [useStreamChat] Failed to fetch user profile for userId:', userId, error);
+      logger.error('Could not fetch a stream chat user profile', error);
       return null;
     }
   }, []);
@@ -222,10 +224,7 @@ export const useStreamChatWithStream = ({
         return imageUrl; // Already a full URL
       }
       
-      // Construct full URL for relative paths
-      const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-      const profilePath = imageUrl.startsWith('/') ? imageUrl : `/${imageUrl}`;
-      return `${webURL}${profilePath}`;
+      return buildProfilePictureURL(imageUrl);
     };
     
     const finalProfilePictureUrl = getProfilePictureUrl(profilePictureUrl);
@@ -269,7 +268,6 @@ export const useStreamChatWithStream = ({
 
   const sendMessage = useCallback(async (messageText: string, customData?: any) => {
     if (!messageText.trim() || !userId || !username || !isConnected) {
-      console.warn('⚠️ [useStreamChat] Cannot send message - missing requirements or not connected');
       return;
     }
 
@@ -315,7 +313,7 @@ export const useStreamChatWithStream = ({
       setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
       
     } catch (error) {
-      console.error('❌ [useStreamChat] Failed to send message:', error);
+      logger.error('Could not send stream chat message', error);
       
       // Remove the optimistic message on error
       setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
@@ -331,10 +329,9 @@ export const useStreamChatWithStream = ({
     setMessages([]);
   }, []);
 
-  // 🎁 Gift event method
+  // Gift event method
   const sendGiftEvent = useCallback(async (giftData: any) => {
     if (!isConnected) {
-      console.warn('[useStreamChat] Cannot send gift event - not connected');
       return;
     }
 
@@ -343,7 +340,7 @@ export const useStreamChatWithStream = ({
       await service.sendGiftEvent(giftData);
       
     } catch (error) {
-      console.error('[useStreamChat] Failed to send gift event:', error);
+      logger.error('Could not send stream gift event', error);
       throw error;
     }
   }, [isConnected]);

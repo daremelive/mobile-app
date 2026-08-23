@@ -14,6 +14,7 @@ import { selectCurrentUser } from '../../../src/store/authSlice';
 import { useSearchUsersQuery } from '../../../src/api/messagingApi';
 import { MessageUser } from '../../../types/api/messaging';
 import { User, Viewer, MembersListModalProps, ActionType, ActionMenuProps, StreamParticipant } from './types';
+import logger from '../../../src/utils/logger';
 
 const ActionMenu: React.FC<ActionMenuProps> = ({
   visible,
@@ -241,20 +242,14 @@ export const MembersListModal = ({
         case 'promote':
           setPromotingUserId(user.id);
           try {
-            console.log('🚀 Starting promotion for user:', user.id, 'in stream:', streamId);
-
             // Step 1: Call backend API to promote user
             const result = await promoteViewer({
               streamId,
               userId: user.id
             }).unwrap();
-            console.log('✅ Backend promotion successful:', result);
-
             // Step 2: Grant Stream.io SDK permissions from host side (CRITICAL for video to work)
             if (call) {
               try {
-                console.log('🎥 Granting Stream.io SDK permissions to user:', user.id);
-
                 // Grant video and audio permissions using the SDK
                 await call.updateUserPermissions({
                   user_id: user.id.toString(),
@@ -262,23 +257,19 @@ export const MembersListModal = ({
                   revoke_permissions: []
                 });
 
-                console.log('✅ Stream.io SDK permissions granted successfully');
               } catch (sdkError) {
-                console.error('⚠️ SDK permission grant failed (falling back to backend):', sdkError);
+                logger.error('SDK permission grant failed; backend permission remains authoritative', sdkError);
                 // Backend already granted permissions, so continue
               }
-            } else {
-              console.log('⚠️ No call object available for SDK permission grant');
             }
 
             Alert.alert(
-              '🎉 Promotion Successful!',
+              'Promotion Successful',
               `${user.first_name || user.username} has been promoted to guest speaker and assigned to Seat ${result.participant.seat_number}.`
             );
             onRefresh?.(); // Refresh the audience list
           } catch (error) {
-            console.error('❌ Promotion error:', error);
-            console.log('🔍 Error details:', JSON.stringify(error, null, 2));
+            logger.error('Could not promote stream participant', error);
 
             let errorMessage = 'Failed to promote user. Please try again.';
 
@@ -328,7 +319,7 @@ export const MembersListModal = ({
                             participantId: user.participant_id.toString()
                           }).unwrap();
                         } catch (kickError) {
-                          console.log('Could not kick user from stream:', kickError);
+                          logger.error('Could not remove user from stream before blocking', kickError);
                           // Continue with blocking even if kick fails
                         }
                       }
@@ -400,7 +391,7 @@ export const MembersListModal = ({
       onRefresh();
       await new Promise(resolve => setTimeout(resolve, 300));
     } catch (error) {
-      console.error('Failed to refresh:', error);
+      logger.error('Could not refresh the stream member list', error);
     } finally {
       setIsRefreshing(false);
     }

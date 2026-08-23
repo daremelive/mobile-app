@@ -5,6 +5,7 @@ import { authApi } from '../../../src/store/authApi';
 import { usersApi } from '../../../src/store/usersApi';
 import { streamsApi } from '../../../src/store/streamsApi';
 import { UseFollowSystemProps, UseFollowSystemReturn } from './types';
+import logger from '../../../src/utils/logger';
 
 export const useFollowSystem = ({
   userId,
@@ -12,23 +13,23 @@ export const useFollowSystem = ({
 }: UseFollowSystemProps): UseFollowSystemReturn => {
   const [isFollowing, setIsFollowing] = useState(false);
   const dispatch = useDispatch();
-  
+
   const [followUserMutation, { isLoading: isFollowLoading }] = useFollowUserMutation();
   const [unfollowUserMutation, { isLoading: isUnfollowLoading }] = useUnfollowUserMutation();
-  
-  const { 
-    data: followingData, 
-    refetch: refetchFollowing 
+
+  const {
+    data: followingData,
+    refetch: refetchFollowing
   } = useGetFollowingQuery(
-    { search: '' }, 
+    { search: '' },
     { skip: !userId, pollingInterval: 0 }
   );
-  
-  const { 
-    data: followersData, 
-    refetch: refetchFollowers 
+
+  const {
+    data: followersData,
+    refetch: refetchFollowers
   } = useGetFollowersQuery(
-    { search: '' }, 
+    { search: '' },
     { skip: !targetUserId, pollingInterval: 0 }
   );
 
@@ -49,7 +50,7 @@ export const useFollowSystem = ({
 
     try {
       const targetUserIdNum = parseInt(targetUserId);
-      
+
       if (isFollowing) {
         await unfollowUserMutation({ user_id: targetUserIdNum }).unwrap();
         setIsFollowing(false);
@@ -57,20 +58,18 @@ export const useFollowSystem = ({
         await followUserMutation({ user_id: targetUserIdNum }).unwrap();
         setIsFollowing(true);
       }
-      
+
       // Refresh follow data
       refetchFollowing();
       refetchFollowers();
-      
+
       // Invalidate all related caches to ensure sync across the app
       dispatch(authApi.util.invalidateTags(['User', 'Auth']));
       dispatch(usersApi.util.invalidateTags(['Users', 'UserProfile']));
       dispatch(streamsApi.util.invalidateTags(['Stream', 'Users']));
-      
-      console.log('🔄 Follow/unfollow completed - all caches invalidated for sync');
-      
+
     } catch (error) {
-      console.error('Failed to toggle follow:', error);
+      logger.error('Could not update follow state', error);
     }
   }, [
     userId,
@@ -87,12 +86,12 @@ export const useFollowSystem = ({
   const refreshFollowStatus = useCallback(() => {
     refetchFollowing();
     refetchFollowers();
-    
+
     // Also refresh related caches
-    dispatch(authApi.util.invalidateTags(['Profile']));
+    dispatch(authApi.util.invalidateTags(['User', 'Auth']));
     dispatch(usersApi.util.invalidateTags(['Users']));
     dispatch(streamsApi.util.invalidateTags(['Stream']));
-    
+
   }, [refetchFollowing, refetchFollowers, dispatch]);
 
   return {

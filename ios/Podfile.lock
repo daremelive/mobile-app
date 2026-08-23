@@ -2081,7 +2081,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - RNLocalize (3.5.2):
+  - RNLocalize (3.7.0):
     - React-Core
   - RNReanimated (3.17.5):
     - DoubleConversion
@@ -2797,7 +2797,7 @@ SPEC CHECKSUMS:
   RNCAsyncStorage: b9f5f78da5d16a853fe3dc22e8268d932fc45a83
   RNCPushNotificationIOS: 6c4ca3388c7434e4a662b92e4dfeeee858e6f440
   RNGestureHandler: ce4a87dba81030b374d7f1993c4376f5c230da2e
-  RNLocalize: 3c4d0abd777a546fa77bdb6caef85a87fb9ea349
+  RNLocalize: 5b24342fb7288242c2215756412d8dcb8dadf31e
   RNReanimated: efe63b33e23e1b5b06e5e087779eceeee742452b
   RNScreens: 62fdbbc4c984150b34c36f095c6ba2510ca9b6a5
   RNSentry: 892426b4ab3a4259e7e30bf14c5b231ba3c774a2
@@ -2814,6 +2814,6 @@ SPEC CHECKSUMS:
   Yoga: dc7c21200195acacb62fa920c588e7c2106de45e
   ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
-PODFILE CHECKSUM: a9f457246908b3ac6c185968fd29b04fb0459112
+PODFILE CHECKSUM: 82249d2115e9bf846a7fd913b17ece34aaa0d5d7
 
 COCOAPODS: 1.16.2

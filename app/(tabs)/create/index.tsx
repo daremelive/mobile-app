@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, SafeAreaView } from 'react-native';
+import { View } from 'react-native';
 import StreamModeSelectionModal from '../../../components/modals/StreamModeSelectionModal';
 import { useFocusEffect } from 'expo-router';
 
@@ -21,11 +22,11 @@ export default function CreateScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#090909' }}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: '#090909' }}>
       <StreamModeSelectionModal
         visible={isModalVisible}
         onClose={() => setModalVisible(false)}
       />
     </SafeAreaView>
   );
-} 
+}

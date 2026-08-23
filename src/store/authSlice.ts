@@ -35,28 +35,34 @@ const authSlice = createSlice({
       state.refreshToken = refresh;
       state.isAuthenticated = true;
       state.error = null;
-      
+
       // Store tokens securely
       SecureStore.setItemAsync('accessToken', access);
       SecureStore.setItemAsync('refreshToken', refresh);
       SecureStore.setItemAsync('user', JSON.stringify(user));
     },
-    
+
     setUser: (state, action: PayloadAction<User>) => {
       state.user = action.payload;
       // Update stored user data
       SecureStore.setItemAsync('user', JSON.stringify(action.payload));
     },
-    
+
     updateAccessToken: (state, action: PayloadAction<string>) => {
       state.accessToken = action.payload;
       SecureStore.setItemAsync('accessToken', action.payload);
     },
-    
+
+    updateTokens: (state, action: PayloadAction<{ access: string; refresh: string }>) => {
+      state.accessToken = action.payload.access;
+      state.refreshToken = action.payload.refresh;
+      state.isAuthenticated = true;
+    },
+
     setPendingEmail: (state, action: PayloadAction<string>) => {
       state.pendingEmail = action.payload;
     },
-    
+
     clearPendingEmail: (state) => {
       state.pendingEmail = null;
     },
@@ -72,11 +78,11 @@ const authSlice = createSlice({
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload;
     },
-    
+
     setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
     },
-    
+
     logout: (state) => {
       state.user = null;
       state.accessToken = null;
@@ -91,11 +97,11 @@ const authSlice = createSlice({
       SecureStore.deleteItemAsync('refreshToken');
       SecureStore.deleteItemAsync('user');
     },
-    
-    restoreSession: (state, action: PayloadAction<{ 
-      accessToken: string; 
-      refreshToken: string; 
-      user: User 
+
+    restoreSession: (state, action: PayloadAction<{
+      accessToken: string;
+      refreshToken: string;
+      user: User
     }>) => {
       const { accessToken, refreshToken, user } = action.payload;
       state.user = user;
@@ -110,6 +116,7 @@ export const {
   setCredentials,
   setUser,
   updateAccessToken,
+  updateTokens,
   setPendingEmail,
   clearPendingEmail,
   setPendingResetToken,

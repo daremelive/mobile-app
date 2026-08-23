@@ -2,6 +2,7 @@ interface AppConfig {
   API_BASE_URL: string;
   WS_BASE_URL: string;
   MEDIA_BASE_URL: string;
+  PUBLIC_WEB_BASE_URL: string;
   IS_DEVELOPMENT: boolean;
   IS_PRODUCTION: boolean;
 }
@@ -34,11 +35,13 @@ const getConfig = (): AppConfig => {
   const apiBaseUrl = withApiSuffix(process.env.EXPO_PUBLIC_API_BASE_URL ?? `${host}/api`);
   const wsBaseUrl = process.env.EXPO_PUBLIC_WS_BASE_URL ?? host.replace(/^http/, 'ws');
   const mediaBaseUrl = process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? host;
+  const publicWebBaseUrl = process.env.EXPO_PUBLIC_WEB_BASE_URL ?? mediaBaseUrl;
 
   return {
     API_BASE_URL: withTrailingSlash(apiBaseUrl),
     WS_BASE_URL: stripTrailingSlash(wsBaseUrl),
     MEDIA_BASE_URL: stripTrailingSlash(mediaBaseUrl),
+    PUBLIC_WEB_BASE_URL: stripTrailingSlash(publicWebBaseUrl),
     IS_DEVELOPMENT: isDev,
     IS_PRODUCTION: !isDev,
   };
@@ -50,6 +53,7 @@ export const AppConfig = getConfig();
 export const API_BASE_URL = AppConfig.API_BASE_URL;
 export const WS_BASE_URL = AppConfig.WS_BASE_URL;
 export const MEDIA_BASE_URL = AppConfig.MEDIA_BASE_URL;
+export const PUBLIC_WEB_BASE_URL = AppConfig.PUBLIC_WEB_BASE_URL;
 
 /**
  * API root without a trailing slash. Use this as the `baseUrl` for RTK Query
@@ -64,18 +68,20 @@ export const getWebSocketURL = (): string => AppConfig.WS_BASE_URL;
 export const getMediaBaseURL = (): string => AppConfig.MEDIA_BASE_URL;
 
 // Build profile picture URL helper
-export const buildProfilePictureURL = (profilePicture?: string | null): string => {
-  if (!profilePicture) {
+export const buildMediaURL = (path?: string | null): string => {
+  if (!path) {
     return '';
   }
 
-  if (profilePicture.startsWith('http')) {
-    return profilePicture;
+  if (/^https?:\/\//i.test(path)) {
+    return path;
   }
 
-  const cleanPath = profilePicture.startsWith('/') ? profilePicture : `/${profilePicture}`;
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${MEDIA_BASE_URL}${cleanPath}`;
 };
+
+export const buildProfilePictureURL = buildMediaURL;
 
 // Build avatar fallback URL
 export const buildAvatarFallbackURL = (name: string): string => {

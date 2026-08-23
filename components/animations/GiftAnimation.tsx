@@ -15,6 +15,7 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { 
   GiftAnimationProps, 
   HeartParticleProps, 
@@ -313,10 +314,12 @@ export const GiftAnimation: React.FC<GiftAnimationProps> = ({
                   style={{ width: 50, height: 50 }}
                   resizeMode="contain"
                 />
-              ) : (
+              ) : gift.icon ? (
                 <Text style={{ fontSize: 40 }}>
-                  {gift.icon || '🎁'}
+                  {gift.icon}
                 </Text>
+              ) : (
+                <Ionicons name="gift-outline" size={42} color="white" />
               )}
             </View>
           </LinearGradient>
@@ -347,7 +350,7 @@ export const GiftAnimation: React.FC<GiftAnimationProps> = ({
             textShadowOffset: { width: 1, height: 1 },
             textShadowRadius: 3,
           }}>
-            🎉 {getDisplayName()} 🎉
+            {getDisplayName()}
           </Text>
           <Text style={{ 
             color: '#FFFFFF', 
@@ -359,7 +362,7 @@ export const GiftAnimation: React.FC<GiftAnimationProps> = ({
             sent {gift.name}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-            <Text style={{ fontSize: 16 }}>💎</Text>
+            <Ionicons name="diamond-outline" size={16} color="#4ECDC4" />
             <Text style={{ 
               color: '#4ECDC4', 
               fontSize: 16, 
@@ -467,7 +470,7 @@ const HeartParticle: React.FC<HeartParticleProps> = ({ angle, delay }) => {
 
   return (
     <Animated.View style={[{ position: 'absolute' }, heartStyle]}>
-      <Text style={{ fontSize: 20, color: '#FF6B6B' }}>❤️</Text>
+      <Ionicons name="heart" size={20} color="#FF6B6B" />
     </Animated.View>
   );
 };
@@ -584,7 +587,7 @@ const SparkleEffect: React.FC<SparkleEffectProps> = ({
         sparkleStyle,
       ]}
     >
-      <Text style={{ fontSize: 18, color: '#FFD700' }}>✨</Text>
+      <Ionicons name="sparkles" size={18} color="#FFD700" />
     </Animated.View>
   );
 };

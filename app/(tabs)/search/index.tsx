@@ -1,11 +1,11 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React from 'react';
-import { SafeAreaView } from 'react-native';
 import UniversalSearch from '../../../components/UniversalSearch';
 import { MEDIA_BASE_URL } from '../../../src/config/env';
 
 export default function SearchScreen() {
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-black">
       <UniversalSearch
         mode="fullscreen"
         baseURL={MEDIA_BASE_URL}

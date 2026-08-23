@@ -1,6 +1,6 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
-import { RootState } from './index';
+import { createApi } from '@reduxjs/toolkit/query/react';
 import { API_ROOT } from '../config/env';
+import { createAuthenticatedBaseQuery } from '../api/authenticatedBaseQuery';
 
 import {
   Stream,
@@ -49,22 +49,7 @@ import {
 } from '../../types/api';
 
 // Base query with production-optimized timeouts and retry logic
-const baseQuery = fetchBaseQuery({
-  baseUrl: API_ROOT,
-  timeout: __DEV__ ? 15000 : 45000, // Extended timeout for production (45s)
-  prepareHeaders: (headers, { getState }) => {
-    const token = (getState() as RootState).auth.accessToken;
-    if (token) {
-      headers.set('authorization', `Bearer ${token}`);
-    }
-    // Add production-specific headers for better connectivity
-    if (!__DEV__) {
-      headers.set('Connection', 'keep-alive');
-      headers.set('Keep-Alive', 'timeout=30, max=100');
-    }
-    return headers;
-  },
-});
+const baseQuery = createAuthenticatedBaseQuery(API_ROOT, __DEV__ ? 15_000 : 45_000);
 
 export const streamsApi = createApi({
   reducerPath: 'streamsApi',
@@ -78,7 +63,7 @@ export const streamsApi = createApi({
         if (params.status) searchParams.append('status', params.status);
         if (params.channel) searchParams.append('channel', params.channel);
         if (params.search) searchParams.append('search', params.search);
-        
+
         return {
           url: `/streams/?${searchParams.toString()}`,
           method: 'GET',
@@ -121,7 +106,7 @@ export const streamsApi = createApi({
         if (!streamId || typeof streamId !== 'string' || streamId.trim().length === 0) {
           throw new Error('Invalid streamId provided to getStream');
         }
-        
+
         // Only run expensive UUID validation in development
         if (__DEV__) {
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -129,7 +114,7 @@ export const streamsApi = createApi({
             throw new Error(`Invalid UUID format for streamId: ${streamId}`);
           }
         }
-        
+
         return {
           url: `/streams/${streamId}/`,
           method: 'GET',
@@ -176,7 +161,7 @@ export const streamsApi = createApi({
         if (!streamId || typeof streamId !== 'string' || streamId.trim().length === 0) {
           throw new Error('Invalid streamId provided to streamAction');
         }
-        
+
         // Only run expensive UUID validation in development
         if (__DEV__) {
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -184,7 +169,7 @@ export const streamsApi = createApi({
             throw new Error(`Invalid UUID format for streamId: ${streamId}`);
           }
         }
-        
+
         return {
           url: `/streams/${streamId}/action/`,
           method: 'POST',
@@ -237,7 +222,7 @@ export const streamsApi = createApi({
         if (!streamId || typeof streamId !== 'string' || streamId.trim().length === 0) {
           throw new Error('Invalid streamId provided to getStreamMessages');
         }
-        
+
         // Only run expensive UUID validation in development
         if (__DEV__) {
           const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -245,7 +230,7 @@ export const streamsApi = createApi({
             throw new Error(`Invalid UUID format for streamId: ${streamId}`);
           }
         }
-        
+
         return {
           url: `/streams/${streamId}/messages/`,
           method: 'GET',
@@ -275,7 +260,7 @@ export const streamsApi = createApi({
 
     // Invite multiple users to stream
     inviteUsersToStream: builder.mutation<
-      { message: string; invited_users: any[]; invitation_count: number; errors?: string[] }, 
+      { message: string; invited_users: any[]; invitation_count: number; errors?: string[] },
       { streamId: string; userIds?: number[]; username?: string }
     >({
       query: ({ streamId, userIds = [], username }) => ({
@@ -451,4 +436,4 @@ export type {
 
 export type {
   GetStreamTokenResponse
-} from '../../types/api'; 
+} from '../../types/api';

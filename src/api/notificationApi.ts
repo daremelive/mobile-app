@@ -1,6 +1,6 @@
-import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
-import * as SecureStore from 'expo-secure-store';
+import { createApi } from '@reduxjs/toolkit/query/react';
 import { API_BASE_URL } from '../config/env';
+import { createAuthenticatedBaseQuery } from './authenticatedBaseQuery';
 
 // Import centralized types
 import type {
@@ -10,18 +10,14 @@ import type {
   Notification,
   UpdateNotificationSettingsRequest,
   UpdateAccountNotificationSettingRequest,
-  NotificationQueryParams,
   InboxNotificationQueryParams,
-  NotificationListResponse,
   InboxNotificationListResponse,
   AccountNotificationSettingsResponse,
   NotificationStatsResponse,
   NotificationActionResponse,
   NotificationReadResponse,
   ClearNotificationResponse,
-  MarkAllReadResponse,
 } from '../../types/api/notifications';
-import { logger } from '../utils/logger';
 
 // Re-export for backward compatibility
 export type {
@@ -32,20 +28,7 @@ export type {
 };
 
 // Create base query for notification endpoints
-const baseQuery = fetchBaseQuery({
-  baseUrl: `${API_BASE_URL}notifications/`,
-  prepareHeaders: async (headers) => {
-    try {
-      const token = await SecureStore.getItemAsync('accessToken');
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-    } catch (error) {
-      logger.error('[NotificationAPI] Error getting auth token:', error);
-    }
-    return headers;
-  },
-});
+const baseQuery = createAuthenticatedBaseQuery(`${API_BASE_URL}notifications/`);
 
 export const notificationApi = createApi({
   reducerPath: 'notificationApi',
@@ -80,39 +63,12 @@ export const notificationApi = createApi({
       query: ({ following_user_id, data }: UpdateAccountNotificationSettingRequest) => ({
         url: `account-settings/update/`,
         method: 'PATCH',
-        body: { 
+        body: {
           following_user_id,
-          ...data 
+          ...data
         },
       }),
       invalidatesTags: ['AccountNotificationSettings'],
-    }),
-
-    // Get user's notifications
-    getNotifications: builder.query<NotificationListResponse, NotificationQueryParams | void>({
-      query: (params: NotificationQueryParams | void) => ({
-        url: 'list/',
-        params: params || {},
-      }),
-      providesTags: ['Notifications'],
-    }),
-
-    // Mark notification as read
-    markNotificationAsRead: builder.mutation<Notification, number>({
-      query: (notificationId: number) => ({
-        url: `${notificationId}/mark-read/`,
-        method: 'POST',
-      }),
-      invalidatesTags: ['Notifications'],
-    }),
-
-    // Mark all notifications as read
-    markAllNotificationsAsRead: builder.mutation<MarkAllReadResponse, void>({
-      query: () => ({
-        url: 'mark-all-read/',
-        method: 'POST',
-      }),
-      invalidatesTags: ['Notifications'],
     }),
 
     // Clear all inbox notifications
@@ -168,9 +124,6 @@ export const {
   useUpdateNotificationSettingsMutation,
   useGetAccountNotificationSettingsQuery,
   useUpdateAccountNotificationSettingMutation,
-  useGetNotificationsQuery,
-  useMarkNotificationAsReadMutation,
-  useMarkAllNotificationsAsReadMutation,
   useGetInboxNotificationsQuery,
   useMarkInboxNotificationAsReadMutation,
   useClearAllInboxNotificationsMutation,

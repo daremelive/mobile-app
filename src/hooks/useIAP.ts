@@ -8,7 +8,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { Platform, Alert } from 'react-native';
 import { iapService, IAPProduct, IAPPurchaseResult, ALL_PRODUCT_IDS } from '../services/iapService';
 import { useGetWalletSummaryQuery } from '../api/walletApi';
-import { logger } from '../utils/logger';
 
 export interface UseIAPReturn {
   // State
@@ -45,7 +44,6 @@ export const useIAP = (): UseIAPReturn => {
    */
   const initialize = useCallback(async () => {
     if (!isIOS) {
-      logger.log('IAP not available on non-iOS platforms');
       return;
     }
 
@@ -88,7 +86,7 @@ export const useIAP = (): UseIAPReturn => {
         await refetchWallet();
         
         Alert.alert(
-          '🎉 Purchase Successful!',
+          'Purchase successful',
           `You've received ${result.rizAmount} Riz!`,
           [{ text: 'Awesome!', style: 'default' }]
         );

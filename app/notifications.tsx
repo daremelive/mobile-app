@@ -1,9 +1,10 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, Switch, Image, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Switch, Image, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
-import { 
+import {
   useGetNotificationSettingsQuery,
   useUpdateNotificationSettingsMutation,
   useGetAccountNotificationSettingsQuery,
@@ -20,7 +21,7 @@ const NotificationScreen = () => {
   const { data: notificationSettings, isLoading: settingsLoading, refetch: refetchSettings } = useGetNotificationSettingsQuery();
   const { data: accountSettings, isLoading: accountSettingsLoading, refetch: refetchAccountSettings } = useGetAccountNotificationSettingsQuery();
   const { data: followingUsers, isLoading: followingLoading, refetch: refetchFollowing } = useGetFollowingQuery({ search: '' });
-  
+
   const [updateNotificationSettings, { isLoading: isUpdatingSettings }] = useUpdateNotificationSettingsMutation();
   const [updateAccountNotificationSetting, { isLoading: isUpdatingAccountSetting }] = useUpdateAccountNotificationSettingMutation();
 
@@ -108,7 +109,7 @@ const NotificationScreen = () => {
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         className="flex-1 px-4 mt-6"
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
@@ -158,13 +159,13 @@ const NotificationScreen = () => {
           followingUsers.map(user => (
             <View key={user.id} className="flex-row justify-between items-center mb-6">
               <View className="flex-row items-center flex-1">
-                <Image 
-                  source={{ 
-                    uri: user.profile_picture_url 
+                <Image
+                  source={{
+                    uri: user.profile_picture_url
                       ? buildProfilePictureURL(user.profile_picture_url)
                       : buildAvatarFallbackURL(user.full_name || user.username)
-                  }} 
-                  className="w-14 h-14 rounded-full mr-4 border-2 border-[#C42720]" 
+                  }}
+                  className="w-14 h-14 rounded-full mr-4 border-2 border-[#C42720]"
                 />
                 <View className="flex-1">
                   <Text className="text-white text-base">{user.full_name || user.username}</Text>
@@ -183,7 +184,7 @@ const NotificationScreen = () => {
         ) : (
           <View className="py-12 items-center">
             <Text className="text-gray-400 text-center">
-              You're not following anyone yet.{'\n'}
+              You’re not following anyone yet.{'\n'}
               Follow some accounts to customize their notification settings.
             </Text>
           </View>
@@ -201,4 +202,4 @@ const NotificationScreen = () => {
   );
 };
 
-export default NotificationScreen; 
+export default NotificationScreen;

@@ -6,11 +6,20 @@
 // Stream types
 export * from './stream';
 export * from './stream/state';
-export * from './stream/actions';
+export {
+  type StreamActions,
+  type InitializeStreamFn,
+  type LeaveStreamFn,
+  type SendMessageFn,
+  type SetVideoLoadErrorFn,
+  type RefetchMessagesFn,
+  type ResetConnectionStateFn,
+  type RefetchStreamDetailsFn,
+} from './stream/actions';
 export * from './stream/participants';
-export * from './stream/messages';
+export { type ChatMessage, type GiftAnimation } from './stream/messages';
 
-// API types  
+// API types
 export * from './api';
 export * from './api/streams';
 export * from './api/auth';
@@ -20,7 +29,11 @@ export * from './api/search';
 // Component types
 export * from './components';
 export * from './components/ui';
-export * from './components/chat';
+export {
+  type ChatInputProps,
+  type MessageItemProps,
+  type ChatBubbleProps,
+} from './components/chat';
 export * from './components/modals';
 
 // Hook types

@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSelector, useDispatch } from 'react-redux';
@@ -17,7 +18,7 @@ const EditPhoneScreen = () => {
   const dispatch = useDispatch();
   const currentUser = useSelector(selectCurrentUser);
   const [updateProfile, { isLoading }] = useUpdateProfileMutation();
-  
+
   const [countryCode, setCountryCode] = useState<CountryCode>('NG');
   const [callingCode, setCallingCode] = useState('234');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -111,7 +112,7 @@ const EditPhoneScreen = () => {
             withFlag
             withCallingCode
           />
-          <TouchableOpacity 
+          <TouchableOpacity
             className="flex-row items-center pr-2"
             onPress={() => setPickerVisible(true)}
           >
@@ -151,9 +152,9 @@ const EditPhoneScreen = () => {
             </View>
 
             <Text className="text-white text-xl font-bold mb-2">Change Phone Number</Text>
-            
+
             <Text className="text-[#A0A0A0] text-center mb-6">
-              This will update your account's verified contact information. Confirm to proceed.
+              This will update your account’s verified contact information. Confirm to proceed.
             </Text>
 
             <TouchableOpacity
@@ -172,4 +173,4 @@ const EditPhoneScreen = () => {
   );
 };
 
-export default EditPhoneScreen; 
+export default EditPhoneScreen;

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext } from 'react';
 import { useNotificationWebSocket } from '../hooks/useNotificationWebSocket';
 import { notificationApi, useGetNotificationStatsQuery } from '../api/notificationApi';
 import { useDispatch } from 'react-redux';
@@ -33,14 +33,6 @@ interface NotificationProviderProps {
 
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
   const dispatch = useDispatch();
-  const [lastNotificationId, setLastNotificationId] = useState<number | null>(null);
-  const [usingPollingFallback, setUsingPollingFallback] = useState(false);
-
-  // Fallback polling for notification stats when WebSocket isn't available
-  const { data: pollingStats } = useGetNotificationStatsQuery(undefined, {
-    pollingInterval: 0, // Disabled to prevent screen blinking
-    skip: true // Completely disabled for now
-  });
 
   const {
     isConnected,
@@ -51,48 +43,38 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
     markAsRead,
     requestStats
   } = useNotificationWebSocket({
-    onNewNotification: (notification, newStats) => {
-      logger.log('[NotificationProvider] New notification received:', notification);
-      
-      // Prevent duplicate notifications by checking ID
-      if (lastNotificationId !== notification.id) {
-        setLastNotificationId(notification.id);
-        
-        // Invalidate the inbox notifications cache to trigger a refetch
-        dispatch(notificationApi.util.invalidateTags(['InboxNotifications', 'NotificationStats']));
-      }
-    },
-    
-    onNotificationUpdated: (notification, newStats) => {
-      logger.log('[NotificationProvider] Notification updated:', notification);
+    onNewNotification: (notification) => {
       dispatch(notificationApi.util.invalidateTags(['InboxNotifications', 'NotificationStats']));
     },
-    
-    onNotificationDeleted: (notificationId, newStats) => {
-      logger.log('[NotificationProvider] Notification deleted:', notificationId);
+
+    onNotificationUpdated: (notification) => {
       dispatch(notificationApi.util.invalidateTags(['InboxNotifications', 'NotificationStats']));
     },
-    
-    onNotificationsCleared: (newStats) => {
-      logger.log('[NotificationProvider] All notifications cleared');
+
+    onNotificationDeleted: (notificationId) => {
       dispatch(notificationApi.util.invalidateTags(['InboxNotifications', 'NotificationStats']));
     },
-    
-    onStatsUpdate: (newStats) => {
-      logger.log('[NotificationProvider] Stats updated:', newStats);
+
+    onNotificationsCleared: () => {
+      dispatch(notificationApi.util.invalidateTags(['InboxNotifications', 'NotificationStats']));
+    },
+
+    onStatsUpdate: (stats) => {
       dispatch(notificationApi.util.invalidateTags(['NotificationStats']));
     },
-    
+
     onError: (error) => {
       logger.error('[NotificationProvider] WebSocket error:', error);
-      // Enable polling fallback if WebSocket fails
-      if (error.includes('WebSocket not supported') || error.includes('404')) {
-        logger.log('[NotificationProvider] Enabling polling fallback');
-        setUsingPollingFallback(true);
-      }
     },
-    
-    autoConnect: false // Disabled to prevent screen blinking
+
+    autoConnect: true
+  });
+
+  // REST polling provides graceful recovery while the socket is disconnected.
+  const { data: pollingStats } = useGetNotificationStatsQuery(undefined, {
+    pollingInterval: isConnected ? 0 : 30_000,
+    skip: false,
+    refetchOnReconnect: true,
   });
 
   // Use WebSocket stats if connected, otherwise use polling stats

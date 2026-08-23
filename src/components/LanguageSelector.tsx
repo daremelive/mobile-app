@@ -57,7 +57,6 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       // Note: For full RTL support, app restart might be needed
       if (isRTL !== I18nManager.isRTL) {
         // You might want to show a restart prompt here
-        logger.log('RTL layout change requires app restart for full effect');
       }
     } catch (error) {
       logger.error('Failed to change language:', error);

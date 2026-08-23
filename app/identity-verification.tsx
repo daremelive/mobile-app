@@ -1,5 +1,7 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
@@ -52,7 +54,7 @@ const IdentityVerificationScreen = () => {
 
         <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
           <LinearGradient
-            colors={['#FF0000', '#330000']}
+            colors={BRAND_GRADIENT}
             locations={[0, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}

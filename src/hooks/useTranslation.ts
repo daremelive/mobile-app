@@ -10,7 +10,6 @@ export const useTranslation = (namespace?: string) => {
   // Force component re-render when language changes
   useEffect(() => {
     const handleLanguageChange = () => {
-      logger.log('[useTranslation] Language changed, forcing re-render:', i18n.language);
       forceUpdate({}); // Force re-render
     };
 
@@ -26,7 +25,6 @@ export const useTranslation = (namespace?: string) => {
       const translation = t(key, options);
       // If translation returns the key itself, it means it's missing
       if (translation === key && !options?.fallback) {
-        logger.warn(`Missing translation for key: ${key} (current language: ${i18n.language})`);
         return key.split('.').pop() || key; // Return last part of key as fallback
       }
       return translation;
@@ -39,9 +37,7 @@ export const useTranslation = (namespace?: string) => {
   // Language utilities
   const changeLanguage = useCallback(async (languageCode: string) => {
     try {
-      logger.log('[useTranslation] Changing language to:', languageCode);
       await i18n.changeLanguage(languageCode);
-      logger.log('[useTranslation] Language changed successfully to:', languageCode);
     } catch (error) {
       logger.error('[useTranslation] Failed to change language:', error);
     }

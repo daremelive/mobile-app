@@ -1,19 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView, Image, Alert, ScrollView } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Image, Alert, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useSignupMutation, useGoogleAuthMutation } from '../../src/store/authApi';
+import { useSignupMutation } from '../../src/store/authApi';
 import { useDispatch } from 'react-redux';
-import { setPendingEmail, setError, setCredentials } from '../../src/store/authSlice';
-import { markAccountCreated } from '../../src/hooks/useAuthRouting';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri, exchangeCodeAsync, TokenResponse, ResponseType } from 'expo-auth-session';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
-import { logger } from '../../src/utils/logger';
+import { setPendingEmail, setError } from '../../src/store/authSlice';
+import { useGoogleAuthentication } from '../../src/hooks/useGoogleAuthentication';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -23,107 +19,10 @@ export default function SignupScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  
+
   const dispatch = useDispatch();
   const [signup, { isLoading }] = useSignupMutation();
-  const [googleAuth, { isLoading: isGoogleLoading }] = useGoogleAuthMutation();
-
-  // Google Auth for signup (same as signin)
-  WebBrowser.maybeCompleteAuthSession();
-  useEffect(() => {
-    WebBrowser.warmUpAsync();
-    return () => {
-      WebBrowser.coolDownAsync();
-    };
-  }, []);
-  const extra = (Constants?.expoConfig as any)?.extra || (Constants?.manifest as any)?.extra || {};
-  // These are intentionally '' rather than undefined when unset:
-  // expo-auth-session throws on an undefined client id for the current
-  // platform, and it throws during render, which crashes the app on launch.
-  const googleClientId = extra?.GOOGLE_CLIENT_ID || extra?.googleClientId || '';
-  const iosClientId = extra?.GOOGLE_IOS_CLIENT_ID || extra?.googleIosClientId || '';
-  const androidClientId = extra?.GOOGLE_ANDROID_CLIENT_ID || extra?.googleAndroidClientId || '';
-
-  // Google sign-in is only offered where a client id exists for the platform.
-  const platformClientId =
-    Platform.OS === 'ios' ? iosClientId : Platform.OS === 'android' ? androidClientId : googleClientId;
-  const isGoogleConfigured = platformClientId.length > 0;
-
-  // Build the native redirect URI required by Google on iOS/Android
-  const toNativeRedirect = (cid?: string) =>
-    cid ? `com.googleusercontent.apps.${cid.replace('.apps.googleusercontent.com', '')}:/oauthredirect` : undefined;
-  const nativeRedirect = Platform.select({
-    ios: toNativeRedirect(iosClientId),
-    android: toNativeRedirect(androidClientId),
-    default: undefined,
-  });
-  const appScheme = Array.isArray((Constants as any)?.expoConfig?.scheme)
-    ? (Constants as any)?.expoConfig?.scheme?.[0]
-    : (Constants as any)?.expoConfig?.scheme || 'mobile';
-  const redirectUri = makeRedirectUri({
-    native: nativeRedirect,
-    scheme: appScheme,
-  });
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: Platform.OS === 'ios' ? iosClientId : Platform.OS === 'android' ? androidClientId : googleClientId,
-    iosClientId,
-    androidClientId,
-    scopes: ['openid', 'profile', 'email'],
-    responseType: ResponseType.Code,
-    usePKCE: true,
-    redirectUri,
-    extraParams: {
-      include_granted_scopes: 'true',
-    },
-  });
-
-  useEffect(() => {
-    const handleResponse = async () => {
-      if (response?.type === 'success') {
-        try {
-          let idToken = (response as any)?.params?.id_token || (response as any)?.authentication?.idToken;
-          const code = (response as any)?.params?.code;
-
-          if (!idToken && code) {
-            const clientIdToUse = Platform.OS === 'ios' ? iosClientId : Platform.OS === 'android' ? androidClientId : googleClientId;
-            const tokenRes: TokenResponse = await exchangeCodeAsync(
-              {
-                clientId: clientIdToUse!,
-                code,
-                redirectUri,
-                extraParams: { code_verifier: (request as any)?.codeVerifier || '' },
-              },
-              { tokenEndpoint: 'https://oauth2.googleapis.com/token' }
-            );
-            idToken = (tokenRes as any)?.idToken || (tokenRes as any)?.id_token;
-          }
-
-          if (!idToken) {
-            Alert.alert('Google Sign-In', 'Failed to retrieve ID token');
-            return;
-          }
-
-          const result = await googleAuth({ id_token: idToken } as any).unwrap();
-          dispatch(setCredentials(result));
-          
-          // MARK ACCOUNT CREATION - Google signup counts as account creation
-          await markAccountCreated();
-          
-          if (!result.user.profile_completed) {
-            router.replace('/(auth)/signup-two');
-          } else {
-            router.replace('/(tabs)/home');
-          }
-        } catch (e: any) {
-          logger.error('Google signup error:', e);
-          const msg = e?.data?.message || e?.data?.error || 'Google authentication failed';
-          Alert.alert('Google Sign-In', msg);
-        }
-      }
-    };
-    handleResponse();
-  }, [response]);
+  const google = useGoogleAuthentication('signup');
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -175,7 +74,7 @@ export default function SignupScreen() {
 
       // Store email for OTP verification
       dispatch(setPendingEmail(email.trim().toLowerCase()));
-      
+
       // Navigate to verification screen
       router.push('/verify');
     } catch (error: any) {
@@ -194,8 +93,8 @@ export default function SignupScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
       <StatusBar style="light" />
-      <ScrollView 
-        className="flex-1" 
+      <ScrollView
+        className="flex-1"
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -316,13 +215,13 @@ export default function SignupScreen() {
         {/* Sign Up Button */}
         <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
           <LinearGradient
-            colors={isLoading ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
+            colors={isLoading ? ['#666666', '#333333'] : BRAND_GRADIENT}
             locations={[0, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             className="w-full h-full"
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               className="w-full h-full items-center justify-center"
               onPress={handleSignup}
               disabled={isLoading}
@@ -333,7 +232,7 @@ export default function SignupScreen() {
             </TouchableOpacity>
           </LinearGradient>
         </View>
-        
+
         {/* Or Divider */}
         <View className="flex-row items-center mb-6">
           <View className="flex-1 h-[1px] bg-[#2C2C2E]" />
@@ -342,21 +241,21 @@ export default function SignupScreen() {
         </View>
 
         {/* Google Continue Button */}
-        {isGoogleConfigured && (
+        {google.isConfigured && (
         <TouchableOpacity
           className="w-full h-[52px] bg-[#1C1C1E] border border-[#2C2C2E] rounded-full flex-row items-center justify-center mb-8"
           onPress={async () => {
             setTimeout(() => {
-              promptAsync();
+              void google.start();
             }, 100);
           }}
-          disabled={isGoogleLoading || !request}
+          disabled={google.isLoading || !google.isReady}
         >
-          <Image 
-            source={require('../../assets/icons/google.png')} 
+          <Image
+            source={require('../../assets/icons/google.png')}
             className="w-8 h-8 mr-3"
           />
-          <Text className="text-white text-[17px] font-medium ml-3">{isGoogleLoading ? 'Signing in...' : 'Continue with Google'}</Text>
+          <Text className="text-white text-[17px] font-medium ml-3">{google.isLoading ? 'Signing in...' : 'Continue with Google'}</Text>
         </TouchableOpacity>
         )}
 

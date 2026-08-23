@@ -50,5 +50,6 @@ database.sqlite*
 # Documentation and PDF files
 *.md
 *.pdf
+!README.md
 
 app-example

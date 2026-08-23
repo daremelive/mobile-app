@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, SafeAreaView, TextInput, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSelector, useDispatch } from 'react-redux';
@@ -24,22 +25,22 @@ export default function MessagesScreen() {
   const router = useRouter();
   const dispatch = useDispatch();
   const currentUser = useSelector(selectCurrentUser);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
 
   const buildAvatarUrl = useCallback((user: any) => {
     if (!user) return buildAvatarFallbackURL('U');
-    
+
     if (user.profile_picture_url) {
       return buildProfilePictureURL(user.profile_picture_url);
     }
-    
+
     return buildAvatarFallbackURL(user.first_name || user.username || 'U');
   }, []);
 
   const getOtherParticipant = useCallback((conversation: any) => {
     if (!currentUser || !currentUser.id) return conversation.participant_2;
-    
+
     if (conversation.participant_1?.id === currentUser.id) {
       return conversation.participant_2;
     } else {
@@ -53,35 +54,35 @@ export default function MessagesScreen() {
   // every render, which restarts the avatar effect below in a loop.
   const { data: followingUsers = EMPTY_FOLLOWING, isLoading: followingLoading } =
     useGetFollowingQuery({ search: '' });
-  
-  const { 
-    conversations, 
-    loading, 
-    error, 
-    refreshing, 
+
+  const {
+    conversations,
+    loading,
+    error,
+    refreshing,
     searchResults,
     isSearching,
-    refreshConversations, 
-    searchConversations 
-  } = useConversations();
-  
-  const { 
-    users, 
-    loading: usersLoading, 
+    refreshConversations,
+    searchConversations
+  } = useConversations(searchQuery);
+
+  const {
+    users,
+    loading: usersLoading,
     searchUsers,
-    createConversation 
-  } = useUsers();
-  
+    createConversation
+  } = useUsers(searchQuery);
+
   useEffect(() => {
     const updateAvatarUrls = () => {
       const urls: {[key: string]: string} = {};
-      
+
       if (followingUsers) {
         for (const user of followingUsers) {
           urls[`following_${user.id}`] = buildAvatarUrl(user);
         }
       }
-      
+
       if (conversations) {
         for (const conversation of conversations) {
           const otherUser = getOtherParticipant(conversation);
@@ -90,16 +91,16 @@ export default function MessagesScreen() {
           }
         }
       }
-      
+
       if (users) {
         for (const user of users) {
           urls[`user_${user.id}`] = buildAvatarUrl(user);
         }
       }
-      
+
       setAvatarUrls(urls);
     };
-    
+
     updateAvatarUrls();
   }, [followingUsers, conversations, users, buildAvatarUrl, getOtherParticipant]);
 
@@ -130,17 +131,17 @@ export default function MessagesScreen() {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const messageDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    
+
     if (messageDate.getTime() === today.getTime()) {
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
         minute: '2-digit',
         hour12: false
       });
     } else {
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric' 
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
       });
     }
   };
@@ -173,14 +174,14 @@ export default function MessagesScreen() {
 
   const displayConversations = useMemo(() => {
     if (!currentUser) return [];
-    
+
     const conversationsToDisplay = searchResults?.conversations || conversations;
-    
+
     return conversationsToDisplay.map(conversation => {
       const otherUser = getOtherParticipant(conversation);
       return {
         id: conversation.id,
-        name: otherUser?.first_name && otherUser?.last_name 
+        name: otherUser?.first_name && otherUser?.last_name
           ? `${otherUser.first_name} ${otherUser.last_name}`
           : otherUser?.username || 'Unknown User',
         message: conversation.last_message || 'No messages yet',
@@ -196,11 +197,11 @@ export default function MessagesScreen() {
 
   const highlightSearchText = (text: string, searchQuery: string) => {
     if (!searchQuery.trim()) return text;
-    
+
     const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
+
+    return parts.map((part, index) =>
       regex.test(part) ? (
         <Text key={index} style={{ fontFamily: fonts.semiBold, color: '#C42720' }}>
           {part}
@@ -209,16 +210,16 @@ export default function MessagesScreen() {
     );
   };
 
-  const filteredConversations = searchQuery.trim() ? displayConversations : displayConversations.filter(conversation => 
+  const filteredConversations = searchQuery.trim() ? displayConversations : displayConversations.filter(conversation =>
     conversation.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-black">
       <StatusBar style="light" />
-      
+
       <View className="flex-row items-center px-4 pt-3 pb-3">
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => router.back()}
           className="absolute left-4 z-10 bg-[#1E1E1E] w-14 h-14 rounded-full justify-center items-center"
         >
@@ -245,7 +246,7 @@ export default function MessagesScreen() {
             style={{ fontFamily: fonts.regular }}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => setSearchQuery('')}
               className="ml-2 w-6 h-6 rounded-full bg-[#666666] justify-center items-center"
             >
@@ -255,7 +256,7 @@ export default function MessagesScreen() {
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         className="flex-1"
         refreshControl={
           <RefreshControl
@@ -266,9 +267,9 @@ export default function MessagesScreen() {
         }
       >
         <View className="mb-8 px-4">
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false} 
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingRight: 16 }}
             className="gap-4"
           >
@@ -286,13 +287,13 @@ export default function MessagesScreen() {
               </View>
             ) : (
               followingUsers.slice(0, 10).map((user) => (
-                <TouchableOpacity 
-                  key={user.id} 
+                <TouchableOpacity
+                  key={user.id}
                   className="relative mr-4"
                   onPress={() => handleFollowingUserPress(user)}
                 >
                   <Image
-                    source={{ 
+                    source={{
                       uri: avatarUrls[`following_${user.id}`] || buildAvatarFallbackURL(user.full_name || user.username)
                     }}
                     className="w-16 h-16 rounded-full border-2 border-[#C42720]"
@@ -320,14 +321,14 @@ export default function MessagesScreen() {
           {searchQuery.trim() && searchResults && !isSearching && (
             <View className="px-4 py-2 mb-2">
               <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
-                {searchResults.conversations.length + (searchResults.messages?.length || 0) > 0 
+                {searchResults.conversations.length + (searchResults.messages?.length || 0) > 0
                   ? `Found ${searchResults.conversations.length} conversations and ${searchResults.messages?.length || 0} messages`
                   : `No results for "${searchQuery}"`
                 }
               </Text>
             </View>
           )}
-          
+
           {loading && conversations.length === 0 ? (
             <View className="flex-1 justify-center items-center py-20">
               <ActivityIndicator size="large" color="#C42720" />
@@ -357,7 +358,7 @@ export default function MessagesScreen() {
                 </View>
               ) : (
                 filteredConversations.map((conversation) => (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     key={`conversation-${conversation.id}`}
                     className="flex-row items-center px-4 py-4 border-b border-[#1A1A1A]"
                     onPress={() => handleConversationPress(conversation.id)}
@@ -371,7 +372,7 @@ export default function MessagesScreen() {
                         <View className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-black" />
                       )}
                     </View>
-                    
+
                     <View className="flex-1">
                       <View className="flex-row justify-between items-center mb-1">
                         <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base">
@@ -381,12 +382,12 @@ export default function MessagesScreen() {
                           {conversation.time}
                         </Text>
                       </View>
-                      
+
                       <View className="flex-row items-center justify-between">
                         <View className="flex-row items-center flex-1 mr-2">
-                          <Text 
-                            style={{ fontFamily: fonts.regular }} 
-                            className="flex-1 text-gray-400 text-sm mr-1" 
+                          <Text
+                            style={{ fontFamily: fonts.regular }}
+                            className="flex-1 text-gray-400 text-sm mr-1"
                             numberOfLines={1}
                           >
                             {searchQuery.trim() ? highlightSearchText(conversation.message, searchQuery) : conversation.message}
@@ -424,28 +425,28 @@ export default function MessagesScreen() {
                     </Text>
                   </View>
                   {searchResults.messages.map((message: any) => {
-                    const otherUser = message.sender?.id === currentUser?.id 
-                      ? message.recipient 
+                    const otherUser = message.sender?.id === currentUser?.id
+                      ? message.recipient
                       : message.sender;
                     return (
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         key={`message-${message.id}`}
                         className="flex-row items-center px-4 py-4 border-b border-[#1A1A1A]"
                         onPress={() => handleConversationPress(message.conversation.id)}
                       >
                         <View className="relative mr-4">
                           <Image
-                            source={{ 
+                            source={{
                               uri: avatarUrls[`user_${otherUser?.id}`] || buildAvatarFallbackURL(otherUser?.first_name || otherUser?.username || 'U')
                             }}
                             className="w-12 h-12 rounded-full"
                           />
                         </View>
-                        
+
                         <View className="flex-1">
                           <View className="flex-row justify-between items-center mb-1">
                             <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-sm">
-                              {otherUser?.first_name && otherUser?.last_name 
+                              {otherUser?.first_name && otherUser?.last_name
                                 ? `${otherUser.first_name} ${otherUser.last_name}`
                                 : otherUser?.username || 'Unknown User'}
                             </Text>
@@ -453,10 +454,10 @@ export default function MessagesScreen() {
                               {formatTime(message.created_at)}
                             </Text>
                           </View>
-                          
-                          <Text 
-                            style={{ fontFamily: fonts.regular }} 
-                            className="text-gray-400 text-sm" 
+
+                          <Text
+                            style={{ fontFamily: fonts.regular }}
+                            className="text-gray-400 text-sm"
                             numberOfLines={2}
                           >
                             {highlightSearchText(message.content, searchQuery)}
@@ -482,18 +483,18 @@ export default function MessagesScreen() {
                     </View>
                   ) : users.length === 0 ? (
                     <View className="p-4">
-                      <Text className="text-gray-400 text-sm">No users found for "{searchQuery}"</Text>
+                      <Text className="text-gray-400 text-sm">No users found for “{searchQuery}”</Text>
                     </View>
                   ) : (
                     users.map((user) => (
-                      <TouchableOpacity 
+                      <TouchableOpacity
                         key={`user-${user.id}`}
                         className="flex-row items-center px-4 py-4 border-b border-[#1A1A1A]"
                         onPress={() => handleUserPress(user.id)}
                       >
                         <View className="relative mr-4">
                           <Image
-                            source={{ 
+                            source={{
                               uri: avatarUrls[`user_${user.id}`] || buildAvatarFallbackURL(user.first_name || user.username || 'U')
                             }}
                             className="w-14 h-14 rounded-full"
@@ -502,23 +503,23 @@ export default function MessagesScreen() {
                             <View className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-black" />
                           )}
                         </View>
-                        
+
                         <View className="flex-1">
                           <View className="flex-row justify-between items-center mb-1">
                             <Text style={{ fontFamily: fonts.semiBold }} className="text-white text-base">
-                              {user.first_name && user.last_name 
+                              {user.first_name && user.last_name
                                 ? `${user.first_name} ${user.last_name}`
                                 : user.username || 'Unknown User'}
                             </Text>
                           </View>
-                          
+
                           <View className="flex-row items-center">
                             <Text style={{ fontFamily: fonts.regular }} className="text-gray-400 text-sm">
                               @{user.username} • Tap to message
                             </Text>
                           </View>
                         </View>
-                        
+
                         <SvgXml xml={chatIcon} width={20} height={20} />
                       </TouchableOpacity>
                     ))
@@ -531,4 +532,4 @@ export default function MessagesScreen() {
       </ScrollView>
     </SafeAreaView>
   );
-} 
+}

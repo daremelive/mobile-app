@@ -1,6 +1,6 @@
-import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
-import * as SecureStore from 'expo-secure-store';
+import { createApi } from '@reduxjs/toolkit/query/react';
 import { API_BASE_URL } from '../config/env';
+import { createAuthenticatedBaseQuery } from './authenticatedBaseQuery';
 
 // Import centralized types
 import type {
@@ -10,18 +10,14 @@ import type {
   WalletTransaction,
   CoinExchangeRate,
   PurchaseCoinsRequest,
-  AddTestCoinsRequest,
-  AddTestBalanceRequest,
   WithdrawMoneyRequest,
   CoinPackagesResponse,
   WalletTransactionsResponse,
   PurchaseCoinsResponse,
   WithdrawMoneyResponse,
-  TestResponse,
   AppleReceiptValidationRequest,
   AppleReceiptValidationResponse,
 } from '../../types/api/wallet';
-import { logger } from '../utils/logger';
 
 // Re-export for backward compatibility
 export type {
@@ -31,32 +27,15 @@ export type {
   WalletTransaction,
   CoinExchangeRate,
   PurchaseCoinsRequest,
-  AddTestCoinsRequest,
-  AddTestBalanceRequest,
   WithdrawMoneyRequest,
   PurchaseCoinsResponse,
   WithdrawMoneyResponse,
-  TestResponse,
   AppleReceiptValidationRequest,
   AppleReceiptValidationResponse,
 };
 
 // Create base query for wallet endpoints
-const baseQuery = fetchBaseQuery({
-  baseUrl: `${API_BASE_URL}wallet/`,
-  timeout: 30000, // 30 second timeout
-  prepareHeaders: async (headers) => {
-    try {
-      const token = await SecureStore.getItemAsync('accessToken');
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-    } catch (error) {
-      logger.error('[WalletAPI] Error getting auth token:', error);
-    }
-    return headers;
-  },
-});
+const baseQuery = createAuthenticatedBaseQuery(`${API_BASE_URL}wallet/`, 30_000);
 
 export const walletApi = createApi({
   reducerPath: 'walletApi',
@@ -94,12 +73,9 @@ export const walletApi = createApi({
     getWalletTransactions: builder.query<WalletTransaction[], void>({
       query: () => 'transactions/',
       transformResponse: (response: any) => {
-        logger.log('Transactions raw response:', response);
         if (response && response.results) {
-          logger.log('Extracted results:', response.results.length, 'transactions');
           return response.results;
         }
-        logger.log('No results found in response');
         return [];
       },
       providesTags: ['Transactions'],
@@ -122,26 +98,6 @@ export const walletApi = createApi({
           // Handle error if needed
         }
       },
-    }),
-
-    // Add test coins (for development)
-    addTestCoins: builder.mutation<TestResponse, AddTestCoinsRequest>({
-      query: (body) => ({
-        url: 'test-coins/',
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: ['Wallet', 'Transactions'],
-    }),
-
-    // Add test balance (for development)
-    addTestBalance: builder.mutation<TestResponse, AddTestBalanceRequest>({
-      query: (body) => ({
-        url: 'test-balance/',
-        method: 'POST',
-        body,
-      }),
-      invalidatesTags: ['Wallet', 'Transactions'],
     }),
 
     // Withdraw money
@@ -183,8 +139,6 @@ export const {
   useGetWalletAnalyticsQuery,
   useGetWalletTransactionsQuery,
   usePurchaseCoinsMutation,
-  useAddTestCoinsMutation,
-  useAddTestBalanceMutation,
   useWithdrawMoneyMutation,
   useValidateAppleReceiptMutation,
 } = walletApi;

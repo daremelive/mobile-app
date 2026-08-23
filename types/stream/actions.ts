@@ -28,6 +28,7 @@ export interface SendMessageRequest {
 export interface SendGiftRequest {
   gift_id: number;
   recipient_user_id?: number; // Optional for multi-user streams
+  request_id?: string;
 }
 
 // Individual action functions

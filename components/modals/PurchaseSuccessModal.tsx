@@ -1,3 +1,4 @@
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import CheckIcon from '../../assets/icons/check.svg';
@@ -35,7 +36,7 @@ const PurchaseSuccessModal: React.FC<PurchaseSuccessModalProps> = ({
 
           <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
           <LinearGradient
-            colors={['#FF0000', '#330000']}
+            colors={BRAND_GRADIENT}
             locations={[0, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}

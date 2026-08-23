@@ -10,6 +10,7 @@ import type {
   InviterContext,
   ParticipantSummary,
 } from '../../types/services';
+import { WS_BASE_URL } from '../config/env';
 
 export class StreamWebSocketService {
   private websocket: WebSocket | null = null;
@@ -47,16 +48,9 @@ export class StreamWebSocketService {
     if (this.isConnected || this.connectionFailed) return;
 
     return new Promise(async (resolve, reject) => {
-      // Use appropriate WebSocket URL based on environment
-      let wsUrl: string;
-
-      if (__DEV__) {
-        // Development environment - use local WebSocket
-        wsUrl = `ws://127.0.0.1:8000/ws/stream/${this.config.streamId}/`;
-      } else {
-        // Production environment - use production WebSocket
-        wsUrl = `wss://daremelive.pythonanywhere.com/ws/stream/${this.config.streamId}/`;
-      }
+      // Use the same environment-owned host as every other realtime service.
+      // Hardcoded hosts previously sent release traffic to a retired backend.
+      let wsUrl = `${WS_BASE_URL.replace(/\/+$/, '')}/ws/stream/${this.config.streamId}/`;
 
       // Add JWT token as query parameter for authentication
       if (this.config.token) {
@@ -108,12 +102,19 @@ export class StreamWebSocketService {
       this.websocket.onclose = (event) => {
         clearTimeout(connectionTimeout);
         // Silent disconnection - no logging
+        const wasConnected = this.isConnected;
         this.isConnected = false;
 
-        // Check for authentication errors (403 Forbidden)
-        if (event.code === 403 || event.code === 4003) {
+        // Check for authentication/authorization close codes.
+        if ([4003, 4401, 4403].includes(event.code)) {
           this.connectionFailed = true;
-          this.config.onError('Authentication failed: Invalid or expired token');
+          const message = event.code === 4403
+            ? 'You do not have permission to join this stream'
+            : 'Authentication failed: Invalid or expired token';
+          this.config.onError(message);
+          if (!wasConnected) {
+            reject(new Error(message));
+          }
           return; // Don't attempt reconnection
         }
 

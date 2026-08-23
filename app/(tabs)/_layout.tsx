@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { View, Platform, Image, Text } from 'react-native';
+import { View, Image, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HugeiconsIcon } from '@hugeicons/react-native';
 import { AuthGuard } from '../../src/components/AuthGuard';
 import { useSelector } from 'react-redux';
@@ -14,6 +15,7 @@ import {
 } from '@hugeicons/core-free-icons';
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
   const currentUser = useSelector(selectCurrentUser);
   const { data: profileData } = useGetProfileQuery();
 
@@ -25,12 +27,12 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: '#090909',
           borderTopColor: '#353638',
-          height: Platform.OS === 'ios' ? 85 : 65,
+          height: 64 + insets.bottom,
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          paddingBottom: Platform.OS === 'ios' ? 25 : 10,
+          paddingBottom: Math.max(insets.bottom, 10),
           paddingTop: 10,
         },
         tabBarShowLabel: false,
@@ -68,7 +70,10 @@ export default function TabLayout() {
         name="create/index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View className={`w-[70px] h-[70px] rounded-full justify-center items-center shadow-lg ${Platform.OS === 'ios' ? 'mb-14' : ''} ${focused ? 'bg-[#C42720]' : 'bg-[#353638]'}`}>
+            <View
+              className={`w-[70px] h-[70px] rounded-full justify-center items-center shadow-lg ${focused ? 'bg-[#C42720]' : 'bg-[#353638]'}`}
+              style={{ marginBottom: insets.bottom > 0 ? insets.bottom + 28 : 12 }}
+            >
               <HugeiconsIcon 
                 icon={Add01Icon}
                 size={30}
