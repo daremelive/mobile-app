@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 interface AppConfig {
   API_BASE_URL: string;
   WS_BASE_URL: string;
@@ -8,15 +10,17 @@ interface AppConfig {
 }
 
 // Fallbacks used when the matching EXPO_PUBLIC_* variable is absent.
-// Development defaults to localhost, which the iOS simulator and Android
-// emulator both reach on the host machine. Set EXPO_PUBLIC_API_BASE_URL in
-// .env to this machine's LAN IP when running on a physical device.
-const DEV_HOST = 'http://localhost:8000';
+// iOS simulators and web use the host's localhost. Android emulators expose
+// the host through 10.0.2.2. Physical devices must use the laptop's LAN IP in
+// EXPO_PUBLIC_API_BASE_URL and the related websocket/media variables.
+const DEV_HOST = Platform.OS === 'android'
+  ? 'http://10.0.2.2:8001'
+  : 'http://localhost:8001';
 const PRODUCTION_HOST = 'https://api.daremelive.com';
 
 const stripTrailingSlash = (value: string): string => value.replace(/\/+$/, '');
 
-/** Normalises to exactly one trailing slash, e.g. `http://host:8000/api/`. */
+/** Normalises to exactly one trailing slash, e.g. `http://host:8001/api/`. */
 const withTrailingSlash = (value: string): string => `${stripTrailingSlash(value)}/`;
 
 /**
@@ -32,10 +36,20 @@ const getConfig = (): AppConfig => {
   const isDev = __DEV__;
   const host = isDev ? DEV_HOST : PRODUCTION_HOST;
 
-  const apiBaseUrl = withApiSuffix(process.env.EXPO_PUBLIC_API_BASE_URL ?? `${host}/api`);
-  const wsBaseUrl = process.env.EXPO_PUBLIC_WS_BASE_URL ?? host.replace(/^http/, 'ws');
-  const mediaBaseUrl = process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? host;
-  const publicWebBaseUrl = process.env.EXPO_PUBLIC_WEB_BASE_URL ?? mediaBaseUrl;
+  const apiBaseUrl = withApiSuffix(
+    isDev
+      ? (process.env.EXPO_PUBLIC_API_BASE_URL ?? `${host}/api`)
+      : (process.env.EXPO_PUBLIC_PRODUCTION_API_URL ?? `${host}/api`),
+  );
+  const wsBaseUrl = isDev
+    ? (process.env.EXPO_PUBLIC_WS_BASE_URL ?? host.replace(/^http/, 'ws'))
+    : (process.env.EXPO_PUBLIC_PRODUCTION_WS_BASE_URL ?? host.replace(/^http/, 'ws'));
+  const mediaBaseUrl = isDev
+    ? (process.env.EXPO_PUBLIC_MEDIA_BASE_URL ?? host)
+    : (process.env.EXPO_PUBLIC_PRODUCTION_MEDIA_BASE_URL ?? host);
+  const publicWebBaseUrl = isDev
+    ? (process.env.EXPO_PUBLIC_WEB_BASE_URL ?? mediaBaseUrl)
+    : (process.env.EXPO_PUBLIC_PRODUCTION_WEB_BASE_URL ?? 'https://daremelive.com');
 
   return {
     API_BASE_URL: withTrailingSlash(apiBaseUrl),
