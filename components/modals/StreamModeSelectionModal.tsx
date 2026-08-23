@@ -293,7 +293,8 @@ const StreamModeSelectionModal: React.FC<StreamModeSelectionModalProps> = ({
                 <ActivityIndicator color="#EDEEF9" className="py-6" />
               ) : channels.length === 0 ? (
                 <Text className="py-4 text-center text-xs text-[#62636E]">
-                  No channels are available for your level yet.
+                  We couldn't load the channels just now. Please check your
+                  connection and try again.
                 </Text>
               ) : (
                 <View className="gap-4">
