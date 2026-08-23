@@ -10,4 +10,26 @@ module.exports = defineConfig([
       'no-console': 'error',
     },
   },
+  {
+    // Test files and the Jest setup run under Jest, which supplies describe,
+    // it, expect and jest as globals.
+    files: ['**/*.test.{ts,tsx,js,jsx}', 'jest.setup.js', 'jest.config.js'],
+    languageOptions: {
+      globals: {
+        jest: 'readonly',
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        beforeEach: 'readonly',
+        afterEach: 'readonly',
+        beforeAll: 'readonly',
+        afterAll: 'readonly',
+      },
+    },
+    rules: {
+      // Tests print diagnostics when investigating a failure.
+      'no-console': 'off',
+    },
+  },
 ]);

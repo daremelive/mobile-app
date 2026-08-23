@@ -53,3 +53,6 @@ database.sqlite*
 !README.md
 
 app-example
+
+# Jest coverage output
+coverage/
