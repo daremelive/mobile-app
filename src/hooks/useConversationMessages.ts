@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../store/authSlice';
-import * as SecureStore from 'expo-secure-store';
 import { API_BASE_URL } from '../config/env';
 import { logger } from '../utils/logger';
+import { createRequestId } from '../utils/requestId';
+import { authenticatedFetch } from '../api/authenticatedFetch';
 
 interface Message {
   id: number;
@@ -31,51 +32,41 @@ export const useConversationMessages = (conversationId: string) => {
   const [error, setError] = useState<string | null>(null);
   const [conversation, setConversation] = useState<any>(null);
   const currentUser = useSelector(selectCurrentUser);
+  const pendingMessageRequest = useRef<{
+    recipientId: number;
+    content: string;
+    requestId: string;
+  } | null>(null);
 
   const getBaseUrl = async () => {
-    logger.log('Using API Base URL:', API_BASE_URL);
     return API_BASE_URL;
   };
 
   const fetchConversation = useCallback(async () => {
     if (!conversationId) return null;
-    
+
     // Handle new conversation case (ID is "0" or starts with "new-")
     if (conversationId === '0' || conversationId.startsWith('new-')) {
-      logger.log('New conversation - no existing data to fetch');
       return null;
     }
 
     try {
-      const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
-      
-      logger.log('Fetching conversation:', {
-        conversationId,
-        baseUrl,
-        hasToken: !!token,
-        fullUrl: `${baseUrl}messaging/conversations/${conversationId}/`
-      });
-      
+
+
       // Create timeout controller for React Native compatibility
       const controller1 = new AbortController();
       const timeoutId1 = setTimeout(() => controller1.abort(), 15000);
-      
-      const response = await fetch(`${baseUrl}messaging/conversations/${conversationId}/`, {
+
+      const response = await authenticatedFetch(`${baseUrl}messaging/conversations/${conversationId}/`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         signal: controller1.signal,
       });
-      
+
       clearTimeout(timeoutId1);
 
-      logger.log('Conversation fetch response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -88,15 +79,13 @@ export const useConversationMessages = (conversationId: string) => {
       }
 
       const data = await response.json();
-      logger.log('Conversation API Response:', data);
       setConversation(data);
-      
+
       // If the conversation includes messages, use those instead of fetching separately
       if (data.messages && Array.isArray(data.messages)) {
-        logger.log('Using messages from conversation data:', data.messages.length);
         setMessages(data.messages);
       }
-      
+
       return data;
     } catch (err: any) {
       logger.error('Error fetching conversation:', err);
@@ -107,48 +96,34 @@ export const useConversationMessages = (conversationId: string) => {
 
   const fetchMessages = useCallback(async () => {
     if (!conversationId) return;
-    
+
     // Handle new conversation case (ID is "0" or starts with "new-")
     if (conversationId === '0' || conversationId.startsWith('new-')) {
-      logger.log('New conversation - no messages to fetch');
       setMessages([]);
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
     setError(null);
 
     try {
-      const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
-      
-      logger.log('Fetching messages:', {
-        conversationId,
-        baseUrl,
-        hasToken: !!token,
-        fullUrl: `${baseUrl}messaging/conversations/${conversationId}/messages/`
-      });
-      
+
+
       // Create timeout controller for React Native compatibility
       const controller2 = new AbortController();
       const timeoutId2 = setTimeout(() => controller2.abort(), 15000);
-      
-      const response = await fetch(`${baseUrl}messaging/conversations/${conversationId}/messages/`, {
+
+      const response = await authenticatedFetch(`${baseUrl}messaging/conversations/${conversationId}/messages/`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         signal: controller2.signal,
       });
-      
+
       clearTimeout(timeoutId2);
 
-      logger.log('Messages fetch response:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -161,17 +136,9 @@ export const useConversationMessages = (conversationId: string) => {
       }
 
       const data = await response.json();
-      logger.log('Messages API Response:', data);
-      
+
       // Handle both paginated and non-paginated responses
       const messagesArray = Array.isArray(data) ? data : (data.results || []);
-      logger.log('Messages Array:', messagesArray.length, 'messages');
-      logger.log('First few messages:', messagesArray.slice(0, 3).map((m: any) => ({ 
-        id: m.id, 
-        content: m.content?.substring(0, 20), 
-        is_outgoing: m.is_outgoing,
-        sender: m.sender?.username 
-      })));
       setMessages(messagesArray);
     } catch (err: any) {
       logger.error('Error fetching messages:', err);
@@ -192,33 +159,24 @@ export const useConversationMessages = (conversationId: string) => {
     }
 
     try {
-      const token = await SecureStore.getItemAsync('accessToken');
       const baseUrl = await getBaseUrl();
-      
-      logger.log('Sending message:', {
-        conversationId,
-        baseUrl,
-        hasToken: !!token,
-        currentUserId: currentUser.id
-      });
-      
+
+
       // Create timeout controller for React Native compatibility
       const controller3 = new AbortController();
       const timeoutId3 = setTimeout(() => controller3.abort(), 15000);
-      
+
       // First, get the conversation details to find the recipient
-      const conversationResponse = await fetch(`${baseUrl}messaging/conversations/${conversationId}/`, {
+      const conversationResponse = await authenticatedFetch(`${baseUrl}messaging/conversations/${conversationId}/`, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         signal: controller3.signal,
       });
-      
+
       clearTimeout(timeoutId3);
 
-      logger.log('Conversation response status:', conversationResponse.status);
 
       if (!conversationResponse.ok) {
         const errorText = await conversationResponse.text();
@@ -227,8 +185,7 @@ export const useConversationMessages = (conversationId: string) => {
       }
 
       const conversation = await conversationResponse.json();
-      logger.log('Conversation data:', conversation);
-      
+
       // The detailed conversation endpoint returns 'other_participant' directly
       const recipient = conversation.other_participant;
 
@@ -237,29 +194,41 @@ export const useConversationMessages = (conversationId: string) => {
         throw new Error('Could not find conversation recipient');
       }
 
-      logger.log('Sending message to recipient:', recipient.id);
+      const normalizedContent = text.trim();
+      let messageRequest = pendingMessageRequest.current;
+      if (
+        !messageRequest
+        || messageRequest.recipientId !== recipient.id
+        || messageRequest.content !== normalizedContent
+      ) {
+        messageRequest = {
+          recipientId: recipient.id,
+          content: normalizedContent,
+          requestId: createRequestId('message'),
+        };
+      }
+      pendingMessageRequest.current = messageRequest;
 
       // Create timeout controller for React Native compatibility
       const controller4 = new AbortController();
       const timeoutId4 = setTimeout(() => controller4.abort(), 15000);
-      
+
       // Now send the message
-      const response = await fetch(`${baseUrl}messaging/send/`, {
+      const response = await authenticatedFetch(`${baseUrl}messaging/send/`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         signal: controller4.signal,
         body: JSON.stringify({
           recipient_id: recipient.id,
-          content: text.trim(),
+          content: normalizedContent,
+          request_id: messageRequest.requestId,
         }),
       });
-      
+
       clearTimeout(timeoutId4);
 
-      logger.log('Send message response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -268,8 +237,8 @@ export const useConversationMessages = (conversationId: string) => {
       }
 
       const data = await response.json();
-      logger.log('Message sent successfully:', data);
-      
+      pendingMessageRequest.current = null;
+
       // Ensure the message has the correct format
       const messageWithCorrectFormat = {
         ...data,
@@ -282,11 +251,9 @@ export const useConversationMessages = (conversationId: string) => {
           last_name: currentUser.last_name,
         }
       };
-      
-      logger.log('Adding message to state:', messageWithCorrectFormat);
+
       setMessages(prev => {
         const newMessages = [...prev, messageWithCorrectFormat];
-        logger.log('New messages array length:', newMessages.length);
         return newMessages;
       });
       return data;

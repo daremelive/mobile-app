@@ -2,10 +2,10 @@ import React from 'react';
 import { View, Text, Modal, TouchableOpacity, Image } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import LockIcon from '../../assets/icons/lock.svg';
 import DiamondIcon from '../../assets/icons/diamond.svg';
 import StarIcon from '../../assets/icons/stars.svg';
-import CrownIcon from '../../assets/icons/crown.svg';
 import { ChannelAccessModalProps } from './types';
 
 const ChannelAccessModal: React.FC<ChannelAccessModalProps> = ({
@@ -47,13 +47,13 @@ const ChannelAccessModal: React.FC<ChannelAccessModalProps> = ({
   const getChannelDisplayName = (code: string) => {
     switch (code) {
       case 'video':
-        return '📺 Normal Live';
+        return 'Normal Live';
       case 'game':
-        return '🎮 Gaming';
+        return 'Gaming';
       case 'truth-or-dare':
-        return '💫 Truth or Dare';
+        return 'Truth or Dare';
       case 'banter':
-        return '💎 Banter';
+        return 'Banter';
       default:
         return channelName;
     }
@@ -83,12 +83,19 @@ const ChannelAccessModal: React.FC<ChannelAccessModalProps> = ({
           {/* Header with Channel Icon */}
           <View className="items-center mb-6">
             <View className="w-16 h-16 bg-[#2C2C2E] rounded-2xl items-center justify-center mb-4">
-              <Text className="text-3xl">
-                {channelCode === 'video' && '📺'}
-                {channelCode === 'game' && '🎮'}
-                {channelCode === 'truth-or-dare' && '💫'}
-                {channelCode === 'banter' && '💎'}
-              </Text>
+              <Ionicons
+                name={
+                  channelCode === 'video'
+                    ? 'videocam-outline'
+                    : channelCode === 'game'
+                      ? 'game-controller-outline'
+                      : channelCode === 'truth-or-dare'
+                        ? 'shuffle-outline'
+                        : 'diamond-outline'
+                }
+                size={30}
+                color="white"
+              />
             </View>
             <Text className="text-white text-xl font-bold text-center">
               {getChannelDisplayName(channelCode)}
@@ -130,10 +137,10 @@ const ChannelAccessModal: React.FC<ChannelAccessModalProps> = ({
               </Text>
             </View>
             <View className="bg-[#2C2C2E] rounded-full h-2">
-              <View 
+              <View
                 className="bg-gradient-to-r from-blue-400 to-purple-500 rounded-full h-2"
-                style={{ 
-                  width: `${Math.max(10, (currentCoins / (currentCoins + coinsNeeded)) * 100)}%` 
+                style={{
+                  width: `${Math.max(10, (currentCoins / (currentCoins + coinsNeeded)) * 100)}%`
                 }}
               />
             </View>

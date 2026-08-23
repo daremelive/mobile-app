@@ -1,193 +1,67 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, SafeAreaView, Alert } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import { router } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useSelector, useDispatch } from 'react-redux';
-import { selectPendingEmail, clearPendingEmail, setPendingResetToken } from '../../src/store/authSlice';
-import { useResendOTPMutation, usePasswordResetVerifyMutation } from '../../src/store/authApi';
-import ArrowLeft from '../../assets/icons/arrow-left.svg';
-import Mail from '../../assets/icons/mail.svg';
+import { useDispatch, useSelector } from 'react-redux';
+import VerificationCodeScreen from '../../components/auth/VerificationCodeScreen';
+import { usePasswordResetVerifyMutation, useResendOTPMutation } from '../../src/store/authApi';
+import { selectPendingEmail, setPendingResetToken } from '../../src/store/authSlice';
 import { logger } from '../../src/utils/logger';
 
-export default function VerifyScreen() {
-  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+export default function VerifyForgotPasswordScreen() {
   const dispatch = useDispatch();
   const pendingEmail = useSelector(selectPendingEmail);
-  const [resendOTP, { isLoading: isResending }] = useResendOTPMutation();
+  const [error, setError] = useState('');
+  const [resetKey, setResetKey] = useState(0);
   const [passwordResetVerify, { isLoading: isVerifying }] = usePasswordResetVerifyMutation();
+  const [resendOTP, { isLoading: isResending }] = useResendOTPMutation();
 
   useEffect(() => {
-    if (!pendingEmail) {
-      router.replace('/forgot-password');
-    }
+    if (!pendingEmail) router.replace('/forgot-password');
   }, [pendingEmail]);
 
-  const handleOtpChange = (value: string, index: number) => {
-    if (value.length > 1) {
-      value = value[value.length - 1];
-    }
-    
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    // Move to next input if value is entered
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleVerifyOTP = async () => {
-    const otpString = otp.join('');
-    
-    if (otpString.length !== 6) {
-      Alert.alert('Error', 'Please enter the complete 6-digit code');
-      return;
-    }
-
-    if (!pendingEmail) {
-      Alert.alert('Error', 'Email not found. Please start over.');
-      router.replace('/forgot-password');
-      return;
-    }
-
-    if (!/^\d{6}$/.test(otpString)) {
-      Alert.alert('Error', 'The code should be 6 digits');
-      return;
-    }
+  const handleVerify = async (code: string) => {
+    if (!pendingEmail) return;
 
     try {
-      // The server checks the code and hands back a short-lived token. The code
-      // itself is never carried onward — the token stands in for it.
-      const { reset_token } = await passwordResetVerify({
-        email: pendingEmail,
-        otp: otpString,
-      }).unwrap();
-
+      const { reset_token } = await passwordResetVerify({ email: pendingEmail, otp: code }).unwrap();
       dispatch(setPendingResetToken(reset_token));
       router.push('/reset-password');
-    } catch (error: any) {
-      logger.error('Reset code verification error:', error);
-      const message =
-        error.data?.error ??
-        (error.status === 429
-          ? 'Too many attempts. Please wait a while and try again.'
-          : 'Could not check that code. Please try again.');
-      Alert.alert('Error', message);
-      setOtp(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
+    } catch (cause: any) {
+      logger.error('Password reset code verification failed', cause);
+      setError(
+        cause.data?.error
+          ?? (cause.status === 429
+            ? 'Too many attempts. Please wait and try again.'
+            : 'That code could not be verified. Please try again.'),
+      );
+      setResetKey((current) => current + 1);
     }
   };
 
-  const handleResendOTP = async () => {
-    if (!pendingEmail) {
-      Alert.alert('Error', 'Email not found. Please start over.');
-      return;
-    }
+  const handleResend = async () => {
+    if (!pendingEmail) return;
 
     try {
       await resendOTP({ email: pendingEmail, purpose: 'reset' }).unwrap();
-      Alert.alert('Success', 'Reset code sent again');
-      setOtp(['', '', '', '', '', '']);
-    } catch (error: any) {
-      logger.error('Resend OTP error:', error);
-      Alert.alert('Error', 'Failed to resend code. Please try again.');
+      setError('');
+      setResetKey((current) => current + 1);
+      Alert.alert('Code sent', 'A new reset code was sent to your email.');
+    } catch (cause) {
+      logger.error('Password reset code resend failed', cause);
+      Alert.alert('Could not resend code', 'Please check your connection and try again.');
     }
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#090909]">
-      <StatusBar style="light" />
-      
-      {/* Back Button */}
-      <TouchableOpacity 
-        onPress={() => router.back()} 
-        className="w-14 h-14 rounded-full bg-[#1C1C1E] items-center justify-center ml-6 mt-2"
-      >
-        <ArrowLeft width={24} height={24} />
-      </TouchableOpacity>
-
-      <View className="flex-1 px-6 pt-12">
-        {/* Email Icon */}
-        <View className="w-16 h-16 rounded-full bg-[#1C1C1E] border border-[#2C2C2E] items-center justify-center mb-6">
-          <Mail width={32} height={32} />
-        </View>
-
-        {/* Header */}
-        <Text className="text-white text-2xl font-bold mb-3">
-          Check Your Email
-        </Text>
-        <Text className="text-gray-400 text-base mb-12">
-          Enter the 6-digit code sent to {pendingEmail || 'your email'} to reset your password.
-        </Text>
-
-        {/* OTP Input */}
-        <View className="flex-row justify-between mb-12">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <View 
-              key={index} 
-              className="w-[48px] h-[56px] rounded-xl bg-[#1C1C1E] border border-[#2C2C2E] items-center justify-center relative"
-            >
-              {otp[index] === '' && (
-                <View className="w-4 h-[2px] bg-[#6B7280]" />
-              )}
-              <TextInput
-                ref={el => {
-                  if (inputRefs.current) {
-                    inputRefs.current[index] = el;
-                  }
-                }}
-                value={otp[index]}
-                onChangeText={(value) => handleOtpChange(value, index)}
-                onKeyPress={(e) => handleKeyPress(e, index)}
-                keyboardType="number-pad"
-                maxLength={1}
-                className="absolute inset-0 w-full h-full text-center text-white text-xl font-medium bg-transparent"
-                selectionColor="#FF0000"
-              />
-            </View>
-          ))}
-        </View>
-
-        {/* Verify Button */}
-        <View className="w-full h-[52px] rounded-full overflow-hidden mb-8">
-          <LinearGradient
-            colors={isVerifying ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
-            locations={[0, 1]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="w-full h-full"
-          >
-            <TouchableOpacity 
-              className="w-full h-full items-center justify-center"
-              onPress={handleVerifyOTP}
-              disabled={isVerifying}
-            >
-              <Text className="text-white text-[17px] font-semibold">
-                {isVerifying ? 'Verifying...' : 'Verify'}
-              </Text>
-            </TouchableOpacity>
-          </LinearGradient>
-        </View>
-
-        {/* Resend Code */}
-        <View className="flex-row justify-center">
-          <Text className="text-gray-400">Didn't get OTP? </Text>
-          <TouchableOpacity onPress={handleResendOTP} disabled={isResending}>
-            <Text className={`font-medium ${isResending ? 'text-gray-500' : 'text-[#CC0000]'}`}>
-              {isResending ? 'Sending...' : 'Resend Code'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </SafeAreaView>
+    <VerificationCodeScreen
+      description={`Enter the 6-digit code sent to ${pendingEmail || 'your email'} to reset your password.`}
+      error={error}
+      isVerifying={isVerifying}
+      isResending={isResending}
+      resetKey={resetKey}
+      onVerify={handleVerify}
+      onResend={handleResend}
+      onClearError={() => setError('')}
+    />
   );
-} 
+}

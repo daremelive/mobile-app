@@ -1,12 +1,12 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React from 'react';
-import { View, Text, SafeAreaView, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import ChartIncreaseIcon from '../assets/icons/chart-increase.svg';
 import ChartDecreaseIcon from '../assets/icons/chart-decrease.svg';
 import { useGetWalletTransactionsQuery } from '../src/api/walletApi';
-import { logger } from '../src/utils/logger';
 
 const TransactionScreen = () => {
   const router = useRouter();
@@ -15,13 +15,6 @@ const TransactionScreen = () => {
   const { data: transactions, isLoading, error, refetch } = useGetWalletTransactionsQuery();
 
   // Debug logging
-  logger.log('Transactions Debug:', {
-    isLoading,
-    error: error ? JSON.stringify(error) : null,
-    dataExists: !!transactions,
-    dataLength: transactions?.length || 0,
-    sampleData: transactions?.[0]
-  });
 
   const renderTransaction = ({ item }: { item: any }) => {
     const Icon = item.is_outgoing ? ChartDecreaseIcon : ChartIncreaseIcon;

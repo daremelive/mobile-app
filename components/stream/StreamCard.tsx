@@ -48,13 +48,6 @@ const StreamCard: React.FC<StreamCardProps> = ({
       return;
     }
 
-    console.log('🔍 StreamCard pressed - checking access...');
-    console.log('🔍 Raw currentUser object:', currentUser);
-    console.log('🔍 Raw host object:', host);
-    console.log('User tier:', (currentUser as any)?.vip_level);
-    console.log('Host tier:', host.vip_level);
-    console.log('Channel:', channel);
-
     // Enhanced tier access check with channel-based hierarchical access
     const tierAccessResult = checkHostAccess(
       host,
@@ -66,25 +59,14 @@ const StreamCard: React.FC<StreamCardProps> = ({
       channel // Pass channel for channel-based access check
     );
 
-    console.log('🔍 Enhanced tier access check result:', {
-      userTier: (currentUser as any)?.vip_level,
-      hostTier: host.vip_level,
-      canAccess: tierAccessResult.canAccess,
-      reason: tierAccessResult.reason,
-      channelBasedAccess: tierAccessResult.channelBasedAccess,
-      channel: channel
-    });
-
     if (!tierAccessResult.canAccess) {
       // Show tier access modal immediately for users without access
-      console.log('🚫 Tier access denied - showing upgrade modal');
       setTierModalVisible(true);
       return;
     }
 
     // If access is granted via channel-based access, show special confirmation
     if (tierAccessResult.channelBasedAccess) {
-      console.log('✅ Channel-based access granted - proceeding to stream');
       Alert.alert(
         'Join Live Stream',
         `Join ${host.username || host.first_name || 'Unknown Host'}'s stream: "${title}"?\n\nAccess granted via ${channel} channel privileges`,
@@ -96,7 +78,6 @@ const StreamCard: React.FC<StreamCardProps> = ({
           {
             text: 'Join',
             onPress: () => {
-              console.log(`✅ Joining ${channel} stream: ${id} (channel-based access)`);
               router.push({
                 pathname: '/stream/viewer',
                 params: {
@@ -116,12 +97,10 @@ const StreamCard: React.FC<StreamCardProps> = ({
     const hasChannelAccess = requestChannelAccess(channel);
 
     if (!hasChannelAccess) {
-      console.log(`🔒 Access denied for ${channel} channel. Showing upgrade modal.`);
       return;
     }
 
     // User has both tier and channel access - proceed with confirmation
-    console.log('✅ All access checks passed - showing join confirmation');
     Alert.alert(
       'Join Live Stream',
       `Join ${host.username || host.first_name || 'Unknown Host'}'s stream: "${title}"?`,
@@ -133,7 +112,6 @@ const StreamCard: React.FC<StreamCardProps> = ({
         {
           text: 'Join',
           onPress: () => {
-            console.log(`✅ Joining ${channel} stream: ${id}`);
             router.push({
               pathname: '/stream/viewer',
               params: {
@@ -157,15 +135,15 @@ const StreamCard: React.FC<StreamCardProps> = ({
   const getTierBadgeInfo = (tier: TierLevel) => {
     switch (tier) {
       case 'basic':
-        return { emoji: '🥉', color: 'bg-gray-600' };
+        return { label: 'BASIC', color: 'bg-gray-600' };
       case 'premium':
-        return { emoji: '🥈', color: 'bg-blue-600' };
+        return { label: 'PREMIUM', color: 'bg-blue-600' };
       case 'vip':
-        return { emoji: '🥇', color: 'bg-purple-600' };
+        return { label: 'VIP', color: 'bg-purple-600' };
       case 'vvip':
-        return { emoji: '💎', color: 'bg-yellow-600' };
+        return { label: 'VVIP', color: 'bg-yellow-600' };
       default:
-        return { emoji: '🥉', color: 'bg-gray-600' };
+        return { label: 'BASIC', color: 'bg-gray-600' };
     }
   };
 
@@ -203,7 +181,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
               {/* Tier Badge */}
               <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
                 <Text className="text-white text-xs font-bold">
-                  {tierBadge.emoji}
+                  {tierBadge.label}
                 </Text>
               </View>
 
@@ -251,7 +229,7 @@ const StreamCard: React.FC<StreamCardProps> = ({
               {/* Tier Badge */}
               <View className={`${tierBadge.color} px-2 py-1 rounded-full mb-1 ${!userCanAccess ? 'border border-red-400' : ''}`}>
                 <Text className="text-white text-xs font-bold">
-                  {tierBadge.emoji}
+                  {tierBadge.label}
                 </Text>
               </View>
 

@@ -1,6 +1,6 @@
-import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
-import * as SecureStore from 'expo-secure-store';
+import { createApi } from '@reduxjs/toolkit/query/react';
 import { API_BASE_URL } from '../config/env';
+import { createAuthenticatedBaseQuery } from './authenticatedBaseQuery';
 
 // Import centralized types
 import type {
@@ -13,7 +13,6 @@ import type {
   UnblockUserResponse,
   SearchBlockedUsersParams,
 } from '../../types/api/blocked';
-import { logger } from '../utils/logger';
 
 // Re-export for backward compatibility
 export type {
@@ -22,20 +21,7 @@ export type {
 };
 
 // Create base query for blocked users endpoints
-const baseQuery = fetchBaseQuery({
-  baseUrl: `${API_BASE_URL}blocked/`,
-  prepareHeaders: async (headers) => {
-    try {
-      const token = await SecureStore.getItemAsync('accessToken');
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-    } catch (error) {
-      logger.error('[BlockedAPI] Error getting auth token:', error);
-    }
-    return headers;
-  },
-});
+const baseQuery = createAuthenticatedBaseQuery(`${API_BASE_URL}blocked/`);
 
 export const blockedApi = createApi({
   reducerPath: 'blockedApi',
@@ -50,7 +36,7 @@ export const blockedApi = createApi({
       transformResponse: (response: BlockedUsersResponse) => response.results || [],
       providesTags: ['BlockedUser'],
     }),
-    
+
     // Get all blocked users
     getAllBlockedUsers: builder.query<BlockedUser[], void>({
       query: () => '',
@@ -63,7 +49,7 @@ export const blockedApi = createApi({
       query: () => 'count/',
       providesTags: ['BlockedUser'],
     }),
-    
+
     // Block a user
     blockUser: builder.mutation<BlockUserResponse, BlockUserRequest>({
       query: (data: BlockUserRequest) => ({
@@ -73,7 +59,7 @@ export const blockedApi = createApi({
       }),
       invalidatesTags: ['BlockedUser'],
     }),
-    
+
     // Unblock a user
     unblockUser: builder.mutation<UnblockUserResponse, UnblockUserRequest>({
       query: (data: UnblockUserRequest) => ({

@@ -9,6 +9,7 @@ import { blockedApi } from '../api/blockedApi';
 import { levelsApi } from '../api/levelsApi';
 import { walletApi } from '../api/walletApi';
 import { messagingApi } from '../api/messagingApi';
+import { reportsApi } from '../api/reportsApi';
 import authReducer from './authSlice';
 
 export const store = configureStore({
@@ -23,6 +24,7 @@ export const store = configureStore({
     [levelsApi.reducerPath]: levelsApi.reducer,
     [walletApi.reducerPath]: walletApi.reducer,
     [messagingApi.reducerPath]: messagingApi.reducer,
+    [reportsApi.reducerPath]: reportsApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
@@ -33,7 +35,7 @@ export const store = configureStore({
           'persist/REHYDRATE',
         ],
         ignoredActionPaths: [
-          'meta.arg', 
+          'meta.arg',
           'payload.timestamp',
           'meta.baseQueryMeta',
         ],
@@ -41,7 +43,7 @@ export const store = configureStore({
           // Ignore RTK Query cache paths
           'authApi.mutations',
           'authApi.queries',
-          'streamsApi.mutations', 
+          'streamsApi.mutations',
           'streamsApi.queries',
           'followApi.mutations',
           'followApi.queries',
@@ -59,10 +61,10 @@ export const store = configureStore({
           'messagingApi.queries',
         ],
       },
-    }).concat(authApi.middleware, streamsApi.middleware, followApi.middleware, usersApi.middleware, notificationApi.middleware, blockedApi.middleware, levelsApi.middleware, walletApi.middleware, messagingApi.middleware),
+    }).concat(authApi.middleware, streamsApi.middleware, followApi.middleware, usersApi.middleware, notificationApi.middleware, blockedApi.middleware, levelsApi.middleware, walletApi.middleware, messagingApi.middleware, reportsApi.middleware),
 });
 
 setupListeners(store.dispatch);
 
 export type RootState = ReturnType<typeof store.getState>;
-export type AppDispatch = typeof store.dispatch; 
+export type AppDispatch = typeof store.dispatch;

@@ -1,3 +1,4 @@
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React from 'react';
 import { View, Text, Modal, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,14 +23,14 @@ const LogoutConfirmationModal: React.FC<LogoutConfirmationModalProps> = ({
           <Text className="text-gray-400 text-center mb-2">Are you sure you want to log out?</Text>
           {hasActiveStreams && (
             <Text className="text-orange-400 text-sm text-center mb-6">
-              ⚠️ Your active stream(s) will be ended and viewers will be notified.
+              Your active streams will be ended and viewers will be notified.
             </Text>
           )}
           {!hasActiveStreams && <View className="mb-6" />}
 
           <View className="w-full h-[52px] rounded-full overflow-hidden mb-4">
             <LinearGradient
-              colors={['#C40000', '#6F0000']}
+              colors={BRAND_GRADIENT}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               className="w-full h-full"
@@ -54,4 +55,4 @@ const LogoutConfirmationModal: React.FC<LogoutConfirmationModalProps> = ({
   );
 };
 
-export default LogoutConfirmationModal; 
+export default LogoutConfirmationModal;

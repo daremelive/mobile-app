@@ -100,7 +100,7 @@ export interface UseHybridStreamChatReturn {
   isConnected: boolean;
   connectionError: string | null;
   chatProvider: 'stream-chat';
-  sendGiftEvent?: (giftData: any) => Promise<void>; // 🎁 Add gift event method
+  sendGiftEvent?: (giftData: any) => Promise<void>;
 }
 
 // Stream Chat Hook Types
@@ -146,5 +146,5 @@ export interface UseStreamChatWithStreamReturn {
   isSendingMessage: boolean;
   isConnected: boolean;
   connectionError: string | null;
-  sendGiftEvent?: (giftData: any) => Promise<void>; // 🎁 Add gift event method
+  sendGiftEvent?: (giftData: any) => Promise<void>;
 }

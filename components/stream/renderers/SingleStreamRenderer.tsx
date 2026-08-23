@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { VideoRenderer, useCallStateHooks } from '@stream-io/video-react-native-sdk';
+import { Ionicons } from '@expo/vector-icons';
 
 interface SingleStreamRendererProps {
   // Props specific to single stream rendering
@@ -42,7 +43,7 @@ export const SingleStreamRenderer: React.FC<SingleStreamRendererProps> = () => {
     return (
       <View className="flex-1 items-center justify-center bg-black">
         <ActivityIndicator size="large" color="#C42720" />
-        <Text className="text-white text-lg mb-2 mt-4">📡 Waiting for host...</Text>
+        <Text className="text-white text-lg mb-2 mt-4">Waiting for host...</Text>
         <Text className="text-gray-400 text-sm text-center px-8">
           Host is preparing the stream
         </Text>
@@ -66,9 +67,12 @@ export const SingleStreamRenderer: React.FC<SingleStreamRendererProps> = () => {
         {!hostParticipant.videoStream && (
           <View className="absolute inset-0 items-center justify-center bg-gray-900/95">
             <View className="items-center p-6">
-              <Text className="text-white text-4xl mb-4">
-                {hostParticipant.audioStream ? '🎙️' : '⏳'}
-              </Text>
+              <Ionicons
+                name={hostParticipant.audioStream ? 'mic' : 'hourglass-outline'}
+                size={42}
+                color="white"
+                style={{ marginBottom: 16 }}
+              />
               <Text className="text-white text-2xl font-bold mb-2">
                 {hostParticipant.audioStream ? 'Audio Stream' : 'Connecting...'}
               </Text>

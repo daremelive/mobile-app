@@ -249,15 +249,13 @@ export const useTierAccessControl = () => {
     return 'equal';
   };
 
-  /**
-   * Get tier display name with emoji
-   */
+  /** Get the customer-facing tier name. */
   const getTierDisplayName = (tier: TierLevel): string => {
     const tierNames: { [key in TierLevel]: string } = {
-      basic: '🥉 Basic',
-      premium: '🥈 Premium',
-      vip: '🥇 VIP',
-      vvip: '💎 VVIP'
+      basic: 'Basic',
+      premium: 'Premium',
+      vip: 'VIP',
+      vvip: 'VVIP'
     };
     return tierNames[tier];
   };

@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,24 +9,18 @@ import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import DiamondIcon from '../assets/icons/diamond.svg';
 import DiamondIcon2 from '../assets/icons/diamond-2.svg';
 import PurchaseSuccessModal from '../components/modals/PurchaseSuccessModal';
-import { 
-  useGetCoinPackagesQuery,
-  useGetWalletSummaryQuery,
-  useGetCoinExchangeRateQuery,
-  usePurchaseCoinsMutation 
-} from '../src/api/walletApi';
+import { useGetWalletSummaryQuery } from '../src/api/walletApi';
 import { useIAP } from '../src/hooks/useIAP';
 import { IAPProduct } from '../src/services/iapService';
 
 const GetCoinsScreen = () => {
   const router = useRouter();
-  const [selectedPackage, setSelectedPackage] = useState<number | null>(null);
   const [selectedIAPProduct, setSelectedIAPProduct] = useState<IAPProduct | null>(null);
   const [isSuccessModalVisible, setSuccessModalVisible] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Apple IAP Hook (only active on iOS)
-  const { 
+  const {
     isInitialized: iapInitialized,
     isLoading: iapLoading,
     isPurchasing: iapPurchasing,
@@ -37,42 +33,22 @@ const GetCoinsScreen = () => {
   } = useIAP();
 
   // RTK Query hooks (used for non-iOS or fallback)
-  const { data: coinPackages, isLoading: packagesLoading, error: packagesError, refetch: refetchPackages } = useGetCoinPackagesQuery();
   const { data: walletSummary, isLoading: walletLoading, error: walletError, refetch: refetchWallet } = useGetWalletSummaryQuery();
-  const { data: exchangeRate, isLoading: exchangeLoading, error: exchangeError, refetch: refetchExchangeRate } = useGetCoinExchangeRateQuery();
-  const [purchaseCoins, { isLoading: purchasing }] = usePurchaseCoinsMutation();
 
   // Determine if we should use IAP (iOS with available products)
   const useAppleIAP = isIOS && iapAvailable && iapProducts.length > 0;
-
-  // Function to calculate Riz equivalent of coins
-  const calculateRizEquivalent = (coins: number) => {
-    if (!exchangeRate) return 'N/A';
-    const rizValue = (coins * exchangeRate.rate_per_coin);
-    return `${Math.round(rizValue)} Riz`;
-  };
-
-  // Function to format package price without decimals
-  const formatPrice = (price: string | number) => {
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    return `₦${Math.round(numPrice).toLocaleString('en-NG')}`;
-  };
 
   // Pull-to-refresh function
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      const refreshPromises = [
-        refetchPackages(),
-        refetchWallet(),
-        refetchExchangeRate()
-      ];
-      
+      const refreshPromises: Promise<unknown>[] = [refetchWallet()];
+
       // Also refresh IAP products on iOS
       if (isIOS && iapInitialized) {
         refreshPromises.push(refreshProducts());
       }
-      
+
       await Promise.all(refreshPromises);
     } catch (error) {
       // Silent refresh failure
@@ -90,7 +66,7 @@ const GetCoinsScreen = () => {
 
     try {
       const result = await purchaseProduct(selectedIAPProduct.productId);
-      
+
       if (result.success) {
         setSuccessModalVisible(true);
         setSelectedIAPProduct(null);
@@ -101,41 +77,15 @@ const GetCoinsScreen = () => {
     }
   };
 
-  // Handle legacy/fallback purchase (Paystack)
-  const handleLegacyPurchase = async () => {
-    if (selectedPackage !== null && coinPackages) {
-      try {
-        const result = await purchaseCoins({ 
-          package_id: coinPackages[selectedPackage].id,
-          payment_method: 'paystack'
-        }).unwrap();
-        
-        Alert.alert(
-          'Success!', 
-          result.message || `Successfully purchased ${result.coins_added} Riz!`,
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                setSuccessModalVisible(true);
-                refetchWallet();
-              }
-            }
-          ]
-        );
-      } catch (error: any) {
-        const errorMessage = error?.data?.message || error?.data?.detail || 'Failed to purchase Riz. Please try again.';
-        Alert.alert('Purchase Failed', errorMessage);
-      }
-    }
-  };
-
   // Unified purchase handler
   const handlePurchase = async () => {
     if (useAppleIAP) {
       await handleIAPPurchase();
     } else {
-      await handleLegacyPurchase();
+      Alert.alert(
+        'Purchases unavailable',
+        'Riz purchases are not available on this device yet. No payment has been taken.',
+      );
     }
   };
 
@@ -152,8 +102,8 @@ const GetCoinsScreen = () => {
   };
 
   // Combined loading state
-  const isLoading = packagesLoading || walletLoading || (isIOS && iapLoading);
-  const isPurchasingAny = purchasing || iapPurchasing;
+  const isLoading = walletLoading || (isIOS && iapLoading);
+  const isPurchasingAny = iapPurchasing;
 
   if (isLoading) {
     return (
@@ -166,7 +116,7 @@ const GetCoinsScreen = () => {
   }
 
   // Handle authentication errors
-  if (isAuthError(packagesError) || isAuthError(walletError)) {
+  if (isAuthError(walletError)) {
     return (
       <SafeAreaView className="flex-1 bg-[#090909] justify-center items-center px-6">
         <StatusBar style="light" />
@@ -174,7 +124,7 @@ const GetCoinsScreen = () => {
         <Text className="text-gray-400 text-center mb-6">
           Please log in to purchase coins.
         </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => router.push('/(auth)/signin')}
           className="bg-[#FF0000] px-8 py-3 rounded-full"
         >
@@ -188,7 +138,7 @@ const GetCoinsScreen = () => {
   }
 
     // Show loading if any data is loading
-  if (packagesLoading || walletLoading || exchangeLoading) {
+  if (walletLoading) {
     return (
       <SafeAreaView className="flex-1 bg-[#090909] justify-center items-center">
         <StatusBar style="light" />
@@ -199,13 +149,13 @@ const GetCoinsScreen = () => {
   }
 
   // Handle other errors or missing data
-  if (packagesError || walletError || exchangeError) {
+  if (walletError) {
     return (
       <SafeAreaView className="flex-1 bg-[#090909] justify-center items-center px-6">
         <StatusBar style="light" />
         <Text className="text-white text-xl font-semibold mb-4 text-center">Unable to Load Riz Packages</Text>
         <Text className="text-gray-400 text-center mb-6">
-          There was an error loading coin packages{exchangeError ? ' or exchange rate' : ''}. Please try again.
+          There was an error loading your wallet. Please try again.
         </Text>
         <TouchableOpacity onPress={() => router.back()}>
           <Text className="text-gray-400">Go Back</Text>
@@ -215,7 +165,7 @@ const GetCoinsScreen = () => {
   }
 
   // Show loading if data is not yet available (but no errors)
-  if (!coinPackages || !walletSummary) {
+  if (!walletSummary) {
     return (
       <SafeAreaView className="flex-1 bg-[#090909] justify-center items-center">
         <StatusBar style="light" />
@@ -224,9 +174,6 @@ const GetCoinsScreen = () => {
       </SafeAreaView>
     );
   }
-
-  // Determine which products to display
-  const displayProducts = useAppleIAP ? iapProducts : coinPackages;
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
@@ -245,7 +192,7 @@ const GetCoinsScreen = () => {
       <View className="px-4 mt-6">
         <View className="rounded-xl overflow-hidden">
           <LinearGradient
-            colors={['#FF0000', '#330000']}
+            colors={BRAND_GRADIENT}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             className="p-6"
@@ -262,8 +209,8 @@ const GetCoinsScreen = () => {
           </LinearGradient>
         </View>
 
-        <ScrollView 
-          className="mt-6" 
+        <ScrollView
+          className="mt-6"
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 100 }}
           refreshControl={
@@ -284,7 +231,6 @@ const GetCoinsScreen = () => {
                   key={product.productId}
                   onPress={() => {
                     setSelectedIAPProduct(product);
-                    setSelectedPackage(null);
                   }}
                   className={`w-[31%] mb-4 bg-[#1A1A1A] rounded-2xl p-4 ${selectedIAPProduct?.productId === product.productId ? 'border-2 border-[#FF0000] bg-[#3D1F1F]' : ''}`}
                 >
@@ -300,31 +246,19 @@ const GetCoinsScreen = () => {
 
           {/* Legacy Packages (non-iOS or fallback) */}
           {!useAppleIAP && (
-            <View className="flex-row flex-wrap justify-between">
-              {coinPackages && coinPackages.map((pkg, index) => (
-                <TouchableOpacity
-                  key={pkg.id}
-                  onPress={() => {
-                    setSelectedPackage(index);
-                    setSelectedIAPProduct(null);
-                  }}
-                  className={`w-[31%] mb-4 bg-[#1A1A1A] rounded-2xl p-4 ${selectedPackage === index ? 'border-2 border-[#FF0000] bg-[#3D1F1F]' : ''}`}
-                >
-                  <View className="items-center">
-                    <DiamondIcon width={32} height={32} />
-                    <Text className="text-white text-lg font-semibold mt-2">{pkg.total_coins.toLocaleString()}</Text>
-                    <Text className="text-white text-base bg-[#414141] rounded-lg px-2 py-1 mt-2">{calculateRizEquivalent(pkg.total_coins)}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+            <View className="rounded-2xl bg-[#1A1A1A] border border-[#333333] p-5">
+              <Text className="text-white text-base font-semibold text-center">Purchases are unavailable</Text>
+              <Text className="text-gray-400 text-sm text-center mt-2">
+                Riz purchases are not enabled on this device yet. Your wallet and payment details remain unchanged.
+              </Text>
             </View>
           )}
 
           <View className="mb-24 mt-6">
-            <TouchableOpacity 
+            <TouchableOpacity
               className={`rounded-full py-4 ${isPurchasingAny ? 'bg-gray-500' : 'bg-white'}`}
               onPress={handlePurchase}
-              disabled={isPurchasingAny || (useAppleIAP ? !selectedIAPProduct : selectedPackage === null)}
+              disabled={isPurchasingAny || !useAppleIAP || !selectedIAPProduct}
             >
               {isPurchasingAny ? (
                 <View className="flex-row justify-center items-center">
@@ -335,9 +269,9 @@ const GetCoinsScreen = () => {
                 </View>
               ) : (
                 <Text className="text-gray-800 text-center text-base font-semibold">
-                  {useAppleIAP 
+                  {useAppleIAP
                     ? (selectedIAPProduct ? `Get ${selectedIAPProduct.rizAmount.toLocaleString()} Riz Now` : 'Select a package')
-                    : (selectedPackage !== null ? `Get ${coinPackages?.[selectedPackage]?.total_coins?.toLocaleString()} Riz Now` : 'Select a package')
+                    : 'Purchases unavailable'
                   }
                 </Text>
               )}
@@ -345,7 +279,7 @@ const GetCoinsScreen = () => {
 
             {/* Restore Purchases Button (iOS only) */}
             {isIOS && iapInitialized && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="mt-4 py-3"
                 onPress={handleRestorePurchases}
                 disabled={iapLoading}

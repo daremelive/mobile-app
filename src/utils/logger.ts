@@ -3,53 +3,18 @@ import * as Sentry from '@sentry/react-native';
 /**
  * Application logger.
  *
- * Diagnostic levels (`debug`, `log`, `info`, `warn`) are development-only:
- * they compile to no-ops in release builds, so shipping a log costs nothing at
- * runtime. `error` is always reported — to the console in development and to
- * Sentry in production, where there is no console to read.
+ * Ad-hoc console output previously made the application noisy and frequently
+ * exposed tokens, user objects, and internal state. Actionable failures go to
+ * Sentry through this single boundary.
  *
- * Prefer this over calling `console` directly. Release builds additionally run
- * babel-plugin-transform-remove-console, so any stray `console` call is
- * stripped rather than shipped.
+ * Prefer this over calling `console` directly.
  */
 
-const isDev = __DEV__;
-
 export const logger = {
-  debug(...args: unknown[]): void {
-    if (isDev) {
-      console.debug(...args);
-    }
-  },
-
-  log(...args: unknown[]): void {
-    if (isDev) {
-      console.log(...args);
-    }
-  },
-
-  info(...args: unknown[]): void {
-    if (isDev) {
-      console.info(...args);
-    }
-  },
-
-  warn(...args: unknown[]): void {
-    if (isDev) {
-      console.warn(...args);
-    }
-  },
-
   /**
-   * Reports an error. In production this is the only level that survives, so
-   * it should carry enough context to diagnose the failure without a console.
+   * Reports an error without printing potentially sensitive diagnostic data.
    */
   error(...args: unknown[]): void {
-    if (isDev) {
-      console.error(...args);
-      return;
-    }
-
     const cause = args.find((arg): arg is Error => arg instanceof Error);
     const message = args
       .filter((arg) => typeof arg === 'string')

@@ -1,3 +1,5 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT_EXTENDED } from '@/constants/Gradients';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -9,7 +11,6 @@ import {
   Platform,
   Image,
   StatusBar,
-  SafeAreaView,
   StyleSheet,
   ScrollView,
   ActivityIndicator
@@ -491,7 +492,7 @@ export default function StreamTitleScreen() {
                         className="p-3 text-center text-xs"
                         style={{ color: PLACEHOLDER, fontFamily: fonts.regular }}
                       >
-                        No one found for "{debouncedGuestQuery}"
+                        No one found for “{debouncedGuestQuery}”
                       </Text>
                     ) : (
                       <ScrollView keyboardShouldPersistTaps="handled">
@@ -523,11 +524,10 @@ export default function StreamTitleScreen() {
             onPress={handleProceed}
             disabled={!title.trim()}
           >
-            {/* The design's gradient runs red -> #330000 between 46.4% and
-                166.2%, so only the first ~45% of the ramp is on screen: the
-                right edge lands on #A40000, not full #330000. */}
+            {/* The extended brand gradient keeps this wide action vivid while
+                ending in a warm red instead of a near-black stop. */}
             <LinearGradient
-              colors={['#FF0000', '#FF0000', '#A40000']}
+              colors={BRAND_GRADIENT_EXTENDED}
               locations={[0, 0.464, 1]}
               start={{ x: 0, y: 0.5 }}
               end={{ x: 1, y: 0.5 }}

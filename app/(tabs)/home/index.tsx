@@ -1,8 +1,9 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React from 'react';
 import { 
   View, 
   Text, 
-  SafeAreaView, 
+
   ScrollView, 
   Image, 
   TouchableOpacity, 
@@ -151,7 +152,7 @@ export default function HomeScreen() {
   }, []);
 
   return (
-    <SafeAreaView className="flex-1 bg-[#090909]">
+    <SafeAreaView edges={['top', 'left', 'right']} className="flex-1 bg-[#090909]">
       <TouchableWithoutFeedback onPress={dismissKeyboard}>
         <ScrollView 
           scrollEnabled={!isSearching}

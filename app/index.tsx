@@ -1,96 +1,69 @@
-import React from 'react';
-import { Image } from 'expo-image';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Text, TouchableOpacity, View, StyleSheet } from 'react-native';
+import { Image, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { markOnboardingSeen } from '../src/hooks/useAuthRouting';
 
-const FLOATING_ICONS = [
-  { style: 'top-0 right-1/4' },
-  { style: 'top-10 left-1/4' },
-  { style: 'top-20 right-1/3' },
-  { style: 'top-5 right-1/3' },
-  { style: 'top-15 left-1/3' }
-];
-
-const styles = StyleSheet.create({
-  button: {
-    width: '100%',
-    height: 72,
-    borderRadius: 36,
-    overflow: 'hidden'
-  },
-  gradient: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center'
-  }
-});
-
 export default function OnboardingScreen() {
-  const handleGetStarted = async () => {
-    // Mark that user has seen onboarding
+  const continueTo = async (route: '/(auth)/signup' | '/(auth)/signin') => {
     await markOnboardingSeen();
-    // Navigate to signup
-    router.push('/(auth)/signup');
+    router.push(route);
   };
 
   return (
-    <View className="flex-1">
+    <View className="flex-1 bg-black">
       <StatusBar style="light" />
-      <Image
-        source={require('../assets/images/onboarding-img.jpg')}
-        style={[StyleSheet.absoluteFillObject]}
-        contentFit="cover"
-        contentPosition="top"
-      />
-      
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.5)' }]} />
+      <SafeAreaView edges={['top', 'bottom', 'left', 'right']} className="flex-1 px-6">
+        <View className="flex-row items-center gap-3 pt-4">
+          <View className="h-11 w-11 items-center justify-center rounded-2xl border border-[#2C2C2E] bg-[#1C1C1E]">
+            <Image
+              source={require('../assets/images/Logo.png')}
+              className="h-7 w-7"
+              resizeMode="contain"
+            />
+          </View>
+          <Text className="text-xl font-bold text-white">DareMeLive</Text>
+        </View>
 
-      <SafeAreaView edges={['bottom']} className="flex-1">
-        <View className="flex-1 justify-end pb-16 px-6">
-          <Text className="text-white text-3xl font-bold mb-4 text-center">
-            Go Live. Connect. Engage.
+        <View className="flex-1 justify-center pb-12">
+          <View className="mb-6 h-1 w-12 rounded-full bg-[#C42720]" />
+          <Text className="text-[42px] font-bold leading-[50px] text-white">
+            Live moments,{`\n`}shared together.
           </Text>
-          <Text className="text-white/80 text-lg mb-8 text-center">
-            Broadcast yourself, interact with fans, and enjoy real-time entertainment—anytime, anywhere!
+          <Text className="mt-5 max-w-[340px] text-[17px] leading-7 text-gray-400">
+            Start a stream, bring viewers on screen, and connect in real time.
           </Text>
+        </View>
 
-          {/* <TouchableOpacity 
-            style={styles.button}
-            activeOpacity={0.8}
-            onPress={() => router.push('/(auth)/signup')}
-          >
+        <View className="pb-3">
+          <View className="h-[52px] overflow-hidden rounded-full">
             <LinearGradient
-              colors={['#FF0000', '#330000']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.gradient}
-            >
-              <Text className="text-white text-lg font-semibold">
-                Get Started
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity> */}
-          <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
-            <LinearGradient
-              colors={['#FF0000', '#330000']}
+              colors={BRAND_GRADIENT}
               locations={[0, 1]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              className="w-full h-full"
+              className="h-full w-full"
             >
-              <TouchableOpacity 
-                className="w-full h-full items-center justify-center"
-                onPress={handleGetStarted}
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Get started with DareMeLive"
+                activeOpacity={0.85}
+                className="h-full w-full items-center justify-center"
+                onPress={() => void continueTo('/(auth)/signup')}
               >
-                <Text className="text-white text-[17px] font-semibold">Get Started</Text>
+                <Text className="text-[17px] font-semibold text-white">Get Started</Text>
               </TouchableOpacity>
             </LinearGradient>
-        </View>
+          </View>
+
+          <View className="mt-6 flex-row justify-center">
+            <Text className="text-gray-400">Already have an account? </Text>
+            <TouchableOpacity onPress={() => void continueTo('/(auth)/signin')}>
+              <Text className="font-semibold text-[#C42720]">Sign In</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     </View>

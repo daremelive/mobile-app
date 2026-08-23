@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl, Alert, Animated, Dimensions, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl, Alert, Animated, Dimensions, FlatList } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -15,47 +16,47 @@ const { width: screenWidth } = Dimensions.get('window');
 
 // Notification type categories with beautiful icons and colors
 const NOTIFICATION_CATEGORIES = [
-  { 
-    id: 'all', 
-    label: 'All', 
+  {
+    id: 'all',
+    label: 'All',
     icon: 'notifications',
     gradient: ['#FF6B6B', '#4ECDC4'],
-    count: 0 
+    count: 0
   },
-  { 
-    id: 'stream_invitation', 
-    label: 'Streams', 
+  {
+    id: 'stream_invitation',
+    label: 'Streams',
     icon: 'live-tv',
     gradient: ['#FF9A9E', '#FECFEF'],
-    count: 0 
+    count: 0
   },
-  { 
-    id: 'stream_invite', 
-    label: 'Invites', 
+  {
+    id: 'stream_invite',
+    label: 'Invites',
     icon: 'live-tv',
     gradient: ['#FF9A9E', '#FECFEF'],
-    count: 0 
+    count: 0
   },
-  { 
-    id: 'follow', 
-    label: 'Followers', 
+  {
+    id: 'follow',
+    label: 'Followers',
     icon: 'person-add',
     gradient: ['#A8EDEA', '#FED6E3'],
-    count: 0 
+    count: 0
   },
-  { 
-    id: 'gift', 
-    label: 'Gifts', 
+  {
+    id: 'gift',
+    label: 'Gifts',
     icon: 'card-giftcard',
     gradient: ['#FFECD2', '#FCB69F'],
-    count: 0 
+    count: 0
   },
-  { 
-    id: 'like', 
-    label: 'Likes', 
+  {
+    id: 'like',
+    label: 'Likes',
     icon: 'favorite',
     gradient: ['#FF8A80', '#FF80AB'],
-    count: 0 
+    count: 0
   }
 ];
 
@@ -66,14 +67,14 @@ const NotificationInboxScreen = () => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
-  
+
   // RTK Query hooks
   const { data, isLoading, refetch } = useGetInboxNotificationsQuery();
   const notifications = data?.notifications || [];
   const [markAsRead] = useMarkInboxNotificationAsReadMutation();
   const [clearAllNotifications] = useClearAllInboxNotificationsMutation();
   const [clearNotification] = useClearInboxNotificationMutation();
-  
+
   // Stream invitation hooks
   const [acceptInvite] = useAcceptInviteMutation();
   const [declineInvite] = useDeclineInviteMutation();
@@ -127,7 +128,7 @@ const NotificationInboxScreen = () => {
 
       await acceptInvite(streamId).unwrap();
       await markAsRead(notification.id).unwrap();
-      
+
       Alert.alert(
         'Invitation Accepted!',
         'You have successfully joined the stream.',
@@ -145,7 +146,7 @@ const NotificationInboxScreen = () => {
           }
         ]
       );
-      
+
       refetch(); // Refresh notifications
     } catch (error: any) {
       Alert.alert('Error', error?.data?.error || 'Failed to accept invitation');
@@ -163,7 +164,7 @@ const NotificationInboxScreen = () => {
 
       await declineInvite(streamId).unwrap();
       await markAsRead(notification.id).unwrap();
-      
+
       Alert.alert('Invitation Declined', 'The host has been notified of your decision.');
       refetch(); // Refresh notifications
     } catch (error: any) {
@@ -245,7 +246,7 @@ const NotificationInboxScreen = () => {
           if (notification.related_object?.stream_id || notification.extra_data?.stream_id) {
             const streamId = notification.related_object?.stream_id || notification.extra_data?.stream_id;
             const streamMode = notification.extra_data?.stream_mode || 'single';
-            
+
             // For guest invitations to multi-streams, navigate to participant page
             if (streamMode === 'multi') {
               router.push(`/stream/multi/${streamId}` as any);
@@ -297,7 +298,7 @@ const NotificationInboxScreen = () => {
     const now = new Date().getTime();
     const notificationTime = new Date(dateString).getTime();
     const diffInHours = Math.floor((now - notificationTime) / (1000 * 60 * 60));
-    
+
     if (diffInHours < 1) return 'Just now';
     if (diffInHours < 24) return `${diffInHours}h ago`;
     const diffInDays = Math.floor(diffInHours / 24);
@@ -307,14 +308,14 @@ const NotificationInboxScreen = () => {
 
   const renderCategoryTab = ({ item, index }: { item: any, index: number }) => {
     const isSelected = selectedCategory === item.id;
-    
+
     return (
       <TouchableOpacity
         onPress={() => setSelectedCategory(item.id)}
         className="mr-3"
-        style={{ 
-          transform: [{ 
-            scale: isSelected ? 1.05 : 1 
+        style={{
+          transform: [{
+            scale: isSelected ? 1.05 : 1
           }]
         }}
       >
@@ -329,14 +330,14 @@ const NotificationInboxScreen = () => {
           ) : (
             <View className="absolute inset-0 bg-gray-800/40 rounded-2xl" />
           )}
-          
+
           <View className="flex-row items-center">
-            <MaterialIcons 
-              name={item.icon} 
-              size={20} 
-              color={isSelected ? '#FFFFFF' : '#9CA3AF'} 
+            <MaterialIcons
+              name={item.icon}
+              size={20}
+              color={isSelected ? '#FFFFFF' : '#9CA3AF'}
             />
-            <Text 
+            <Text
               className={`ml-2 font-semibold ${isSelected ? 'text-white' : 'text-gray-400'}`}
               style={{ fontFamily: fonts.semiBold }}
             >
@@ -344,7 +345,7 @@ const NotificationInboxScreen = () => {
             </Text>
             {item.count > 0 && (
               <View className={`ml-2 px-2 py-1 rounded-full ${isSelected ? 'bg-white/20' : 'bg-red-500'}`}>
-                <Text 
+                <Text
                   className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-white'}`}
                   style={{ fontFamily: fonts.bold }}
                 >
@@ -367,7 +368,7 @@ const NotificationInboxScreen = () => {
         >
           <View className="bg-gray-900/60 backdrop-blur-xl rounded-3xl p-4 border border-gray-700/30">
             <BlurView intensity={20} className="absolute inset-0 rounded-3xl" />
-            
+
             <View className="flex-row items-start space-x-4">
               {/* Notification Icon with Gradient */}
               <View className="relative">
@@ -378,14 +379,14 @@ const NotificationInboxScreen = () => {
                     end={{ x: 1, y: 1 }}
                     className="w-full h-full items-center justify-center"
                   >
-                    <MaterialIcons 
-                      name={getNotificationIcon(item.notification_type)} 
-                      size={28} 
-                      color="white" 
+                    <MaterialIcons
+                      name={getNotificationIcon(item.notification_type)}
+                      size={28}
+                      color="white"
                     />
                   </LinearGradient>
                 </View>
-                
+
                 {!item.is_read && (
                   <View className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-gray-900" />
                 )}
@@ -393,15 +394,15 @@ const NotificationInboxScreen = () => {
 
               {/* Notification Content */}
               <View className="flex-1">
-                <Text 
+                <Text
                   className={`text-lg font-bold mb-1 ${!item.is_read ? 'text-white' : 'text-gray-300'}`}
                   style={{ fontFamily: fonts.bold }}
                   numberOfLines={1}
                 >
                   {item.title}
                 </Text>
-                
-                <Text 
+
+                <Text
                   className={`text-sm mb-2 leading-5 ${!item.is_read ? 'text-gray-200' : 'text-gray-400'}`}
                   style={{ fontFamily: fonts.regular }}
                   numberOfLines={2}
@@ -413,14 +414,14 @@ const NotificationInboxScreen = () => {
                 {item.sender && (
                   <View className="flex-row items-center mb-3">
                     <View className="w-6 h-6 rounded-full bg-red-500 items-center justify-center mr-2">
-                      <Text 
+                      <Text
                         className="text-white text-xs font-bold"
                         style={{ fontFamily: fonts.bold }}
                       >
                         {item.sender.username?.charAt(0).toUpperCase() || 'U'}
                       </Text>
                     </View>
-                    <Text 
+                    <Text
                       className="text-gray-400 text-sm font-medium"
                       style={{ fontFamily: fonts.medium }}
                     >
@@ -431,13 +432,13 @@ const NotificationInboxScreen = () => {
 
                 {/* Time and Action */}
                 <View className="flex-row items-center justify-between">
-                  <Text 
+                  <Text
                     className="text-gray-500 text-xs"
                     style={{ fontFamily: fonts.regular }}
                   >
                     {formatTimeAgo(item.created_at)}
                   </Text>
-                  
+
                   {/* Different actions based on notification type */}
                   {(item.notification_type === 'stream_invite' || item.notification_type === 'stream_invitation') ? (
                     <View className="flex-row space-x-2">
@@ -445,14 +446,14 @@ const NotificationInboxScreen = () => {
                         onPress={() => handleDeclineInvitation(item)}
                         className="px-3 py-2 rounded-full bg-gray-700/50 border border-gray-600"
                       >
-                        <Text 
+                        <Text
                           className="text-gray-300 text-xs font-semibold"
                           style={{ fontFamily: fonts.semiBold }}
                         >
                           Decline
                         </Text>
                       </TouchableOpacity>
-                      
+
                       <TouchableOpacity
                         onPress={() => handleAcceptInvitation(item)}
                         className="px-3 py-2 rounded-full overflow-hidden"
@@ -463,7 +464,7 @@ const NotificationInboxScreen = () => {
                           end={{ x: 1, y: 0 }}
                           className="px-3 py-2 items-center justify-center"
                         >
-                          <Text 
+                          <Text
                             className="text-white text-xs font-semibold"
                             style={{ fontFamily: fonts.semiBold }}
                           >
@@ -483,7 +484,7 @@ const NotificationInboxScreen = () => {
                         end={{ x: 1, y: 0 }}
                         className="px-4 py-2 items-center justify-center"
                       >
-                        <Text 
+                        <Text
                           className="text-white text-xs font-semibold"
                           style={{ fontFamily: fonts.semiBold }}
                         >
@@ -525,19 +526,19 @@ const NotificationInboxScreen = () => {
   return (
     <SafeAreaView className="flex-1 bg-[#0B0B0B]">
       <StatusBar style="light" />
-      
+
       {/* Minimal Header */}
       <Animated.View
         style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}
       >
         <View className="border-b border-[#1E1E1E] px-6 pt-4 pb-5 flex-row items-center justify-between">
-        <TouchableOpacity 
-          onPress={() => router.back()} 
+        <TouchableOpacity
+          onPress={() => router.back()}
             className="w-10 h-10 rounded-full bg-[#151515] items-center justify-center"
         >
           <ArrowLeftIcon width={20} height={20} />
         </TouchableOpacity>
-        
+
           <View className="items-center">
             <View className="flex-row items-center">
               <Text style={{ fontFamily: fonts.bold }} className="text-white text-xl">
@@ -558,7 +559,7 @@ const NotificationInboxScreen = () => {
             >
               <MaterialIcons name="refresh" size={20} color="#C42720" />
             </TouchableOpacity>
-            
+
             {notifications.length > 0 && (
               <TouchableOpacity
                 onPress={handleClearAll}
@@ -590,8 +591,8 @@ const NotificationInboxScreen = () => {
                     size={16}
                     color={isSelected ? '#FFFFFF' : '#9CA3AF'}
                   />
-                  <Text 
-                    style={{ fontFamily: fonts.semiBold }} 
+                  <Text
+                    style={{ fontFamily: fonts.semiBold }}
                     className={`ml-2 text-sm ${isSelected ? 'text-white' : 'text-[#CFCFCF]'}`}
                   >
                     {item.label}
@@ -602,7 +603,7 @@ const NotificationInboxScreen = () => {
                         isSelected ? 'bg-white/15' : 'bg-[#232323]'
                       }`}
                     >
-                  <Text 
+                  <Text
                         style={{ fontFamily: fonts.bold }}
                         className={`text-2xs ${isSelected ? 'text-white' : 'text-[#A5A5A5]'}`}
                       >
@@ -636,7 +637,7 @@ const NotificationInboxScreen = () => {
               className="text-white text-xl font-semibold mt-4"
               style={{ fontFamily: fonts.semiBold }}
             >
-              You're all caught up
+              You’re all caught up
             </Text>
             <Text className="text-[#9CA3AF] mt-2 text-center" style={{ fontFamily: fonts.regular }}>
               New notifications will show up here.
@@ -676,7 +677,7 @@ const NotificationInboxScreen = () => {
                           <MaterialIcons name="chevron-right" size={22} color="#6B7280" />
                         </View>
                       </View>
-                      
+
                       <View className="flex-col items-center gap-2 ml-2">
                         {!item.is_read && <View className="w-2 h-2 bg-[#C42720] rounded-full" />}
                         <TouchableOpacity

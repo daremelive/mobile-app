@@ -1,5 +1,7 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, ScrollView, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,20 +21,13 @@ const INTERESTS = [
 
 export default function SignupThreeScreen() {
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
-  
+
   const dispatch = useDispatch();
   const currentUser = useSelector(selectCurrentUser);
   const [updateProfile, { isLoading }] = useUpdateProfileMutation();
 
   // Log authentication status for debugging
   React.useEffect(() => {
-    logger.log('Signup-three mounted:', {
-      currentUser: !!currentUser,
-      email: currentUser?.email,
-      username: currentUser?.username,
-      profileCompleted: currentUser?.profile_completed,
-      vipLevel: currentUser?.vip_level
-    });
   }, []);
 
   // Don't redirect automatically - let user manually go back if needed
@@ -50,23 +45,12 @@ export default function SignupThreeScreen() {
     try {
       // Convert array to comma-separated string as backend expects
       const interestsString = selectedInterests.join(', ');
-      
-      logger.log('Saving interests:', selectedInterests);
-      logger.log('Interests string:', interestsString);
-      logger.log('Current user before save:', {
-        email: currentUser?.email,
-        username: currentUser?.username,
-        id: currentUser?.id,
-        profile_completed: currentUser?.profile_completed,
-        interests: currentUser?.interests
-      });
-      
+
+
       const result = await updateProfile({
         interests: interestsString,
       }).unwrap();
 
-      logger.log('Interests saved successfully:', result);
-      logger.log('Updated user profile_completed:', result.profile_completed);
 
       // Update user data in store
       dispatch(setUser(result));
@@ -74,7 +58,6 @@ export default function SignupThreeScreen() {
       // MARK ACCOUNT CREATION COMPLETE
       await markAccountCreated();
 
-      logger.log('Navigating to home screen');
       // Navigate to home with a clean slate
       router.dismissAll();
       router.replace('/(tabs)/home');
@@ -85,18 +68,10 @@ export default function SignupThreeScreen() {
   };
 
   const handleSkip = () => {
-    logger.log('⏭ Skipping interests selection');
-    logger.log('Current user before skip:', {
-      email: currentUser?.email,
-      username: currentUser?.username,
-      profile_completed: currentUser?.profile_completed,
-      interests: currentUser?.interests
-    });
-    
+
     // MARK ACCOUNT CREATION COMPLETE (even when skipping)
     markAccountCreated();
-    
-    logger.log('Navigating to home screen (skip)');
+
     // Navigate to home with a clean slate
     router.dismissAll();
     router.replace('/(tabs)/home');
@@ -105,7 +80,7 @@ export default function SignupThreeScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
       <StatusBar style="light" />
-      <ScrollView 
+      <ScrollView
         contentContainerClassName="flex-grow justify-between pb-10 pt-3"
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -113,7 +88,6 @@ export default function SignupThreeScreen() {
         <View className="px-6">
             <TouchableOpacity
               onPress={() => {
-                logger.log('Back button pressed from signup-three');
                 router.replace('/(auth)/signup-two');
               }}
               className="w-14 h-14 rounded-full bg-[#1C1C1E] items-center justify-center mb-6 self-start"
@@ -125,7 +99,7 @@ export default function SignupThreeScreen() {
               Personalize Your Experience
             </Text>
             <Text className="text-gray-400 text-base mb-10">
-              Select your interests to discover streams and content you'll love!
+              Select your interests to discover streams and content you’ll love!
             </Text>
 
             <View className="flex-row flex-wrap justify-start mb-10">
@@ -135,8 +109,8 @@ export default function SignupThreeScreen() {
                     <TouchableOpacity
                     key={interest}
                     onPress={() => toggleInterest(interest)}
-                    className={`flex-row items-center border rounded-xl px-3 py-2.5 mr-2.5 mb-3 h-[46px] 
-                                ${isSelected 
+                    className={`flex-row items-center border rounded-xl px-3 py-2.5 mr-2.5 mb-3 h-[46px]
+                                ${isSelected
                                   ? 'bg-[#C4272033] border-[#C42720]'
                                   : 'bg-[#1C1C1E] border-[#2C2C2E]'}`}
                     >
@@ -150,7 +124,7 @@ export default function SignupThreeScreen() {
             </View>
 
             {/* Skip option */}
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={handleSkip}
               className="items-center mb-6"
               disabled={isLoading}
@@ -158,11 +132,11 @@ export default function SignupThreeScreen() {
               <Text className="text-gray-400 text-base">Skip for now</Text>
             </TouchableOpacity>
         </View>
-          
+
         <View className="px-6 w-full mb-4">
             <View className="w-full h-[52px] rounded-full overflow-hidden">
                 <LinearGradient
-                colors={isLoading ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
+                colors={isLoading ? ['#666666', '#333333'] : BRAND_GRADIENT}
                 locations={[0, 1]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
@@ -183,4 +157,4 @@ export default function SignupThreeScreen() {
       </ScrollView>
     </SafeAreaView>
   );
-} 
+}

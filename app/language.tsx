@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,7 +8,6 @@ import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import { useTranslation } from '../src/hooks/useTranslation';
 import LanguageSelector from '../src/components/LanguageSelector';
 import { SUPPORTED_LANGUAGES } from '../src/i18n';
-import { logger } from '../src/utils/logger';
 
 const LanguageScreen = () => {
   const router = useRouter();
@@ -20,7 +20,6 @@ const LanguageScreen = () => {
   };
 
   const handleLanguageChange = (languageCode: string) => {
-    logger.log('Language changed to:', languageCode);
     // Could trigger a success toast here
   };
 

@@ -1,5 +1,6 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
@@ -88,7 +89,6 @@ const WithdrawMoneyScreen = () => {
             )}
             <WalletIcon width={50} height={50} className="ml-2" />
           </View>
-          <Text className="text-white/70 text-sm mt-1">Access Bank: 12393940408</Text>
         </View>
 
         <View className="mt-8">
@@ -132,4 +132,4 @@ const WithdrawMoneyScreen = () => {
   );
 };
 
-export default WithdrawMoneyScreen; 
+export default WithdrawMoneyScreen;

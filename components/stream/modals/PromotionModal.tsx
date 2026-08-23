@@ -51,7 +51,7 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
 
           {/* Title */}
           <Text className="text-white text-2xl font-bold text-center mb-3">
-            You're Invited!
+            You’re Invited!
           </Text>
 
           {/* Host info */}
@@ -61,13 +61,13 @@ export const PromotionModal: React.FC<PromotionModalProps> = ({
 
           {/* Stream title */}
           <Text className="text-gray-400 text-sm text-center mb-6">
-            "{streamTitle}"
+            “{streamTitle}”
           </Text>
 
           {/* Seat info */}
           <View className="bg-gray-800 rounded-xl px-4 py-3 mb-8 w-full">
             <Text className="text-gray-300 text-center text-sm">
-              You'll be assigned to{' '}
+              You’ll be assigned to{' '}
               <Text className="font-bold text-blue-400">Seat {seatNumber}</Text>
             </Text>
             <Text className="text-gray-500 text-center text-xs mt-1">

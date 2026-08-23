@@ -1,9 +1,11 @@
 import React from 'react';
 import { View, Text, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { fonts } from '../../../constants/Fonts';
 import type { StreamMessage } from '../../../src/store/streamsApi';
 import { ChatMessage, StreamChatOverlayProps } from './types';
+import { buildMediaURL, buildProfilePictureURL } from '../../../src/config/env';
 
 /** Design tokens from the live stream design. */
 const BUBBLE = 'rgba(38,38,38,0.5)';
@@ -50,15 +52,7 @@ export const StreamChatOverlay = ({
           if (streamMsg.user.profile_picture_url.startsWith('http')) {
             return streamMsg.user.profile_picture_url;
           }
-          // Use baseURL to construct full URL, removing /api/ if present
-          const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-          // Ensure no double slashes - normalize the path
-          const profilePath = streamMsg.user.profile_picture_url.startsWith('/')
-            ? streamMsg.user.profile_picture_url
-            : `/${streamMsg.user.profile_picture_url}`;
-          const fullUrl = `${webURL}${profilePath}`;
-
-          return fullUrl;
+          return buildProfilePictureURL(streamMsg.user.profile_picture_url);
         }
 
         // Check for profile_picture field as fallback
@@ -67,12 +61,7 @@ export const StreamChatOverlay = ({
           if (profilePicture.startsWith('http')) {
             return profilePicture;
           }
-          const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-          // Ensure no double slashes - normalize the path
-          const profilePath = profilePicture.startsWith('/')
-            ? profilePicture
-            : `/${profilePicture}`;
-          return `${webURL}${profilePath}`;
+          return buildProfilePictureURL(profilePicture);
         }
 
         return undefined;
@@ -188,15 +177,16 @@ export const StreamChatOverlay = ({
                             />
                           ) : (msg as ChatMessage).gift_icon && baseURL ? (
                             <Image
-                              source={{ uri: `${baseURL.replace('/api/', '')}/media/${(msg as ChatMessage).gift_icon!.replace(/^\//, '')}` }}
+                              source={{ uri: buildMediaURL(`/media/${(msg as ChatMessage).gift_icon!.replace(/^\/?(?:media\/)?/, '')}`) }}
                               style={{ width: 18, height: 18 }}
                               resizeMode="contain"
                             />
-                          ) : (
-                            /* Fallback to emoji icon */
+                          ) : (msg as ChatMessage).gift?.icon ? (
                             <Text style={{ fontSize: 16 }}>
-                              {(msg as ChatMessage).gift?.icon || '🎁'}
+                              {(msg as ChatMessage).gift?.icon}
                             </Text>
+                          ) : (
+                            <Ionicons name="gift-outline" size={16} color="#FFD700" />
                           )}
                         </View>
                       )}
@@ -217,7 +207,7 @@ export const StreamChatOverlay = ({
                             fontFamily: fonts.medium,
                             marginTop: 1
                           }}>
-                            💎 {(msg as ChatMessage).gift_cost} Riz
+                            {(msg as ChatMessage).gift_cost} Riz
                           </Text>
                         )}
                       </View>

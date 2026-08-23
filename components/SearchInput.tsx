@@ -29,9 +29,9 @@ interface SearchSuggestionsProps {
   onRemoveRecent: (index: number) => void;
 }
 
-const SearchSuggestions: React.FC<SearchSuggestionsProps> = React.memo(({ 
-  query, 
-  onSelectSuggestion, 
+const SearchSuggestions: React.FC<SearchSuggestionsProps> = React.memo(({
+  query,
+  onSelectSuggestion,
   recentSearches,
   onRemoveRecent
 }) => {
@@ -75,9 +75,9 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = React.memo(({
         <View>
           <Text style={{ fontFamily: fonts.semiBold }} className="text-[#757688] text-md mb-1 mt-6 ml-4">Recommended</Text>
           {filteredRecommended.map((item, index) => (
-            <TouchableOpacity 
-              onPress={() => onSelectSuggestion(item)} 
-              key={`rec-${index}`} 
+            <TouchableOpacity
+              onPress={() => onSelectSuggestion(item)}
+              key={`rec-${index}`}
               className="flex-row items-center py-2 px-4"
             >
               <View
@@ -102,9 +102,10 @@ const SearchSuggestions: React.FC<SearchSuggestionsProps> = React.memo(({
     </ScrollView>
   );
 });
+SearchSuggestions.displayName = 'SearchSuggestions';
 
-const SearchInput = forwardRef<TextInput, SearchInputProps>(({ 
-  autoFocus = false, 
+const SearchInput = forwardRef<TextInput, SearchInputProps>(({
+  autoFocus = false,
   onSearchSubmit,
   onSearchChange,
   initialQuery = '',
@@ -116,31 +117,31 @@ const SearchInput = forwardRef<TextInput, SearchInputProps>(({
 }, ref) => {
   const [searchQuery, setSearchQuery] = React.useState(initialQuery);
   const [recentSearches, setRecentSearches] = React.useState([
-    'Marriage Sacrifices', 
-    'Dating Life', 
-    'How to cook', 
-    'Gaming in SA', 
+    'Marriage Sacrifices',
+    'Dating Life',
+    'How to cook',
+    'Gaming in SA',
     'Mr & Mrs Kola'
   ]);
 
   // Debounce for realtime search
-  const debounceTimerRef = React.useRef<number | null>(null);
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = React.useCallback((text: string) => {
     setSearchQuery(text);
-    
+
     // Call immediate change handler if provided
     if (onSearchChange) {
       onSearchChange(text);
     }
-    
+
     // Handle realtime search with debouncing
     if (enableRealtimeSearch && onSearchSubmit) {
       // Clear existing debounce timer
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      
+
       // Set new debounce timer for 500ms delay
       if (text.trim().length > 0) {
         debounceTimerRef.current = setTimeout(() => {
@@ -172,7 +173,7 @@ const SearchInput = forwardRef<TextInput, SearchInputProps>(({
           }
           return prev;
         });
-        
+
         router.push({
           pathname: '/(tabs)/search',
           params: { query: trimmedQuery }
@@ -232,4 +233,4 @@ const SearchInput = forwardRef<TextInput, SearchInputProps>(({
 
 SearchInput.displayName = 'SearchInput';
 
-export default SearchInput; 
+export default SearchInput;

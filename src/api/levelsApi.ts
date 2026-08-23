@@ -1,6 +1,6 @@
-import { createApi, fetchBaseQuery, BaseQueryFn } from '@reduxjs/toolkit/query/react';
-import * as SecureStore from 'expo-secure-store';
+import { createApi } from '@reduxjs/toolkit/query/react';
 import { API_BASE_URL } from '../config/env';
+import { createAuthenticatedBaseQuery } from './authenticatedBaseQuery';
 
 // Import centralized types
 import type {
@@ -27,20 +27,7 @@ export type {
 };
 
 // Create base query for levels endpoints
-const baseQuery = fetchBaseQuery({
-  baseUrl: `${API_BASE_URL}levels/`,
-  prepareHeaders: async (headers) => {
-    try {
-      const token = await SecureStore.getItemAsync('accessToken');
-      if (token) {
-        headers.set('authorization', `Bearer ${token}`);
-      }
-    } catch (error) {
-      // Silent error handling
-    }
-    return headers;
-  },
-});
+const baseQuery = createAuthenticatedBaseQuery(`${API_BASE_URL}levels/`);
 
 export const levelsApi = createApi({
   reducerPath: 'levelsApi',

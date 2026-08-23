@@ -1,3 +1,4 @@
+import { DESTRUCTIVE_GRADIENT } from '@/constants/Gradients';
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -39,7 +40,7 @@ export const LeaveConfirmationModal = ({
           <View className="w-full space-y-3">
             <View className="w-full h-[52px] rounded-full overflow-hidden mb-6">
               <LinearGradient
-                colors={['#DC2626', '#7F1D1D']}
+                colors={DESTRUCTIVE_GRADIENT}
                 locations={[0, 1]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}

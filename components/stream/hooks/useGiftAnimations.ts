@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
 import { selectCurrentUser } from '../../../src/store/authSlice';
 import { GiftAnimationData, UseGiftAnimationsProps } from './types';
+import { buildMediaURL } from '../../../src/config/env';
 
 export { GiftAnimationData } from './types';
 
@@ -37,9 +38,8 @@ export const useGiftAnimations = ({ messages, baseURL }: UseGiftAnimationsProps)
           iconUrl = latestMessage.gift.icon_url;
         } else if (latestMessage.gift_icon && typeof latestMessage.gift_icon === 'string') {
           // Fallback to constructing URL from gift_icon path - use web URL not API URL
-          const cleanPath = latestMessage.gift_icon.startsWith('/') ? latestMessage.gift_icon.substring(1) : latestMessage.gift_icon;
-          const webURL = baseURL?.replace('/api/', '') || 'https://daremelive.pythonanywhere.com';
-          iconUrl = `${webURL}/media/${cleanPath}`;
+          const cleanPath = latestMessage.gift_icon.replace(/^\/?(?:media\/)?/, '');
+          iconUrl = buildMediaURL(`/media/${cleanPath}`);
         }
         
         const newGiftAnimation: GiftAnimationData = {
@@ -48,7 +48,7 @@ export const useGiftAnimations = ({ messages, baseURL }: UseGiftAnimationsProps)
             id: latestMessage.gift?.id || latestMessage.gift_id || 0,
             name: latestMessage.gift_name || latestMessage.gift?.name || 'Gift',
             icon_url: iconUrl,
-            icon: latestMessage.gift_icon || latestMessage.gift?.icon || '🎁',
+            icon: latestMessage.gift_icon || latestMessage.gift?.icon || '',
             cost: latestMessage.gift?.cost || latestMessage.gift_cost || 0
           },
           sender: {

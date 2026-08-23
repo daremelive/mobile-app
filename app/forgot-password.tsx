@@ -1,5 +1,7 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
-import { View, Text, SafeAreaView, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useDispatch } from 'react-redux';
@@ -47,8 +49,8 @@ const ForgotPasswordScreen = () => {
     <SafeAreaView className="flex-1 bg-black">
       <StatusBar style="light" />
       <View className="px-6 pt-4">
-        <TouchableOpacity 
-          onPress={() => router.back()} 
+        <TouchableOpacity
+          onPress={() => router.back()}
           className="w-14 h-14 rounded-full bg-[#1E1E1E] items-center justify-center"
         >
           <ArrowLeftIcon width={24} height={24} />
@@ -59,10 +61,10 @@ const ForgotPasswordScreen = () => {
         <View className="w-16 h-16 rounded-full bg-[#1C1C1E] border border-[#2C2C2E] items-center justify-center mb-6">
           <LockPasswordIcon width={32} height={32} />
         </View>
-        
+
         <Text className="text-white text-3xl font-bold mb-3">Forgot Password</Text>
         <Text className="text-gray-400 text-base mb-10">
-          Enter your email address, and we'll send you a code to reset your password.
+          Enter your email address, and we’ll send you a code to reset your password.
         </Text>
 
         <View className="mb-6">
@@ -81,13 +83,13 @@ const ForgotPasswordScreen = () => {
 
         {/* <View className="mt-auto mb-8">
             <LinearGradient
-                colors={['#FF0000', '#330000']}
+                colors={BRAND_GRADIENT}
                 locations={[0, 1]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 className="w-full rounded-full"
             >
-                <TouchableOpacity 
+                <TouchableOpacity
                     className="w-full h-[52px] items-center justify-center"
                     onPress={() => router.push('/(auth)/verify')}
                 >
@@ -97,13 +99,13 @@ const ForgotPasswordScreen = () => {
         </View> */}
         <View className="w-full h-[52px] rounded-full overflow-hidden mb-6 mt-4">
           <LinearGradient
-            colors={isLoading ? ['#666666', '#333333'] : ['#FF0000', '#330000']}
+            colors={isLoading ? ['#666666', '#333333'] : BRAND_GRADIENT}
             locations={[0, 1]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             className="w-full h-full"
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               className="w-full h-full items-center justify-center"
               onPress={handleSendResetCode}
               disabled={isLoading}
@@ -119,4 +121,4 @@ const ForgotPasswordScreen = () => {
   );
 };
 
-export default ForgotPasswordScreen; 
+export default ForgotPasswordScreen;

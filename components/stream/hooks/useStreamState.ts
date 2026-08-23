@@ -21,6 +21,7 @@ import {
 } from '../../../types/hooks/stream';
 import { StreamState, ConnectionState } from '../../../types/stream/state';
 import { StreamActions } from '../../../types/stream/actions';
+import { MEDIA_BASE_URL } from '../../../src/config/env';
 
 export const useStreamState = ({
   streamId,
@@ -84,7 +85,7 @@ export const useStreamState = ({
   // Initialize base URL
   useEffect(() => {
     const initializeBaseURL = () => {
-      setBaseURL('https://daremelive.pythonanywhere.com');
+      setBaseURL(MEDIA_BASE_URL);
     };
 
     initializeBaseURL();
@@ -170,7 +171,7 @@ export const useStreamState = ({
     setIsConnecting(true);
     initializationInProgress.current = true;
 
-    let initTimeoutRef: number | null = null;
+    let initTimeoutRef: ReturnType<typeof setTimeout> | null = null;
 
     try {
       const connectionTimeout = __DEV__ ? 20000 : 45000;
@@ -291,11 +292,7 @@ export const useStreamState = ({
         await newCall.join({
           create: false,
           ring: false,
-          notify: false,
-          data: {
-            viewerOnly: true,
-            role: 'viewer'
-          }
+          notify: false
         });
 
         setIsConnecting(false);
@@ -494,7 +491,7 @@ export const useStreamState = ({
     // Flatten state properties
     ...state,
 
-    // Flatten action properties  
+    // Flatten action properties
     ...actions,
 
     // Additional computed values
