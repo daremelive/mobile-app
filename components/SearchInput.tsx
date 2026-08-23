@@ -125,7 +125,7 @@ const SearchInput = forwardRef<TextInput, SearchInputProps>(({
   ]);
 
   // Debounce for realtime search
-  const debounceTimerRef = React.useRef<number | null>(null);
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearchChange = React.useCallback((text: string) => {
     setSearchQuery(text);

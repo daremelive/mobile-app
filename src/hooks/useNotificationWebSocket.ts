@@ -43,7 +43,7 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<number | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttempts = useRef(0);
   const connectRef = useRef<() => Promise<void>>(async () => undefined);
   const callbacksRef = useRef({
@@ -158,7 +158,7 @@ export const useNotificationWebSocket = (options: UseNotificationWebSocketOption
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttempts.current++;
             void connectRef.current();
-          }, delay) as any;
+          }, delay);
         }
       };
 

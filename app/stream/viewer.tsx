@@ -395,7 +395,7 @@ export default function UnifiedViewerStreamScreen() {
   const [hostProfilePictureUrl, setHostProfilePictureUrl] = useState<string>('');
   const [viewerProfilePictureUrl, setViewerProfilePictureUrl] = useState<string>('');
 
-  const initializationTimeoutRef = useRef<number | null>(null);
+  const initializationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [realtimeMessages, setRealtimeMessages] = useState<RealtimeMessages>([]);
 
