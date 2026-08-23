@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -59,7 +60,7 @@ const UnlockLevelScreen = () => {
       refetchSummary();
       refetchTiers();
     } catch (error: any) {
-      const errorMessage = error?.data?.tier_id?.[0] || error?.data?.detail || error?.data?.message || 'Failed to unlock level. Please try again.';
+      const errorMessage = getErrorMessage(error);
       
       Alert.alert(
         'Unlock Failed', 

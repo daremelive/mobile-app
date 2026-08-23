@@ -1,8 +1,9 @@
 import React, { createContext, useContext } from 'react';
 import { useNotificationWebSocket } from '../hooks/useNotificationWebSocket';
 import { notificationApi, useGetNotificationStatsQuery } from '../api/notificationApi';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { logger } from '../utils/logger';
+import type { RootState } from '../store';
 
 interface NotificationContextType {
   isConnected: boolean;
@@ -33,6 +34,7 @@ interface NotificationProviderProps {
 
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
   const dispatch = useDispatch();
+  const isAuthenticated = useSelector((state: RootState) => state.auth.isAuthenticated);
 
   const {
     isConnected,
@@ -67,18 +69,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
       logger.error('[NotificationProvider] WebSocket error:', error);
     },
 
-    autoConnect: true
+    autoConnect: isAuthenticated
   });
 
   // REST polling provides graceful recovery while the socket is disconnected.
   const { data: pollingStats } = useGetNotificationStatsQuery(undefined, {
-    pollingInterval: isConnected ? 0 : 30_000,
-    skip: false,
+    pollingInterval: isAuthenticated && !isConnected ? 30_000 : 0,
+    skip: !isAuthenticated,
     refetchOnReconnect: true,
   });
 
   // Use WebSocket stats if connected, otherwise use polling stats
-  const stats = isConnected ? wsStats : (pollingStats || { total_notifications: 0, unread_notifications: 0 });
+  const stats = isAuthenticated && isConnected
+    ? wsStats
+    : (pollingStats || { total_notifications: 0, unread_notifications: 0 });
 
   const value: NotificationContextType = {
     isConnected,

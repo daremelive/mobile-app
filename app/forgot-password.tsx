@@ -10,6 +10,7 @@ import { usePasswordResetRequestMutation } from '../src/store/authApi';
 import ArrowLeftIcon from '../assets/icons/arrow-left.svg';
 import LockPasswordIcon from '../assets/icons/lock-password.svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { getErrorMessage, getFieldErrors } from '../src/utils/errorMessage';
 import { logger } from '../src/utils/logger';
 
 const ForgotPasswordScreen = () => {
@@ -37,11 +38,7 @@ const ForgotPasswordScreen = () => {
       router.push('/(auth)/verify-forgot-password');
     } catch (error: any) {
       logger.error('Password reset request error:', error);
-      if (error.data?.email?.[0]) {
-        Alert.alert('Error', error.data.email[0]);
-      } else {
-        Alert.alert('Error', 'Failed to send reset code. Please try again.');
-      }
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 

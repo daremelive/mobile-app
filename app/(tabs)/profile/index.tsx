@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../../../src/utils/errorMessage';
 import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, Share } from 'react-native';
@@ -131,7 +132,7 @@ const ProfileScreen = () => {
       setPendingPictureUri(null);
       Alert.alert(
         'Upload Failed',
-        error?.data?.error || 'Failed to upload profile picture. Please try again.'
+        getErrorMessage(error)
       );
     }
   };
@@ -194,7 +195,7 @@ const ProfileScreen = () => {
       });
     } catch (error) {
       logger.error('Failed to share profile:', error);
-      Alert.alert('Share Failed', 'Unable to share profile. Please try again.');
+      Alert.alert('Share Failed', getErrorMessage(error));
     }
   };
 

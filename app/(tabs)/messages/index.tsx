@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../../../src/utils/errorMessage';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, Image, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -164,7 +165,7 @@ export default function MessagesScreen() {
     try {
       router.push(`/(tabs)/messages/new-${userId}`);
     } catch (error) {
-      Alert.alert('Error', 'Failed to start conversation. Please try again.');
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 

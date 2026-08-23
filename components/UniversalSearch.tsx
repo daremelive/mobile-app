@@ -1,4 +1,5 @@
 import React from 'react';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import {
   View,
   Text,
@@ -145,7 +146,7 @@ const UserSearchResult = ({
       }
       onFollowChange?.();
     } catch (error: any) {
-      Alert.alert('Error', error.data?.message || 'Failed to update follow status');
+      Alert.alert('Error', getErrorMessage(error));
     }
   };
 

@@ -17,6 +17,7 @@ import LockPasswordIcon from '../assets/icons/lock-password.svg';
 import EyeOffIcon from '../assets/icons/eye-off.svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import CheckIcon from '../assets/icons/check.svg';
+import { getErrorMessage, getFieldErrors } from '../src/utils/errorMessage';
 import { logger } from '../src/utils/logger';
 
 const ResetPasswordScreen = () => {
@@ -90,20 +91,18 @@ const ResetPasswordScreen = () => {
       logger.error('Password reset error:', error);
       // A rejected token means the reset session lapsed, so the code has to be
       // requested and entered again from the start.
-      const tokenError = error.data?.error;
-      if (tokenError) {
+      const fields = getFieldErrors(error);
+      const passwordProblem = fields.new_password ?? fields.confirm_password;
+      if (passwordProblem) {
+        // The password itself was rejected, so the reset session is still good
+        // and the person only needs to choose a different password.
+        Alert.alert('Error', passwordProblem);
+      } else {
+        // Anything else means the reset session lapsed and has to restart.
         dispatch(clearPendingResetToken());
-        Alert.alert('Error', tokenError, [
+        Alert.alert('Error', getErrorMessage(error), [
           { text: 'OK', onPress: () => router.replace('/forgot-password') },
         ]);
-      } else if (error.data?.new_password?.[0]) {
-        Alert.alert('Error', error.data.new_password[0]);
-      } else if (error.data?.password) {
-        Alert.alert('Error', error.data.password);
-      } else if (error.data?.non_field_errors?.[0]) {
-        Alert.alert('Error', error.data.non_field_errors[0]);
-      } else {
-        Alert.alert('Error', 'Failed to reset password. Please try again.');
       }
     }
   };

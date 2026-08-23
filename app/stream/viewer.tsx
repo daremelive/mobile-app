@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../../src/utils/errorMessage';
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { View, Alert, ActivityIndicator, Text, TouchableOpacity, TouchableWithoutFeedback, Keyboard, AppState, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -795,7 +796,7 @@ export default function UnifiedViewerStreamScreen() {
           ]
         );
       } else {
-        Alert.alert(' Oops!', 'Something went wrong sending your gift. Please try again.');
+        Alert.alert(' Oops!', getErrorMessage(error));
       }
     } finally {
       setSendingGift(false);

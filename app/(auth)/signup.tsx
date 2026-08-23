@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage, getFieldErrors } from '../../src/utils/errorMessage';
 import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, Alert, ScrollView } from 'react-native';
@@ -78,14 +79,15 @@ export default function SignupScreen() {
       // Navigate to verification screen
       router.push('/verify');
     } catch (error: any) {
-      if (error.data?.email?.[0]) {
-        setEmailError(error.data.email[0]);
-      } else if (error.data?.password?.[0]) {
-        setPasswordError(error.data.password[0]);
-      } else if (error.data?.non_field_errors?.[0]) {
-        Alert.alert('Error', error.data.non_field_errors[0]);
-      } else {
-        Alert.alert('Error', 'Failed to create account. Please try again.');
+      // Field problems are shown under the input they belong to; anything else
+      // gets one plain sentence explaining what happened.
+      const fields = getFieldErrors(error);
+      if (fields.email) setEmailError(fields.email);
+      if (fields.password || fields.confirm_password) {
+        setPasswordError(fields.password ?? fields.confirm_password);
+      }
+      if (!fields.email && !fields.password && !fields.confirm_password) {
+        Alert.alert('Error', getErrorMessage(error));
       }
     }
   };

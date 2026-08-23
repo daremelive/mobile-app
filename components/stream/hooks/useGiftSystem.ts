@@ -1,4 +1,5 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
+import { getErrorMessage } from '../../../src/utils/errorMessage';
 import { Alert } from 'react-native';
 import { useGetGiftsQuery, useSendGiftMutation } from '../../../src/store/streamsApi';
 import { useGetWalletSummaryQuery, useGetCoinPackagesQuery, usePurchaseCoinsMutation } from '../../../src/api/walletApi';
@@ -117,7 +118,7 @@ export const useGiftSystem = ({ streamId, onGiftSent }: UseGiftSystemProps) => {
 
     } catch (error: any) {
       logger.error('Could not send gift', error);
-      Alert.alert('Error', 'Failed to send gift. Please try again.');
+      Alert.alert('Error', getErrorMessage(error));
     } finally {
       setSendingGift(false);
     }
@@ -143,7 +144,7 @@ export const useGiftSystem = ({ streamId, onGiftSent }: UseGiftSystemProps) => {
       Alert.alert('Success', `Successfully purchased ${packageData.coins} Riz!`);
     } catch (error: any) {
       logger.error('Could not purchase Riz', error);
-      Alert.alert('Error', 'Failed to purchase Riz. Please try again.');
+      Alert.alert('Error', getErrorMessage(error));
     }
   }, [purchaseCoins, refetchWallet, shouldOpenGiftModalAfterPurchase]);
 

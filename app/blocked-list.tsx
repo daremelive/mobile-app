@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState} from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, Image, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -50,7 +51,7 @@ const BlockedListScreen = () => {
               await unblockUser({ user_id: userId }).unwrap();
               refetch(); // Refresh the list
             } catch (error) {
-              Alert.alert('Error', 'Failed to unblock user. Please try again.');
+              Alert.alert('Error', getErrorMessage(error));
             }
           },
         },
