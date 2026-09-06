@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { KeyboardAwareScreen } from '../components/KeyboardAwareScreen';
 import { getErrorMessage } from '../src/utils/errorMessage';
 import {
   View,
@@ -9,7 +10,6 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  ScrollView,
   TextInput,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -373,7 +373,7 @@ export default function UserProfileScreen() {
                 </TouchableOpacity>
               </View>
             ) : (
-              <ScrollView className="mb-4" showsVerticalScrollIndicator={false}>
+              <KeyboardAwareScreen className="mb-4" showsVerticalScrollIndicator={false}>
                 {reportReasons.map((reason) => {
                   const selected = selectedReasonId === reason.id;
                   return (
@@ -396,7 +396,7 @@ export default function UserProfileScreen() {
                     </TouchableOpacity>
                   );
                 })}
-              </ScrollView>
+              </KeyboardAwareScreen>
             )}
 
             <TextInput

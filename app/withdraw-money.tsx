@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScreen } from '../components/KeyboardAwareScreen';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -62,6 +63,7 @@ const WithdrawMoneyScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
+      <KeyboardAwareScreen>
       <StatusBar style="light" />
       <View className="flex-row items-center relative px-4 pt-3 pb-3">
         <TouchableOpacity onPress={() => router.back()} className="absolute left-4 z-10">
@@ -128,6 +130,7 @@ const WithdrawMoneyScreen = () => {
           )}
         </TouchableOpacity>
       </View>
+          </KeyboardAwareScreen>
     </SafeAreaView>
   );
 };

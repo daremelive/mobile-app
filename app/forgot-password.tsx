@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScreen } from '../components/KeyboardAwareScreen';
 import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Alert } from 'react-native';
@@ -44,6 +45,7 @@ const ForgotPasswordScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-black">
+      <KeyboardAwareScreen>
       <StatusBar style="light" />
       <View className="px-6 pt-4">
         <TouchableOpacity
@@ -114,6 +116,7 @@ const ForgotPasswordScreen = () => {
           </LinearGradient>
         </View>
       </View>
+          </KeyboardAwareScreen>
     </SafeAreaView>
   );
 };

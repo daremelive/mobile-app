@@ -1,6 +1,7 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScreen } from '../components/KeyboardAwareScreen';
 import { getErrorMessage } from '../src/utils/errorMessage';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -86,6 +87,7 @@ const EditPhoneScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
+      <KeyboardAwareScreen>
       <StatusBar style="light" />
       <View className="flex-row items-center justify-between px-4 pt-3 pb-3 mb-4">
         <TouchableOpacity onPress={() => router.back()}>
@@ -170,6 +172,7 @@ const EditPhoneScreen = () => {
           </View>
         </View>
       </Modal>
+          </KeyboardAwareScreen>
     </SafeAreaView>
   );
 };

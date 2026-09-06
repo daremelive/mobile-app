@@ -69,6 +69,7 @@
     "react-native-country-picker-modal": "^2.0.0",
     "react-native-gesture-handler": "~2.24.0",
     "react-native-incall-manager": "^4.2.1",
+    "react-native-keyboard-controller": "^1.22.4",
     "react-native-localize": "^3.5.2",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
@@ -107,7 +108,7 @@
   "expo": {
     "autolinking": {
       "android": {
-        "comment": "expo-in-app-purchases is deprecated and its Android sources still use the pre-SDK-50 module API (ExportedModule/@ExpoMethod), which expo-modules-core 2.x removed, so Gradle cannot compile it. Purchases are iOS-only (see src/services/iapService.ts), so Android never loads it \u2014 excluding it here keeps the Android build green with no change in behaviour.",
+        "comment": "expo-in-app-purchases is deprecated and its Android sources still use the pre-SDK-50 module API (ExportedModule/@ExpoMethod), which expo-modules-core 2.x removed, so Gradle cannot compile it. Purchases are iOS-only (see src/services/iapService.ts), so Android never loads it — excluding it here keeps the Android build green with no change in behaviour.",
         "exclude": [
           "expo-in-app-purchases"
         ]

@@ -1,8 +1,9 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScreen } from '../../components/KeyboardAwareScreen';
 import { getErrorMessage } from '../../src/utils/errorMessage';
 import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, Alert } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -86,7 +87,7 @@ export default function SigninScreen() {
   return (
     <SafeAreaView className="flex-1 bg-black">
       <StatusBar style="light" />
-      <ScrollView
+      <KeyboardAwareScreen
         className="flex-1"
         contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
         showsVerticalScrollIndicator={false}
@@ -221,7 +222,7 @@ export default function SigninScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
+      </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }

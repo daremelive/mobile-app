@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScreen } from '../components/KeyboardAwareScreen';
 import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput } from 'react-native';
@@ -23,6 +24,7 @@ const IdentityVerificationScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-black">
+      <KeyboardAwareScreen>
       <StatusBar style="light" />
       <View className="flex-row items-center relative px-4 pt-3 pb-3 mb-6">
         <TouchableOpacity onPress={() => router.back()} className="absolute left-4 z-10 bg-[#1E1E1E] w-14 h-14 rounded-full justify-center items-center">
@@ -73,6 +75,7 @@ const IdentityVerificationScreen = () => {
         visible={isModalVisible}
         onClose={handleCloseModal}
       />
+          </KeyboardAwareScreen>
     </SafeAreaView>
   );
 };
