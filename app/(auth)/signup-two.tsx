@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScreen } from '../../components/KeyboardAwareScreen';
 import { getErrorMessage } from '../../src/utils/errorMessage';
 import { BRAND_GRADIENT } from '@/constants/Gradients';
 import React, { useState, useRef } from 'react';
@@ -7,12 +8,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   Keyboard,
-  TouchableWithoutFeedback
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -40,7 +38,6 @@ export default function SignupTwoScreen() {
   });
 
   // Refs for managing input focus
-  const scrollViewRef = useRef<ScrollView>(null);
   const usernameRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
   const addressRef = useRef<TextInput>(null);
@@ -153,33 +150,11 @@ export default function SignupTwoScreen() {
     Keyboard.dismiss();
   };
 
-  const scrollToInput = (inputRef: React.RefObject<TextInput | null>) => {
-    setTimeout(() => {
-      if (inputRef.current && scrollViewRef.current) {
-        inputRef.current.measureInWindow((x, y, width, height) => {
-          const scrollY = y - 100; // Offset to ensure input is visible above keyboard
-          scrollViewRef.current?.scrollTo({ y: Math.max(0, scrollY), animated: true });
-        });
-      }
-    }, 100);
-  };
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
       <StatusBar style="light" />
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        <TouchableWithoutFeedback onPress={dismissKeyboard}>
-          <ScrollView
-            ref={scrollViewRef}
-            contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-            bounces={false}
-          >
+      <KeyboardAwareScreen contentContainerStyle={{ paddingBottom: 40 }}>
             {/* Back Button */}
             <TouchableOpacity
               onPress={() => router.back()}
@@ -209,7 +184,6 @@ export default function SignupTwoScreen() {
                   setUsername(lowercaseText);
                   if (errors.username) setErrors(prev => ({ ...prev, username: '' }));
                 }}
-                onFocus={() => scrollToInput(usernameRef)}
                 placeholder="e.g jane_doe or john123"
                 placeholderTextColor="#6B7280"
                 className={`bg-[#1C1C1E] text-white px-4 py-3.5 rounded-full border h-[52px] ${
@@ -259,7 +233,6 @@ export default function SignupTwoScreen() {
                   setPhoneNumber(text);
                   if (errors.phoneNumber) setErrors(prev => ({ ...prev, phoneNumber: '' }));
                 }}
-                onFocus={() => scrollToInput(phoneRef)}
                 placeholder="Phone Number"
                 placeholderTextColor="#6B7280"
                 className="flex-1 bg-transparent text-white px-4 h-full"
@@ -303,7 +276,6 @@ export default function SignupTwoScreen() {
                 ref={addressRef}
                 value={address}
                 onChangeText={setAddress}
-                onFocus={() => scrollToInput(addressRef)}
                 placeholder="Enter your address"
                 placeholderTextColor="#6B7280"
                 className="bg-[#1C1C1E] text-white px-4 py-3.5 rounded-full border border-[#2C2C2E] h-[52px]"
@@ -393,9 +365,7 @@ export default function SignupTwoScreen() {
             </LinearGradient>
           </View>
             </View>
-          </ScrollView>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
     </SafeAreaView>
   );
 }

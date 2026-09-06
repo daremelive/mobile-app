@@ -10,6 +10,7 @@ import { useAuthSession } from '../src/hooks/useAuthSession';
 import { I18nextProvider } from 'react-i18next';
 import * as Sentry from '@sentry/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import i18n, { initializeLanguage } from '../src/i18n';
 import { logger } from '../src/utils/logger';
 import '../global.css';
@@ -77,15 +78,19 @@ function AppLayout() {
 
 function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <I18nextProvider i18n={i18n}>
-        <StoreProvider>
-          <NotificationProvider>
-            <AppLayout />
-          </NotificationProvider>
-        </StoreProvider>
-      </I18nextProvider>
-    </SafeAreaProvider>
+    // KeyboardProvider tracks the keyboard natively on both platforms and must
+    // sit above every screen, since KeyboardAwareScrollView reads from it.
+    <KeyboardProvider>
+      <SafeAreaProvider>
+        <I18nextProvider i18n={i18n}>
+          <StoreProvider>
+            <NotificationProvider>
+              <AppLayout />
+            </NotificationProvider>
+          </StoreProvider>
+        </I18nextProvider>
+      </SafeAreaProvider>
+    </KeyboardProvider>
   );
 }
 

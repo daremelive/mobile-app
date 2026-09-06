@@ -1,4 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScreen } from '../components/KeyboardAwareScreen';
 import { getErrorMessage } from '../src/utils/errorMessage';
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Alert } from 'react-native';
@@ -67,6 +68,7 @@ const EditUsernameScreen = () => {
 
   return (
     <SafeAreaView className="flex-1 bg-[#090909]">
+      <KeyboardAwareScreen>
       <StatusBar style="light" />
       <View className="flex-row items-center justify-between px-4 pt-3 pb-3 mb-4">
         <TouchableOpacity onPress={() => router.back()}>
@@ -99,6 +101,7 @@ const EditUsernameScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
+          </KeyboardAwareScreen>
     </SafeAreaView>
   );
 };
