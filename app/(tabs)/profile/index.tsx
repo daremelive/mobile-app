@@ -108,11 +108,18 @@ const ProfileScreen = () => {
         const image = result.assets[0];
         setPendingPictureUri(image.uri);
 
+        // mimeType, not type. ImagePicker's `type` is the media category
+        // ("image" / "video"), and sending that as a content type gives
+        // Android's networking layer something it cannot parse, so the upload
+        // fails before it leaves the device — surfacing as a connection error.
+        const mimeType = image.mimeType ?? 'image/jpeg';
+        const extension = mimeType.split('/')[1]?.split('+')[0] ?? 'jpg';
+
         const formData = new FormData();
         formData.append('profile_picture', {
           uri: image.uri,
-          type: image.type || 'image/jpeg',
-          name: 'profile.jpg',
+          type: mimeType,
+          name: `profile.${extension}`,
         } as any);
 
         const { user } = await uploadProfilePicture(formData).unwrap();
