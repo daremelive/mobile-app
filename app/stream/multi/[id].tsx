@@ -25,6 +25,9 @@ import {
 } from '../../../types/stream';
 import { logger } from '../../../src/utils/logger';
 
+// Joining normally takes a few seconds; well past that means it has stalled.
+const STALL_TIMEOUT_MS = 25000;
+
 export default function MultiParticipantJoinScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -53,6 +56,10 @@ export default function MultiParticipantJoinScreen() {
   const [forceHostSplitScreen, setForceHostSplitScreen] = useState(false);
   const [forceGridUpdate, setForceGridUpdate] = useState(0);
   const initTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Read by the stall watchdog, which fires long after the effect closed over
+  // its state and would otherwise always see the initial false.
+  const hasJoinedRef = useRef(false);
+  const stallGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
 
@@ -90,6 +97,7 @@ export default function MultiParticipantJoinScreen() {
         // Clear interval on cleanup
         const originalClearFn = () => {
           if (initTimeout.current) clearTimeout(initTimeout.current);
+          if (stallGuardRef.current) clearTimeout(stallGuardRef.current);
           if (connectionTimeout) clearTimeout(connectionTimeout);
           if (hostParticipantCheckTimeout) clearTimeout(hostParticipantCheckTimeout);
           clearInterval(cameraCheckInterval);
@@ -103,6 +111,7 @@ export default function MultiParticipantJoinScreen() {
     }
     return () => {
       if (initTimeout.current) clearTimeout(initTimeout.current);
+      if (stallGuardRef.current) clearTimeout(stallGuardRef.current);
       if (connectionTimeout) clearTimeout(connectionTimeout);
       if (hostParticipantCheckTimeout) clearTimeout(hostParticipantCheckTimeout);
       if (hasJoined) {
@@ -184,10 +193,36 @@ export default function MultiParticipantJoinScreen() {
     }, [hasJoined, isBusy])
   );
 
+  /**
+   * Fail loudly if joining stalls.
+   *
+   * Joining is a chain — token, client connect, call join — and any link can
+   * hang without ever rejecting. Hosts had no timeout at all, so a stalled join
+   * left "Starting your stream…" on screen forever, with no error and no way
+   * back. Armed per attempt, so a retry is guarded too.
+   */
+  const armStallGuard = () => {
+    if (stallGuardRef.current) clearTimeout(stallGuardRef.current);
+    stallGuardRef.current = setTimeout(() => {
+      if (hasJoinedRef.current) return;
+      setIsConnecting(false);
+      setIsBusy(false);
+      Alert.alert(
+        'Could not start your stream',
+        "We couldn't reach the live video service. Please check your connection and try again.",
+        [
+          { text: 'Try again', onPress: () => initializeParticipant() },
+          { text: 'Go back', style: 'cancel', onPress: () => router.back() },
+        ],
+      );
+    }, STALL_TIMEOUT_MS);
+  };
+
   const initializeParticipant = async () => {
     if (isBusy) return;
     setIsBusy(true);
     setIsConnecting(true);
+    armStallGuard();
 
     try {
       const streamUser = createStreamUser(currentUser!);
@@ -303,6 +338,11 @@ export default function MultiParticipantJoinScreen() {
 
       setCall(gCall);
       setHasJoined(true);
+      hasJoinedRef.current = true;
+      if (stallGuardRef.current) {
+        clearTimeout(stallGuardRef.current);
+        stallGuardRef.current = null;
+      }
       setIsConnecting(false);
 
       // CRITICAL: Final track publishing verification for promoted participants
@@ -502,6 +542,12 @@ export default function MultiParticipantJoinScreen() {
 
     } catch (error: any) {
       setIsConnecting(false);
+      // This path reports the failure itself, so the watchdog must not fire a
+      // second alert for the same attempt.
+      if (stallGuardRef.current) {
+        clearTimeout(stallGuardRef.current);
+        stallGuardRef.current = null;
+      }
 
       const errorMessage = error?.data?.error || error?.message || 'Unable to join as participant';
       const isNetworkError = errorMessage.includes('timeout') || errorMessage.includes('network') || errorMessage.includes('connection');
